@@ -464,10 +464,13 @@
 
 .lens-card-display {
   padding: 14 14 14 16;
+  margin-top: 10;
 }
 
 .lens-card-auto {
-  padding: 10 8 10 16;
+  /* Same top inset as the display-mode card beside it, so the two rows of
+     label + value line up. */
+  padding: 14 8 14 16;
   margin-top: 10;
 }
 
@@ -486,7 +489,8 @@
   font-family: "SpaceGrotesk-SemiBold";
   font-size: 16;
   color: #151515;
-  margin-top: 4;
+  /* The display-mode value beside it sits 4 below its label plus its row's 4. */
+  margin-top: 8;
 }
 
 .ns-dark .lens-auto-value {
@@ -519,18 +523,6 @@
 
 .lens-charging {
   margin-top: 8;
-}
-
-/* Charging-case level under the glasses battery, split off by a hairline. */
-.lens-case-row {
-  margin-top: 12;
-  padding-top: 10;
-  border-top-width: 1;
-  border-top-color: #D4D4D0;
-}
-
-.ns-dark .lens-case-row {
-  border-top-color: #363636;
 }
 
 /*
@@ -582,6 +574,10 @@ Switch.lens-switch {
   color: #D71921;
   background-color: #D4D4D0;
   height: 44;
+  /* The theme gives every Slider a 20/16 margin; the card's padding lays it
+     out vertically, so keep only the horizontal gap. */
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .ns-dark .lens-slider {

@@ -42,6 +42,12 @@ let lastMainTab: MainTab = "glasses";
 // Deliberately not in ui/dashboard-settings, which drives the glasses' menus.
 const MIRROR_MINIMIZED_KEY = "phoneUi.mirrorMinimized";
 
+/** A battery dot's class: each lit dot is 10%, rounded (72 -> seven). */
+function batteryDotClassFor(battery: number | null, index: number): string {
+  const lit = battery === null ? 0 : Math.round(battery / 10);
+  return index < lit ? "lens-dot lens-dot-lit" : "lens-dot";
+}
+
 export class MainViewModel extends RemoteControlsViewModel {
   private _status = "Disconnected.";
   private _displayPreview: ImageSource | null = null;
@@ -131,7 +137,14 @@ export class MainViewModel extends RemoteControlsViewModel {
         this._caseBattery = snapshot.caseBattery;
         this._caseCharging = snapshot.caseCharging;
         this.notifyPropertyChange("caseBatteryText", this.caseBatteryText);
-        this.notifyPropertyChange("caseBatteryVisibility", this.caseBatteryVisibility);
+        this.notifyPropertyChange("caseBatteryPercentVisibility", this.caseBatteryPercentVisibility);
+        this.notifyPropertyChange("caseStatusLabel", this.caseStatusLabel);
+        const caseDotClasses = [
+          this.caseDot1Class, this.caseDot2Class, this.caseDot3Class, this.caseDot4Class,
+          this.caseDot5Class, this.caseDot6Class, this.caseDot7Class, this.caseDot8Class,
+          this.caseDot9Class, this.caseDot10Class,
+        ];
+        caseDotClasses.forEach((dotClass, index) => this.notifyPropertyChange(`caseDot${index + 1}Class`, dotClass));
       }
       this.activeTextSettingId = snapshot.activeTextSettingId;
       this.activeTextEditorTitle = snapshot.activeTextEditorTitle;
@@ -253,9 +266,7 @@ export class MainViewModel extends RemoteControlsViewModel {
    * lays its generated items out vertically inside the horizontal dots row.
    */
   private batteryDotClass(index: number): string {
-    const battery = this._headsetBattery;
-    const lit = battery === null ? 0 : Math.round(battery / 10);
-    return index < lit ? "lens-dot lens-dot-lit" : "lens-dot";
+    return batteryDotClassFor(this._headsetBattery, index);
   }
 
   get batteryDot1Class(): string { return this.batteryDotClass(0); }
@@ -286,18 +297,38 @@ export class MainViewModel extends RemoteControlsViewModel {
   }
 
   /**
-   * The charging case's last-known level. The glasses only hear from the case
-   * while docked, and it only drains while charging them, so the last reading
-   * stays accurate after they are taken out.
+   * The charging case's card mirrors the glasses card: numerals, ten dots and
+   * a status line. The glasses only hear from the case while docked, and it
+   * only drains while charging them, so the last reading stays accurate after
+   * they are taken out; until one arrives the card says how to get it.
    */
   get caseBatteryText(): string {
-    if (this._caseBattery === null) return "";
-    return this._caseCharging ? `${this._caseBattery}% · Charging` : `${this._caseBattery}%`;
+    return this._caseBattery === null ? "--" : String(this._caseBattery);
   }
 
-  get caseBatteryVisibility(): "visible" | "collapse" {
+  get caseBatteryPercentVisibility(): "visible" | "collapse" {
     return this._caseBattery === null ? "collapse" : "visible";
   }
+
+  get caseStatusLabel(): string {
+    if (this._caseBattery === null) return "Read when docked";
+    return this._caseCharging ? "Charging" : "Not charging";
+  }
+
+  private caseDotClass(index: number): string {
+    return batteryDotClassFor(this._caseBattery, index);
+  }
+
+  get caseDot1Class(): string { return this.caseDotClass(0); }
+  get caseDot2Class(): string { return this.caseDotClass(1); }
+  get caseDot3Class(): string { return this.caseDotClass(2); }
+  get caseDot4Class(): string { return this.caseDotClass(3); }
+  get caseDot5Class(): string { return this.caseDotClass(4); }
+  get caseDot6Class(): string { return this.caseDotClass(5); }
+  get caseDot7Class(): string { return this.caseDotClass(6); }
+  get caseDot8Class(): string { return this.caseDotClass(7); }
+  get caseDot9Class(): string { return this.caseDotClass(8); }
+  get caseDot10Class(): string { return this.caseDotClass(9); }
 
   get displayPreview(): ImageSource | null {
     return this._displayPreview;

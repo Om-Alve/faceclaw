@@ -125,51 +125,63 @@
                             </GridLayout>
                         </StackLayout>
 
-                        <!-- Status: battery card left; display mode + auto right. -->
-                        <GridLayout columns="*,*" rows="auto" class="lens-status-grid">
-                            <GridLayout col="0" rows="auto" class="lens-card lens-card-battery" marginRight="5" verticalAlignment="top">
-                                <StackLayout>
-                                    <Label text="Glasses battery" class="lens-label" />
-                                    <GridLayout columns="auto,auto" rows="auto" horizontalAlignment="left" marginTop="4">
-                                        <Label col="0" text="{{ glassesBatteryText }}" class="lens-battery-value" />
-                                        <Label col="1" text="%" class="lens-battery-percent" visibility="{{ glassesBatteryPercentVisibility }}" />
-                                    </GridLayout>
-                                    <StackLayout orientation="horizontal" class="lens-dots">
-                                        <Label class="{{ batteryDot1Class }}" />
-                                        <Label class="{{ batteryDot2Class }}" />
-                                        <Label class="{{ batteryDot3Class }}" />
-                                        <Label class="{{ batteryDot4Class }}" />
-                                        <Label class="{{ batteryDot5Class }}" />
-                                        <Label class="{{ batteryDot6Class }}" />
-                                        <Label class="{{ batteryDot7Class }}" />
-                                        <Label class="{{ batteryDot8Class }}" />
-                                        <Label class="{{ batteryDot9Class }}" />
-                                        <Label class="{{ batteryDot10Class }}" />
-                                    </StackLayout>
-                                    <Label text="{{ glassesChargingLabel }}" class="lens-label lens-charging" />
-                                    <GridLayout columns="auto,*" rows="auto" class="lens-case-row" visibility="{{ caseBatteryVisibility }}">
-                                        <Label col="0" text="Case" class="lens-label" verticalAlignment="center" />
-                                        <Label col="1" text="{{ caseBatteryText }}" class="lens-label-fg" horizontalAlignment="right" verticalAlignment="center" textWrap="false" />
-                                    </GridLayout>
+                        <!-- Status, two even rows: glasses | case batteries, then display mode | auto brightness. -->
+                        <GridLayout columns="*,*" rows="auto,auto" class="lens-status-grid">
+                            <StackLayout col="0" row="0" class="lens-card lens-card-battery" marginRight="5">
+                                <Label text="Glasses battery" class="lens-label" />
+                                <GridLayout columns="auto,auto" rows="auto" horizontalAlignment="left" marginTop="4">
+                                    <Label col="0" text="{{ glassesBatteryText }}" class="lens-battery-value" />
+                                    <Label col="1" text="%" class="lens-battery-percent" visibility="{{ glassesBatteryPercentVisibility }}" />
+                                </GridLayout>
+                                <StackLayout orientation="horizontal" class="lens-dots">
+                                    <Label class="{{ batteryDot1Class }}" />
+                                    <Label class="{{ batteryDot2Class }}" />
+                                    <Label class="{{ batteryDot3Class }}" />
+                                    <Label class="{{ batteryDot4Class }}" />
+                                    <Label class="{{ batteryDot5Class }}" />
+                                    <Label class="{{ batteryDot6Class }}" />
+                                    <Label class="{{ batteryDot7Class }}" />
+                                    <Label class="{{ batteryDot8Class }}" />
+                                    <Label class="{{ batteryDot9Class }}" />
+                                    <Label class="{{ batteryDot10Class }}" />
                                 </StackLayout>
-                            </GridLayout>
-                            <StackLayout col="1" marginLeft="5">
-                                <StackLayout class="lens-card lens-card-display" tap="{{ onDisplayModeTap }}"
-                                    accessible="true" accessibilityRole="button" accessibilityLabel="Display mode. Change">
-                                    <Label text="Display mode" class="lens-label" />
-                                    <GridLayout columns="*,auto" rows="auto" marginTop="4">
-                                        <Label col="0" text="{{ displayModeValue }}" class="lens-display-value" verticalAlignment="center" textWrap="false" />
-                                        <Image col="1" src="res://ic_lens_chevron_down" class="lens-icon-dim" verticalAlignment="center" />
-                                    </GridLayout>
+                                <Label text="{{ glassesChargingLabel }}" class="lens-label lens-charging" />
+                            </StackLayout>
+                            <StackLayout col="1" row="0" class="lens-card lens-card-battery" marginLeft="5">
+                                <Label text="Case battery" class="lens-label" />
+                                <GridLayout columns="auto,auto" rows="auto" horizontalAlignment="left" marginTop="4">
+                                    <Label col="0" text="{{ caseBatteryText }}" class="lens-battery-value" />
+                                    <Label col="1" text="%" class="lens-battery-percent" visibility="{{ caseBatteryPercentVisibility }}" />
+                                </GridLayout>
+                                <StackLayout orientation="horizontal" class="lens-dots">
+                                    <Label class="{{ caseDot1Class }}" />
+                                    <Label class="{{ caseDot2Class }}" />
+                                    <Label class="{{ caseDot3Class }}" />
+                                    <Label class="{{ caseDot4Class }}" />
+                                    <Label class="{{ caseDot5Class }}" />
+                                    <Label class="{{ caseDot6Class }}" />
+                                    <Label class="{{ caseDot7Class }}" />
+                                    <Label class="{{ caseDot8Class }}" />
+                                    <Label class="{{ caseDot9Class }}" />
+                                    <Label class="{{ caseDot10Class }}" />
                                 </StackLayout>
-                                <GridLayout columns="*,auto" rows="auto" class="lens-card lens-card-auto">
-                                    <StackLayout col="0" verticalAlignment="center">
-                                        <Label text="Auto brightness" textWrap="true" class="lens-label" />
-                                        <Label text="{{ brightnessAutoLabel }}" class="lens-auto-value" />
-                                    </StackLayout>
-                                    <Switch col="1" checked="{{ brightnessAuto }}" checkedChange="{{ onBrightnessAutoChange }}" class="{{ brightnessAutoSwitchClass }}" verticalAlignment="center" horizontalAlignment="right" />
+                                <Label text="{{ caseStatusLabel }}" class="lens-label lens-charging" textWrap="true" />
+                            </StackLayout>
+                            <StackLayout col="0" row="1" class="lens-card lens-card-display" marginRight="5" tap="{{ onDisplayModeTap }}"
+                                accessible="true" accessibilityRole="button" accessibilityLabel="Display mode. Change">
+                                <Label text="Display mode" class="lens-label" />
+                                <GridLayout columns="*,auto" rows="auto" marginTop="4">
+                                    <Label col="0" text="{{ displayModeValue }}" class="lens-display-value" verticalAlignment="center" textWrap="false" />
+                                    <Image col="1" src="res://ic_lens_chevron_down" class="lens-icon-dim" verticalAlignment="center" />
                                 </GridLayout>
                             </StackLayout>
+                            <GridLayout col="1" row="1" columns="*,auto" rows="auto" class="lens-card lens-card-auto" marginLeft="5">
+                                <StackLayout col="0" verticalAlignment="top">
+                                    <Label text="Auto brightness" textWrap="true" class="lens-label" />
+                                    <Label text="{{ brightnessAutoLabel }}" class="lens-auto-value" />
+                                </StackLayout>
+                                <Switch col="1" checked="{{ brightnessAuto }}" checkedChange="{{ onBrightnessAutoChange }}" class="{{ brightnessAutoSwitchClass }}" verticalAlignment="center" horizontalAlignment="right" />
+                            </GridLayout>
                         </GridLayout>
 
                         <!-- Brightness -->
@@ -398,50 +410,63 @@
                                     </GridLayout>
                                 </StackLayout>
 
-                                <GridLayout columns="*,*" rows="auto" class="lens-status-grid">
-                                    <GridLayout col="0" rows="auto" class="lens-card lens-card-battery" marginRight="5" verticalAlignment="top">
-                                        <StackLayout>
-                                            <Label text="Glasses battery" class="lens-label" />
-                                            <GridLayout columns="auto,auto" rows="auto" horizontalAlignment="left" marginTop="4">
-                                                <Label col="0" text="{{ glassesBatteryText }}" class="lens-battery-value" />
-                                                <Label col="1" text="%" class="lens-battery-percent" visibility="{{ glassesBatteryPercentVisibility }}" />
-                                            </GridLayout>
-                                            <StackLayout orientation="horizontal" class="lens-dots">
-                                                <Label class="{{ batteryDot1Class }}" />
-                                                <Label class="{{ batteryDot2Class }}" />
-                                                <Label class="{{ batteryDot3Class }}" />
-                                                <Label class="{{ batteryDot4Class }}" />
-                                                <Label class="{{ batteryDot5Class }}" />
-                                                <Label class="{{ batteryDot6Class }}" />
-                                                <Label class="{{ batteryDot7Class }}" />
-                                                <Label class="{{ batteryDot8Class }}" />
-                                                <Label class="{{ batteryDot9Class }}" />
-                                                <Label class="{{ batteryDot10Class }}" />
-                                            </StackLayout>
-                                            <Label text="{{ glassesChargingLabel }}" class="lens-label lens-charging" />
-                                            <GridLayout columns="auto,*" rows="auto" class="lens-case-row" visibility="{{ caseBatteryVisibility }}">
-                                                <Label col="0" text="Case" class="lens-label" verticalAlignment="center" />
-                                                <Label col="1" text="{{ caseBatteryText }}" class="lens-label-fg" horizontalAlignment="right" verticalAlignment="center" textWrap="false" />
-                                            </GridLayout>
+                                <!-- Status, two even rows: glasses | case batteries, then display mode | auto brightness. -->
+                                <GridLayout columns="*,*" rows="auto,auto" class="lens-status-grid">
+                                    <StackLayout col="0" row="0" class="lens-card lens-card-battery" marginRight="5">
+                                        <Label text="Glasses battery" class="lens-label" />
+                                        <GridLayout columns="auto,auto" rows="auto" horizontalAlignment="left" marginTop="4">
+                                            <Label col="0" text="{{ glassesBatteryText }}" class="lens-battery-value" />
+                                            <Label col="1" text="%" class="lens-battery-percent" visibility="{{ glassesBatteryPercentVisibility }}" />
+                                        </GridLayout>
+                                        <StackLayout orientation="horizontal" class="lens-dots">
+                                            <Label class="{{ batteryDot1Class }}" />
+                                            <Label class="{{ batteryDot2Class }}" />
+                                            <Label class="{{ batteryDot3Class }}" />
+                                            <Label class="{{ batteryDot4Class }}" />
+                                            <Label class="{{ batteryDot5Class }}" />
+                                            <Label class="{{ batteryDot6Class }}" />
+                                            <Label class="{{ batteryDot7Class }}" />
+                                            <Label class="{{ batteryDot8Class }}" />
+                                            <Label class="{{ batteryDot9Class }}" />
+                                            <Label class="{{ batteryDot10Class }}" />
                                         </StackLayout>
-                                    </GridLayout>
-                                    <StackLayout col="1" marginLeft="5">
-                                        <StackLayout class="lens-card lens-card-display" tap="{{ onDisplayModeTap }}"
-                                            accessible="true" accessibilityRole="button" accessibilityLabel="Display mode. Change">
-                                            <Label text="Display mode" class="lens-label" />
-                                            <GridLayout columns="*,auto" rows="auto" marginTop="4">
-                                                <Label col="0" text="{{ displayModeValue }}" class="lens-display-value" verticalAlignment="center" textWrap="false" />
-                                                <Image col="1" src="res://ic_lens_chevron_down" class="lens-icon-dim" verticalAlignment="center" />
-                                            </GridLayout>
+                                        <Label text="{{ glassesChargingLabel }}" class="lens-label lens-charging" />
+                                    </StackLayout>
+                                    <StackLayout col="1" row="0" class="lens-card lens-card-battery" marginLeft="5">
+                                        <Label text="Case battery" class="lens-label" />
+                                        <GridLayout columns="auto,auto" rows="auto" horizontalAlignment="left" marginTop="4">
+                                            <Label col="0" text="{{ caseBatteryText }}" class="lens-battery-value" />
+                                            <Label col="1" text="%" class="lens-battery-percent" visibility="{{ caseBatteryPercentVisibility }}" />
+                                        </GridLayout>
+                                        <StackLayout orientation="horizontal" class="lens-dots">
+                                            <Label class="{{ caseDot1Class }}" />
+                                            <Label class="{{ caseDot2Class }}" />
+                                            <Label class="{{ caseDot3Class }}" />
+                                            <Label class="{{ caseDot4Class }}" />
+                                            <Label class="{{ caseDot5Class }}" />
+                                            <Label class="{{ caseDot6Class }}" />
+                                            <Label class="{{ caseDot7Class }}" />
+                                            <Label class="{{ caseDot8Class }}" />
+                                            <Label class="{{ caseDot9Class }}" />
+                                            <Label class="{{ caseDot10Class }}" />
                                         </StackLayout>
-                                        <GridLayout columns="*,auto" rows="auto" class="lens-card lens-card-auto">
-                                            <StackLayout col="0" verticalAlignment="center">
-                                                <Label text="Auto brightness" textWrap="true" class="lens-label" />
-                                                <Label text="{{ brightnessAutoLabel }}" class="lens-auto-value" />
-                                            </StackLayout>
-                                            <Switch col="1" checked="{{ brightnessAuto }}" checkedChange="{{ onBrightnessAutoChange }}" class="{{ brightnessAutoSwitchClass }}" verticalAlignment="center" horizontalAlignment="right" />
+                                        <Label text="{{ caseStatusLabel }}" class="lens-label lens-charging" textWrap="true" />
+                                    </StackLayout>
+                                    <StackLayout col="0" row="1" class="lens-card lens-card-display" marginRight="5" tap="{{ onDisplayModeTap }}"
+                                        accessible="true" accessibilityRole="button" accessibilityLabel="Display mode. Change">
+                                        <Label text="Display mode" class="lens-label" />
+                                        <GridLayout columns="*,auto" rows="auto" marginTop="4">
+                                            <Label col="0" text="{{ displayModeValue }}" class="lens-display-value" verticalAlignment="center" textWrap="false" />
+                                            <Image col="1" src="res://ic_lens_chevron_down" class="lens-icon-dim" verticalAlignment="center" />
                                         </GridLayout>
                                     </StackLayout>
+                                    <GridLayout col="1" row="1" columns="*,auto" rows="auto" class="lens-card lens-card-auto" marginLeft="5">
+                                        <StackLayout col="0" verticalAlignment="top">
+                                            <Label text="Auto brightness" textWrap="true" class="lens-label" />
+                                            <Label text="{{ brightnessAutoLabel }}" class="lens-auto-value" />
+                                        </StackLayout>
+                                        <Switch col="1" checked="{{ brightnessAuto }}" checkedChange="{{ onBrightnessAutoChange }}" class="{{ brightnessAutoSwitchClass }}" verticalAlignment="center" horizontalAlignment="right" />
+                                    </GridLayout>
                                 </GridLayout>
 
                                 <GridLayout columns="auto,*,auto" rows="auto" class="lens-brightness-card">
