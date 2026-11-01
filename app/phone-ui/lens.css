@@ -521,6 +521,18 @@
   margin-top: 8;
 }
 
+/* Charging-case level under the glasses battery, split off by a hairline. */
+.lens-case-row {
+  margin-top: 12;
+  padding-top: 10;
+  border-top-width: 1;
+  border-top-color: #D4D4D0;
+}
+
+.ns-dark .lens-case-row {
+  border-top-color: #363636;
+}
+
 /*
  * Native Switch kept for the two-way binding. Android tints the thumb from
  * `color` and the track from `background-color`; the theme's

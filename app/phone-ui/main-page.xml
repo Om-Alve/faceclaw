@@ -147,6 +147,10 @@
                                         <Label class="{{ batteryDot10Class }}" />
                                     </StackLayout>
                                     <Label text="{{ glassesChargingLabel }}" class="lens-label lens-charging" />
+                                    <GridLayout columns="auto,*" rows="auto" class="lens-case-row" visibility="{{ caseBatteryVisibility }}">
+                                        <Label col="0" text="Case" class="lens-label" verticalAlignment="center" />
+                                        <Label col="1" text="{{ caseBatteryText }}" class="lens-label-fg" horizontalAlignment="right" verticalAlignment="center" textWrap="false" />
+                                    </GridLayout>
                                 </StackLayout>
                             </GridLayout>
                             <StackLayout col="1" marginLeft="5">
@@ -415,6 +419,10 @@
                                                 <Label class="{{ batteryDot10Class }}" />
                                             </StackLayout>
                                             <Label text="{{ glassesChargingLabel }}" class="lens-label lens-charging" />
+                                            <GridLayout columns="auto,*" rows="auto" class="lens-case-row" visibility="{{ caseBatteryVisibility }}">
+                                                <Label col="0" text="Case" class="lens-label" verticalAlignment="center" />
+                                                <Label col="1" text="{{ caseBatteryText }}" class="lens-label-fg" horizontalAlignment="right" verticalAlignment="center" textWrap="false" />
+                                            </GridLayout>
                                         </StackLayout>
                                     </GridLayout>
                                     <StackLayout col="1" marginLeft="5">

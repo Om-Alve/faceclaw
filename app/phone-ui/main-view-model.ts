@@ -77,6 +77,8 @@ export class MainViewModel extends RemoteControlsViewModel {
   private _phase: "disconnected" | "connecting" | "connected" | "charging" | "disconnecting" = "disconnected";
   private _headsetBattery: number | null = null;
   private _headsetCharging = false;
+  private _caseBattery: number | null = null;
+  private _caseCharging = false;
   private _mainTab: MainTab = lastMainTab;
   private _remoteSheetVisible = false;
   private _mirrorMinimized = ApplicationSettings.getBoolean(MIRROR_MINIMIZED_KEY, false);
@@ -124,6 +126,12 @@ export class MainViewModel extends RemoteControlsViewModel {
         ];
         dotClasses.forEach((dotClass, index) => this.notifyPropertyChange(`batteryDot${index + 1}Class`, dotClass));
         this.notifyPropertyChange("glassesChargingLabel", this.glassesChargingLabel);
+      }
+      if (snapshot.caseBattery !== this._caseBattery || snapshot.caseCharging !== this._caseCharging) {
+        this._caseBattery = snapshot.caseBattery;
+        this._caseCharging = snapshot.caseCharging;
+        this.notifyPropertyChange("caseBatteryText", this.caseBatteryText);
+        this.notifyPropertyChange("caseBatteryVisibility", this.caseBatteryVisibility);
       }
       this.activeTextSettingId = snapshot.activeTextSettingId;
       this.activeTextEditorTitle = snapshot.activeTextEditorTitle;
@@ -275,6 +283,20 @@ export class MainViewModel extends RemoteControlsViewModel {
       default:
         return "";
     }
+  }
+
+  /**
+   * The charging case's last-known level. The glasses only hear from the case
+   * while docked, and it only drains while charging them, so the last reading
+   * stays accurate after they are taken out.
+   */
+  get caseBatteryText(): string {
+    if (this._caseBattery === null) return "";
+    return this._caseCharging ? `${this._caseBattery}% · Charging` : `${this._caseBattery}%`;
+  }
+
+  get caseBatteryVisibility(): "visible" | "collapse" {
+    return this._caseBattery === null ? "collapse" : "visible";
   }
 
   get displayPreview(): ImageSource | null {
