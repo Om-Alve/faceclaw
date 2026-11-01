@@ -82,6 +82,14 @@ export class RemoteControlsViewModel extends Observable {
     return displayLayoutSetting.displayValue() + " ▾";
   }
 
+  /**
+   * The same value without the ↓: the Lens layout draws its own chevron icon,
+   * so the text must not carry a second one.
+   */
+  get displayModeValue(): string {
+    return displayLayoutSetting.displayValue();
+  }
+
   async onDisplayModeTap(): Promise<void> {
     const current = displayLayoutSetting.get();
     // Full Screen is offered only with a bottom or popup app switcher.
@@ -93,6 +101,7 @@ export class RemoteControlsViewModel extends Observable {
     const value = values[index]!;
     if (value !== current) displayLayoutSetting.set(value);
     this.notifyPropertyChange("displayModeLabel", this.displayModeLabel);
+    this.notifyPropertyChange("displayModeValue", this.displayModeValue);
   }
 
   get brightnessAuto(): boolean {
@@ -101,6 +110,24 @@ export class RemoteControlsViewModel extends Observable {
 
   get brightnessSliderEnabled(): boolean {
     return !this.brightnessAuto;
+  }
+
+  /** The Auto cell's own text, without a Switch two-way binding. */
+  get brightnessAutoLabel(): string {
+    return this.brightnessAuto ? "On" : "Off";
+  }
+
+  /** The Lens switch is drawn from classes, not the platform Switch. */
+  get brightnessAutoSwitchClass(): string {
+    return this.brightnessAuto ? "lens-switch lens-switch-on" : "lens-switch";
+  }
+
+  /**
+   * While Auto is on the manual level is meaningless, so the Lens slider is
+   * shown dimmed rather than hidden (it keeps the row's height stable).
+   */
+  get brightnessSliderClass(): string {
+    return this.brightnessSliderEnabled ? "lens-slider" : "lens-slider lens-slider-disabled";
   }
 
   /** The slider's position; while Auto, the last manual level (or 50). */
@@ -142,6 +169,10 @@ export class RemoteControlsViewModel extends Observable {
     this.notifyPropertyChange("brightnessSliderEnabled", this.brightnessSliderEnabled);
     this.notifyPropertyChange("brightnessPercent", this.brightnessPercent);
     this.notifyPropertyChange("displayModeLabel", this.displayModeLabel);
+    this.notifyPropertyChange("displayModeValue", this.displayModeValue);
+    this.notifyPropertyChange("brightnessAutoLabel", this.brightnessAutoLabel);
+    this.notifyPropertyChange("brightnessAutoSwitchClass", this.brightnessAutoSwitchClass);
+    this.notifyPropertyChange("brightnessSliderClass", this.brightnessSliderClass);
   }
 
 }

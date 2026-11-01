@@ -3,6 +3,7 @@ import { KeyboardInputViewModel } from './keyboard-input-view-model';
 import { BleBandwidthMeter } from "./ble-bandwidth-meter";
 import {
   Application,
+  ApplicationSettings,
   Dialogs,
   Frame,
   ImageSource,
@@ -27,10 +28,19 @@ import { isPreviewOnlyMode } from "./onboarding-state";
 import { formatErrorMessage } from "../util/format-error";
 import { G2_LENS_HEIGHT, G2_LENS_WIDTH } from "../graphics/image";
 import { type PhoneUiButton } from "../apps/evenhub/manager";
+import { FACECLAW_VERSION } from "../version";
 
 const LENS_ASPECT_RATIO = G2_LENS_WIDTH / G2_LENS_HEIGHT;
 
 type LayoutOrientation = "portrait" | "landscape";
+
+type MainTab = "glasses" | "devices" | "more";
+// Remember the tab across navigation on both platforms, without persisting it.
+let lastMainTab: MainTab = "glasses";
+
+// A phone-only preference: whether the live mirror is collapsed to its strip.
+// Deliberately not in ui/dashboard-settings, which drives the glasses' menus.
+const MIRROR_MINIMIZED_KEY = "phoneUi.mirrorMinimized";
 
 export class MainViewModel extends RemoteControlsViewModel {
   private _status = "Disconnected.";
@@ -65,6 +75,11 @@ export class MainViewModel extends RemoteControlsViewModel {
   private _previewMode = false;
   private _evenHubPhoneUi: PhoneUiButton | null = null;
   private _phase: "disconnected" | "connecting" | "connected" | "charging" | "disconnecting" = "disconnected";
+  private _headsetBattery: number | null = null;
+  private _headsetCharging = false;
+  private _mainTab: MainTab = lastMainTab;
+  private _remoteSheetVisible = false;
+  private _mirrorMinimized = ApplicationSettings.getBoolean(MIRROR_MINIMIZED_KEY, false);
 
   // A new view model is built on every navigation to the main page; these
   // module-level subscriptions must die with it (see dispose) or each
@@ -90,6 +105,18 @@ export class MainViewModel extends RemoteControlsViewModel {
       this.displayPreview = snapshot.displayPreview;
       this.displayPreviewMessage = snapshot.displayPreviewMessage;
       this.phase = snapshot.phase;
+      const previousBattery = this._headsetBattery;
+      const previousCharging = this._headsetCharging;
+      this._headsetBattery = snapshot.headsetBattery;
+      this._headsetCharging = snapshot.headsetCharging;
+      if (previousBattery !== this._headsetBattery || previousCharging !== this._headsetCharging) {
+        // The snapshot re-emits for unrelated reasons; only touch these
+        // bindings when the battery report itself moved.
+        this.notifyPropertyChange("glassesBatteryText", this.glassesBatteryText);
+        this.notifyPropertyChange("glassesBatteryPercentVisibility", this.glassesBatteryPercentVisibility);
+        this.notifyPropertyChange("batteryDots", this.batteryDots);
+        this.notifyPropertyChange("glassesChargingLabel", this.glassesChargingLabel);
+      }
       this.activeTextSettingId = snapshot.activeTextSettingId;
       this.activeTextEditorTitle = snapshot.activeTextEditorTitle;
       this.activeTextSettingTitle = snapshot.activeTextSettingTitle;
@@ -185,6 +212,42 @@ export class MainViewModel extends RemoteControlsViewModel {
     void Dialogs.alert({ title: "Connection status", message: this._status, okButtonText: "OK" });
   }
 
+  // ---- the glasses' battery, on the header status strip ----
+  //
+  // The controller keeps the last report; null means no level has arrived yet,
+  // so the strip shows a placeholder rather than a misleading zero.
+
+  get glassesBatteryText(): string {
+    return this._headsetBattery === null ? "--" : String(this._headsetBattery);
+  }
+
+  get glassesBatteryPercentVisibility(): "visible" | "collapse" {
+    return this._headsetBattery === null ? "collapse" : "visible";
+  }
+
+  /** Ten cells for a Repeater; each lit cell is 10%, rounded (72 -> seven). */
+  get batteryDots(): Array<{ lit: boolean }> {
+    const battery = this._headsetBattery;
+    const lit = battery === null ? 0 : Math.round(battery / 10);
+    return Array.from({ length: 10 }, (_, index) => ({ lit: index < lit }));
+  }
+
+  /**
+   * Charging state is only meaningful on a live link: while connecting or
+   * disconnecting the last report may already be stale, so the strip stays
+   * quiet instead of flashing a wrong "NOT CHARGING".
+   */
+  get glassesChargingLabel(): string {
+    if (this._headsetBattery === null) return "";
+    switch (this._phase) {
+      case "connected":
+      case "charging":
+        return this._headsetCharging ? "CHARGING" : "NOT CHARGING";
+      default:
+        return "";
+    }
+  }
+
   get displayPreview(): ImageSource | null {
     return this._displayPreview;
   }
@@ -229,6 +292,55 @@ export class MainViewModel extends RemoteControlsViewModel {
 
   get displayPreviewHeight(): number {
     return Screen.mainScreen.widthDIPs / LENS_ASPECT_RATIO;
+  }
+
+  // ---- mirror minimize (the strip's toggle) ----
+  //
+  // Wall-mounted use keeps the strip and its controls only. While minimized
+  // the page's preview predicate is false, so the controller stops producing
+  // mirror frames; recording has its own consumer and keeps working.
+
+  get mirrorMinimized(): boolean {
+    return this._mirrorMinimized;
+  }
+
+  get mirrorExpandedVisibility(): "visible" | "collapse" {
+    return this._mirrorMinimized ? "collapse" : "visible";
+  }
+
+  get mirrorMinimizedVisibility(): "visible" | "collapse" {
+    return this._mirrorMinimized ? "visible" : "collapse";
+  }
+
+  get mirrorToggleLabel(): string {
+    return this._mirrorMinimized ? "Show live mirror" : "Minimize live mirror";
+  }
+
+  onMirrorToggleTap(): void {
+    this._mirrorMinimized = !this._mirrorMinimized;
+    // Persisted so the phone comes back the way it was left.
+    ApplicationSettings.setBoolean(MIRROR_MINIMIZED_KEY, this._mirrorMinimized);
+    this.notifyPropertyChange("mirrorMinimized", this.mirrorMinimized);
+    this.notifyPropertyChange("mirrorExpandedVisibility", this.mirrorExpandedVisibility);
+    this.notifyPropertyChange("mirrorMinimizedVisibility", this.mirrorMinimizedVisibility);
+    this.notifyPropertyChange("mirrorToggleLabel", this.mirrorToggleLabel);
+    this.notifyPropertyChange("landscapeColumns", this.landscapeColumns);
+  }
+
+  /** In landscape the strip keeps a fixed column; minimized, it takes the width. */
+  get landscapeColumns(): string {
+    return this._mirrorMinimized ? "0,*" : "*,360";
+  }
+
+  /**
+   * The Remote sheet is 548dp in portrait, but a phone in landscape is shorter
+   * than that; shrink it there so the sheet's own title and footer stay on
+   * screen and only the pad area gives way.
+   */
+  get remoteSheetHeight(): number {
+    return this._layoutOrientation === "landscape"
+      ? Math.min(548, Math.round(Screen.mainScreen.heightDIPs - 16))
+      : 548;
   }
 
   get landscapeDisplayPreviewWidth(): number {
@@ -308,6 +420,7 @@ export class MainViewModel extends RemoteControlsViewModel {
     this.notifyPropertyChange("landscapeDisplayPreviewHeight", this.landscapeDisplayPreviewHeight);
     this.notifyPropertyChange("warningsModalWidth", this.warningsModalWidth);
     this.notifyPropertyChange("watchFaceWidth", this.watchFaceWidth);
+    this.notifyPropertyChange("remoteSheetHeight", this.remoteSheetHeight);
   }
 
   get activeTextSettingId(): string | null {
@@ -322,6 +435,7 @@ export class MainViewModel extends RemoteControlsViewModel {
       this.notifyPropertyChange("isTextSettingEditorActive", this.isTextSettingEditorActive);
       // Keyboard-input mode: the tabbed controls make way for the editor.
       this.notifyPropertyChange("controlsVisibility", this.controlsVisibility);
+      this.notifyPropertyChange("remoteSheetVisibility", this.remoteSheetVisibility);
     }
   }
 
@@ -510,6 +624,7 @@ export class MainViewModel extends RemoteControlsViewModel {
     this._keyboardInputActive = value;
     this.notifyPropertyChange("keyboardInputActive", value);
     this.notifyPropertyChange("controlsVisibility", this.controlsVisibility);
+    this.notifyPropertyChange("remoteSheetVisibility", this.remoteSheetVisibility);
   }
 
   onKeyboardTap(): void {
@@ -581,11 +696,17 @@ export class MainViewModel extends RemoteControlsViewModel {
       this._screenRecordingActive = value;
       this.notifyPropertyChange("screenRecordingActive", value);
       this.notifyPropertyChange("stopRecordingButtonVisibility", this.stopRecordingButtonVisibility);
+      this.notifyPropertyChange("recordButtonVisibility", this.recordButtonVisibility);
     }
   }
 
   get stopRecordingButtonVisibility(): "visible" | "collapse" {
     return this._screenRecordingActive ? "visible" : "collapse";
+  }
+
+  /** The strip's record button makes way for the red STOP button while recording. */
+  get recordButtonVisibility(): "visible" | "collapse" {
+    return this._screenRecordingActive ? "collapse" : "visible";
   }
 
   onTakeScreenshotTap(): void {
@@ -705,6 +826,17 @@ export class MainViewModel extends RemoteControlsViewModel {
     );
   }
 
+  /** The header issue button's badge: the same five conditions, counted. */
+  get warningCount(): number {
+    return (
+      Number(this._evenAppConflictWarningVisible) +
+      Number(this._firmwareWarningVisible) +
+      Number(this._batteryOptimizationWarningVisible) +
+      Number(this._fontsMissingWarningVisible) +
+      Number(this._alarmReliabilityMessage.length > 0)
+    );
+  }
+
   get warningIconVisibility(): "visible" | "collapse" {
     return this.anyWarningVisible ? "visible" : "collapse";
   }
@@ -735,8 +867,14 @@ export class MainViewModel extends RemoteControlsViewModel {
     if (windowId) dashboardController.showEvenHubPhoneUi(windowId);
   }
 
+  /**
+   * The header's issue button: show the Glasses tab (where the issue rows
+   * live) and ask the page to scroll them into view. The old warnings modal is
+   * retired on Android, but its members stay for iOS/other callers.
+   */
   onWarningIconTap(): void {
-    this.setWarningsModalVisible(true);
+    this.setMainTab("glasses");
+    this.notifyPropertyChange("scrollToIssues", Date.now());
   }
 
   onWarningsModalCloseTap(): void {
@@ -752,6 +890,7 @@ export class MainViewModel extends RemoteControlsViewModel {
 
   private refreshWarningIndicator(): void {
     this.notifyPropertyChange("warningIconVisibility", this.warningIconVisibility);
+    this.notifyPropertyChange("warningCount", this.warningCount);
     // Don't leave the modal open showing nothing once the last warning clears.
     if (!this.anyWarningVisible) {
       this.setWarningsModalVisible(false);
@@ -770,6 +909,7 @@ export class MainViewModel extends RemoteControlsViewModel {
       this.notifyPropertyChange("canRun", this.canRun);
       this.notifyPropertyChange("connectItemEnabled", this.connectItemEnabled);
       this.notifyPropertyChange("connectionStatusLabel", this.connectionStatusLabel);
+      this.notifyPropertyChange("glassesChargingLabel", this.glassesChargingLabel);
     }
   }
 
@@ -849,6 +989,26 @@ export class MainViewModel extends RemoteControlsViewModel {
   /** Review saved caption sessions; works without a glasses connection. */
   onConversationsTap(): void {
     Frame.topmost()?.navigate("phone-ui/conversations-page");
+  }
+
+  onLicenseTap(): void {
+    this.openDocument("LICENSE", "License (GPLv3)");
+  }
+
+  onPrivacyTap(): void {
+    this.openDocument("PRIVACY", "Privacy Policy");
+  }
+
+  /** The More tab's footer, from the same version constant the app reports. */
+  get versionLabel(): string {
+    return "Faceclaw " + FACECLAW_VERSION;
+  }
+
+  private openDocument(fileName: string, title: string): void {
+    Frame.topmost()?.navigate({
+      moduleName: "phone-ui/document-page",
+      context: { fileName, title },
+    });
   }
 
   /**
@@ -1183,6 +1343,103 @@ export class MainViewModel extends RemoteControlsViewModel {
 
   get controlsVisibility(): "visible" | "collapse" {
     return this.isTextSettingEditorActive || this._keyboardInputActive ? "collapse" : "visible";
+  }
+
+  // ---- the bottom nav's tab state ----
+  //
+  // In memory only, the same pattern as lastControlsTab: a fresh model picks
+  // up whichever tab the last visit was on.
+
+  get mainTab(): MainTab {
+    return this._mainTab;
+  }
+
+  get glassesPanelVisibility(): "visible" | "collapse" {
+    return this._mainTab === "glasses" ? "visible" : "collapse";
+  }
+
+  get devicesPanelVisibility(): "visible" | "collapse" {
+    return this._mainTab === "devices" ? "visible" : "collapse";
+  }
+
+  get morePanelVisibility(): "visible" | "collapse" {
+    return this._mainTab === "more" ? "visible" : "collapse";
+  }
+
+  get glassesNavClass(): string {
+    return this._mainTab === "glasses" ? "lens-nav-tab lens-nav-tab-active" : "lens-nav-tab lens-nav-tab-inactive";
+  }
+
+  get devicesNavClass(): string {
+    return this._mainTab === "devices" ? "lens-nav-tab lens-nav-tab-active" : "lens-nav-tab lens-nav-tab-inactive";
+  }
+
+  get moreNavClass(): string {
+    return this._mainTab === "more" ? "lens-nav-tab lens-nav-tab-active" : "lens-nav-tab lens-nav-tab-inactive";
+  }
+
+  onGlassesNavTap(): void {
+    this.setMainTab("glasses");
+  }
+
+  onDevicesNavTap(): void {
+    this.setMainTab("devices");
+  }
+
+  onMoreNavTap(): void {
+    this.setMainTab("more");
+  }
+
+  private setMainTab(tab: MainTab): void {
+    if (this._mainTab === tab) return;
+    this._mainTab = tab;
+    // Remembered across navigations (module-level), deliberately not persisted.
+    lastMainTab = tab;
+    this.notifyPropertyChange("mainTab", this.mainTab);
+    this.notifyPropertyChange("glassesPanelVisibility", this.glassesPanelVisibility);
+    this.notifyPropertyChange("devicesPanelVisibility", this.devicesPanelVisibility);
+    this.notifyPropertyChange("morePanelVisibility", this.morePanelVisibility);
+    this.notifyPropertyChange("glassesNavClass", this.glassesNavClass);
+    this.notifyPropertyChange("devicesNavClass", this.devicesNavClass);
+    this.notifyPropertyChange("moreNavClass", this.moreNavClass);
+  }
+
+  // ---- the Remote bottom sheet ----
+
+  get remoteSheetVisibility(): "visible" | "collapse" {
+    // The editor and keyboard panel own the screen, so the sheet gives way
+    // (its open flag is kept, so it returns when they close).
+    return this._remoteSheetVisible && this.controlsVisibility === "visible" ? "visible" : "collapse";
+  }
+
+  onRemoteOpenTap(): void {
+    this.setRemoteSheetVisible(true);
+  }
+
+  onRemoteCloseTap(): void {
+    this.setRemoteSheetVisible(false);
+  }
+
+  private setRemoteSheetVisible(value: boolean): void {
+    if (this._remoteSheetVisible === value) return;
+    this._remoteSheetVisible = value;
+    this.notifyPropertyChange("remoteSheetVisibility", this.remoteSheetVisibility);
+  }
+
+  /**
+   * Hardware Back: close whatever is transient first. Returns whether it did
+   * anything, so the page can either cancel Back or let it through.
+   */
+  closeTransientUi(): boolean {
+    if (this._remoteSheetVisible) {
+      this.setRemoteSheetVisible(false);
+      return true;
+    }
+    if (this._mainTab !== "glasses") {
+      this.setMainTab("glasses");
+      return true;
+    }
+    return false;
   }
 
   // ---- BLE bandwidth indicator (Settings > Developer > Show BLE bandwidth usage) ----

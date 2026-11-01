@@ -143,6 +143,12 @@ export type DashboardSnapshot = {
    * nothing is paired, so "Disconnected" would be the wrong label.
    */
   previewMode: boolean;
+  /** Last battery level the glasses reported; null until one arrives. */
+  headsetBattery: number | null;
+  /** Whether that last report said the glasses are charging. */
+  headsetCharging: boolean;
+  /** Whether the glasses are worn; null when nothing has reported wear yet. */
+  glassesWorn: boolean | null;
   /**
    * The foreground glasses window's EvenHub phone UI, when it can be opened
    * (the action bar's app-icon button); null otherwise.
@@ -286,6 +292,9 @@ class DashboardController {
   // Last battery level the glasses reported, kept across disconnects so a
   // drop-off right after a low reading can be explained as a flat battery.
   private lastHeadsetBattery: number | null = null;
+  // Charging flag from the last battery report, so the phone can label a
+  // last-known level the same way the top bar does.
+  private lastHeadsetCharging = false;
   private readonly listeners = new Set<DashboardListener>();
 
   private communicator: FaceclawCommunicatorBridge | null = null;
@@ -1129,6 +1138,9 @@ class DashboardController {
       fontsMissingWarningVisible: this.fontsMissingWarningVisible,
       alarmReliabilityMessage: this.alarmReliabilityMessage,
       previewMode: this.isPreviewDisplayActive(),
+      headsetBattery: this.lastHeadsetBattery,
+      headsetCharging: this.lastHeadsetCharging,
+      glassesWorn: this.glassesWorn,
       evenHubPhoneUi: phoneUiButton(),
     };
   }
@@ -1566,6 +1578,7 @@ class DashboardController {
         // especially while the glasses remain reachable in their case.
         const hasBatteryLevel = Number.isInteger(state.battery) && state.battery >= 0 && state.battery <= 100;
         if (hasBatteryLevel) this.lastHeadsetBattery = state.battery;
+        this.lastHeadsetCharging = state.chargingStatus > 0;
         const ringBattery = state.ringBattery;
         const hasRingBattery = typeof ringBattery === "number" && Number.isInteger(ringBattery)
           && ringBattery >= 0 && ringBattery <= 100;
