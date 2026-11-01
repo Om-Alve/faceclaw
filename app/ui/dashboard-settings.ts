@@ -16,8 +16,9 @@ import {
   assistantModelProvider,
   type AssistantModel,
 } from "~/assistant/models";
-import { isLocalModelReady } from "../native/llama";
+import { isLocalModelReady } from "../native/local-llm";
 import { normalizeWhisperServerUrl } from "../native/whisper-server-stt";
+import { normalizeOpenAiCompatibleUrl } from "../native/openai-chat";
 import { isValidSpotifyClientId, SPOTIFY_CLIENT_ID_KEY } from "../native/spotify-auth";
 import { drawRightValueMenuItem, drawToggleMenuItem, MenuItem, openModalMenu } from "./menu";
 import { ANIMATION_SPEEDS, animationSpeedLabel, scaleAnimationDuration, type AnimationSpeed } from "./animation-speed";
@@ -930,7 +931,7 @@ export const assistantSkipConfirmationSetting = new ConfigSettingBoolean({
 export type AssistantBackendKind = "direct" | "external";
 
 const assistantBackendLabels: Record<AssistantBackendKind, string> = {
-  direct: global.isIOS ? "Cloud API" : "On-phone",
+  direct: "On-phone",
   external: "My own agent (bridge)",
 };
 
@@ -942,7 +943,7 @@ export const assistantBackendSetting = new ConfigSettingEnum<AssistantBackendKin
   values: global.isIOS ? ["direct"] : ["direct", "external"],
   formatValue: (value) => assistantBackendLabels[value] ?? value,
   description:
-    global.isIOS ? "Cloud models called with your OpenAI or Anthropic API key. Add your key in Settings > API Keys." : "Who answers assistant queries: an LLM called from the phone (a cloud API with your key, or the downloaded on-phone model), or your own long-running agent (e.g. OpenClaw) reached through the faceclaw-agent-bridge plugin.",
+    global.isIOS ? "An LLM called from the phone: a cloud model with your OpenAI or Anthropic API key (Settings > API Keys) or your configured OpenAI-compatible API, or Apple Intelligence's on-device model." : "Who answers assistant queries: an LLM called from the phone (a cloud API with your key, or the downloaded on-phone model), or your own long-running agent (e.g. OpenClaw) reached through the faceclaw-agent-bridge plugin.",
 });
 
 export const assistantHermesUrlSetting = new ConfigSettingString({
@@ -1006,6 +1007,48 @@ export const assistantAllowProactiveSetting = new ConfigSettingBoolean({
   defaultValue: true,
   description:
     "Let the external agent use glasses tools outside of a conversation, e.g. showing an alert when a long-running job finishes. Rate-limited; only tools marked proactive-safe are allowed.",
+});
+
+export const assistantOpenAiCompatibleUrlSetting = new ConfigSettingString({
+  id: "assistant-openai-compatible-url",
+  label: "Compatible API URL",
+  storageKey: "assistant.openAiCompatibleUrl",
+  defaultValue: "",
+  editorTitle: "OpenAI-compatible API root",
+  glassesEditTitle: "Edit compatible API URL",
+  formatValue: (value) => value || "(not set)",
+  validate: (value) => (!value.trim() || normalizeOpenAiCompatibleUrl(value) ? null : "Enter an http:// or https:// API root."),
+  description: "Explicit API root for the OpenAI-compatible Chat Completions assistant. Venice: https://api.venice.ai/api/v1. Open WebUI: https://your-host/api. The provider's path is not guessed.",
+});
+
+export const assistantOpenAiCompatibleKeySetting = new ConfigSettingString({
+  id: "assistant-openai-compatible-key",
+  label: "Compatible API key",
+  storageKey: "assistant.openAiCompatibleKey",
+  defaultValue: "",
+  editorTitle: "OpenAI-compatible API key (optional)",
+  glassesEditTitle: "Edit compatible API key",
+  formatValue: (value) => (value ? `${value.slice(0, 6)}...` : "(none)"),
+  description: "Bearer key sent only to the compatible assistant URL above. Optional for private servers that do not require authentication.",
+});
+
+export const assistantOpenAiCompatibleModelSetting = new ConfigSettingString({
+  id: "assistant-openai-compatible-model",
+  label: "Compatible model ID",
+  storageKey: "assistant.openAiCompatibleModel",
+  defaultValue: "",
+  editorTitle: "OpenAI-compatible model ID",
+  glassesEditTitle: "Edit compatible model ID",
+  formatValue: (value) => value || "(not set)",
+  description: "Exact model ID sent to the compatible provider. For glasses tools, choose a model that supports function calling.",
+});
+
+export const veniceWebSearchSetting = new ConfigSettingBoolean({
+  id: "venice-web-search",
+  label: "Venice web search",
+  storageKey: "assistant.veniceWebSearch",
+  defaultValue: false,
+  description: "Allow supported Venice models to search the web for current information. Shown only when OpenAI-compatible is the assistant model and its URL is the official Venice API. Search queries are processed by Venice's search service and may incur additional charges.",
 });
 
 export const elevenLabsApiKeySetting = new ConfigSettingString({
@@ -1112,11 +1155,12 @@ export const assistantModelSetting = new ConfigSettingEnum<AssistantModel>({
     if (provider === "anthropic") return anthropicApiKeySetting.get().trim().length === 0;
     if (provider === "openai") return openAiApiKeySetting.get().trim().length === 0;
     if (provider === "local") return !isLocalModelReady();
-    if (provider === "hermes") return assistantHermesUrlSetting.get().trim().length === 0;
+    // Hermes and OpenAI-compatible stay selectable before they're configured:
+    // their rows only appear in Settings once one is the selected model.
     return false;
   },
   description:
-    global.isIOS ? "Model used by the voice assistant. Auto prefers Terra with an OpenAI key, then Sonnet with an Anthropic key." : "Model used by the voice assistant. Auto prefers Terra when an OpenAI key is set, then Sonnet when an Anthropic key is set, then the downloaded on-phone model.",
+    global.isIOS ? "Model used by the assistant. Auto prefers Terra with an OpenAI key, then Sonnet with an Anthropic key, then Apple Intelligence's on-device model; it never picks OpenAI-compatible or Hermes agent. Choosing either of those shows its settings below." : "Model used by the assistant. Auto prefers Terra when an OpenAI key is set, then Sonnet when an Anthropic key is set, then the downloaded on-phone model; it never picks OpenAI-compatible or Hermes agent. Choosing either of those shows its settings below.",
 });
 
 export const mapboxApiKeySetting = new ConfigSettingString({
@@ -1130,7 +1174,7 @@ export const mapboxApiKeySetting = new ConfigSettingString({
   description: "Mapbox public token (pk. prefix), used by the Navigate app for maps, geocoding, and directions.",
 });
 
-/** Edited from the Music app's Spotify menu (iOS); a sign-in is tied to the client ID it was made with. */
+/** Edited from the Music app's Spotify menu; a sign-in is tied to the client ID it was made with. */
 export const spotifyClientIdSetting = new ConfigSettingString({
   id: "spotify-client-id",
   label: "Client ID",
