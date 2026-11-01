@@ -333,6 +333,7 @@ class DashboardController {
   private offState: (() => void) | null = null;
   private offRing: (() => void) | null = null;
   private offBattery: (() => void) | null = null;
+  private offCaseBattery: (() => void) | null = null;
   private offSilentMode: (() => void) | null = null;
   private offWearState: (() => void) | null = null;
   private offPhoneLockState: (() => void) | null = null;
@@ -1584,6 +1585,14 @@ class DashboardController {
         // the watch state, so refresh both consumers on every report.
         this.emit();
       });
+      this.offCaseBattery = communicator.onCaseState((state) => {
+        // Kept across disconnects: the case only reports while the glasses are
+        // docked and only drains while charging them, so the last level holds.
+        shell.setBatteryLevels({ case: state.battery, caseCharging: state.charging });
+        if ((this.phase === "connected" || this.phase === "charging") && this.communicator) {
+          this.requestShellRender();
+        }
+      });
       this.offEvenAppConflict = communicator.onEvenAppConflict((message) => {
         this.refreshEvenAppStatus();
         if (!this.evenNotificationActive) {
@@ -1704,6 +1713,8 @@ class DashboardController {
       this.offRing = null;
       this.offBattery?.();
       this.offBattery = null;
+      this.offCaseBattery?.();
+      this.offCaseBattery = null;
       this.offSilentMode?.();
       this.offSilentMode = null;
       this.offWearState?.();
@@ -1816,6 +1827,8 @@ class DashboardController {
     this.offRing = null;
     this.offBattery?.();
     this.offBattery = null;
+    this.offCaseBattery?.();
+    this.offCaseBattery = null;
     this.offSilentMode?.();
     this.offSilentMode = null;
     this.offWearState?.();
