@@ -138,6 +138,11 @@ export class RemoteControlsViewModel extends Observable {
     return Number.isFinite(numeric) ? numeric : 50;
   }
 
+  /** The Tonal brightness card shows the value with its unit. */
+  get brightnessPercentLabel(): string {
+    return `${this.brightnessPercent}%`;
+  }
+
   private lastManualBrightness = 50;
 
   onBrightnessChange(args: { value?: number; object?: { value?: number } }): void {
@@ -168,6 +173,7 @@ export class RemoteControlsViewModel extends Observable {
     this.notifyPropertyChange("brightnessAuto", this.brightnessAuto);
     this.notifyPropertyChange("brightnessSliderEnabled", this.brightnessSliderEnabled);
     this.notifyPropertyChange("brightnessPercent", this.brightnessPercent);
+    this.notifyPropertyChange("brightnessPercentLabel", this.brightnessPercentLabel);
     this.notifyPropertyChange("displayModeLabel", this.displayModeLabel);
     this.notifyPropertyChange("displayModeValue", this.displayModeValue);
     this.notifyPropertyChange("brightnessAutoLabel", this.brightnessAutoLabel);

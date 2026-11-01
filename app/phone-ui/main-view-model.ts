@@ -80,6 +80,8 @@ export class MainViewModel extends RemoteControlsViewModel {
   private _mainTab: MainTab = lastMainTab;
   private _remoteSheetVisible = false;
   private _mirrorMinimized = ApplicationSettings.getBoolean(MIRROR_MINIMIZED_KEY, false);
+  private _pageHeight = 0;
+  private _headerHeight = 76;
 
   // A new view model is built on every navigation to the main page; these
   // module-level subscriptions must die with it (see dispose) or each
@@ -115,6 +117,12 @@ export class MainViewModel extends RemoteControlsViewModel {
         this.notifyPropertyChange("glassesBatteryText", this.glassesBatteryText);
         this.notifyPropertyChange("glassesBatteryPercentVisibility", this.glassesBatteryPercentVisibility);
         this.notifyPropertyChange("batteryDots", this.batteryDots);
+        const dotClasses = [
+          this.batteryDot1Class, this.batteryDot2Class, this.batteryDot3Class, this.batteryDot4Class,
+          this.batteryDot5Class, this.batteryDot6Class, this.batteryDot7Class, this.batteryDot8Class,
+          this.batteryDot9Class, this.batteryDot10Class,
+        ];
+        dotClasses.forEach((dotClass, index) => this.notifyPropertyChange(`batteryDot${index + 1}Class`, dotClass));
         this.notifyPropertyChange("glassesChargingLabel", this.glassesChargingLabel);
       }
       this.activeTextSettingId = snapshot.activeTextSettingId;
@@ -233,6 +241,27 @@ export class MainViewModel extends RemoteControlsViewModel {
   }
 
   /**
+   * One class getter per dot. A Repeater cannot be used here: on Android it
+   * lays its generated items out vertically inside the horizontal dots row.
+   */
+  private batteryDotClass(index: number): string {
+    const battery = this._headsetBattery;
+    const lit = battery === null ? 0 : Math.round(battery / 10);
+    return index < lit ? "lens-dot lens-dot-lit" : "lens-dot";
+  }
+
+  get batteryDot1Class(): string { return this.batteryDotClass(0); }
+  get batteryDot2Class(): string { return this.batteryDotClass(1); }
+  get batteryDot3Class(): string { return this.batteryDotClass(2); }
+  get batteryDot4Class(): string { return this.batteryDotClass(3); }
+  get batteryDot5Class(): string { return this.batteryDotClass(4); }
+  get batteryDot6Class(): string { return this.batteryDotClass(5); }
+  get batteryDot7Class(): string { return this.batteryDotClass(6); }
+  get batteryDot8Class(): string { return this.batteryDotClass(7); }
+  get batteryDot9Class(): string { return this.batteryDotClass(8); }
+  get batteryDot10Class(): string { return this.batteryDotClass(9); }
+
+  /**
    * Charging state is only meaningful on a live link: while connecting or
    * disconnecting the last report may already be stale, so the strip stays
    * quiet instead of flashing a wrong "NOT CHARGING".
@@ -242,7 +271,7 @@ export class MainViewModel extends RemoteControlsViewModel {
     switch (this._phase) {
       case "connected":
       case "charging":
-        return this._headsetCharging ? "CHARGING" : "NOT CHARGING";
+        return this._headsetCharging ? "Charging" : "Not charging";
       default:
         return "";
     }
@@ -290,8 +319,9 @@ export class MainViewModel extends RemoteControlsViewModel {
     return this._displayPreviewMessage ? "visible" : "collapse";
   }
 
+  /** The mirror sits in a card inset 16 on each side (Tonal). */
   get displayPreviewHeight(): number {
-    return Screen.mainScreen.widthDIPs / LENS_ASPECT_RATIO;
+    return (Screen.mainScreen.widthDIPs - 32) / LENS_ASPECT_RATIO;
   }
 
   // ---- mirror minimize (the strip's toggle) ----
@@ -333,14 +363,35 @@ export class MainViewModel extends RemoteControlsViewModel {
   }
 
   /**
-   * The Remote sheet is 548dp in portrait, but a phone in landscape is shorter
-   * than that; shrink it there so the sheet's own title and footer stay on
-   * screen and only the pad area gives way.
+   * The Remote sheet is 548dp in portrait, but it must not cover the live
+   * mirror: while the mirror is expanded the sheet yields exactly enough room
+   * above it for the header and the whole mirror. Landscape phones are shorter
+   * than 548dp, so the sheet shrinks to the screen there; only the pad area
+   * gives way, never the title or footer.
    */
   get remoteSheetHeight(): number {
-    return this._layoutOrientation === "landscape"
-      ? Math.min(548, Math.round(Screen.mainScreen.heightDIPs - 16))
-      : 548;
+    if (this._layoutOrientation === "landscape") {
+      return Math.min(556, Math.round(Screen.mainScreen.heightDIPs - 16));
+    }
+    const available = this._pageHeight > 0 && !this._mirrorMinimized
+      ? Math.round(this._pageHeight - this._headerHeight - this.displayPreviewHeight - 16)
+      : 556;
+    return Math.max(320, Math.min(556, available));
+  }
+
+  /** Measured page area (excludes status/navigation bars); feeds the sheet. */
+  onPortraitRootLayoutChanged(args: { object: View }): void {
+    const { height } = args.object.getActualSize();
+    if (height <= 0 || height === this._pageHeight) return;
+    this._pageHeight = height;
+    this.notifyPropertyChange("remoteSheetHeight", this.remoteSheetHeight);
+  }
+
+  onPageHeaderLayoutChanged(args: { object: View }): void {
+    const { height } = args.object.getActualSize();
+    if (height <= 0 || height === this._headerHeight) return;
+    this._headerHeight = height;
+    this.notifyPropertyChange("remoteSheetHeight", this.remoteSheetHeight);
   }
 
   get landscapeDisplayPreviewWidth(): number {

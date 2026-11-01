@@ -1,5 +1,23 @@
 # Main-screen UI
 
+## Android: the Tonal layout
+
+The Android main screen implements the "Tonal" design, built from
+`main-page.xml` and `lens-remote-sheet.xml` and styled by `lens.css` (imported
+last from `app/app.css`, never from `app.ios.css`). It draws its own header
+(`actionBarHidden`), puts the touchpads behind the Remote bottom sheet, and
+uses the bottom nav for Glasses / Devices / More. `lens.css` also restyles the
+secondary Android pages and the shared keyboard/setting panels; the shared
+XML and view models are not edited, only overridden. iOS keeps its own page
+(`main-page.ios.ts`) and never loads `lens.css`.
+
+Fonts live in `app/fonts/` (Space Grotesk for text, Doto for the battery
+numerals); `app/fonts/ttf/` remains the glasses' bundled font folder. Device
+screenshots from this implementation are in
+`design/lens-redesign/screens/tonal/impl/`.
+
+## Shared with iOS
+
 Android and iOS share `remote-controls.xml`, `remote-controls.css`, and
 `RemoteControlsViewModel`: tab order and selection, screen-size choices,
 brightness/Auto settings, watch labels, ring markings, and microphone/keyboard

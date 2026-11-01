@@ -1,243 +1,203 @@
 /*
- * "Lens" phone UI: the Android design system.
+ * "Tonal" phone UI: the Android design system.
  *
- * Imported last from app.css (Android only; app.ios.css never imports it), so
- * these rules override the legacy phone-ui styles and @nativescript/theme
- * without touching the shared remote-controls/pairing stylesheets.
+ * Material-3-flavoured tonal surfaces: a near-black page, rounded cards on
+ * surface/container tones, pill controls, one red accent, Space Grotesk text
+ * and Doto numerals. Imported last from app.css (Android only; app.ios.css
+ * never imports it), so these rules override the legacy phone-ui styles and
+ * @nativescript/theme without touching the shared remote-controls/pairing
+ * stylesheets.
  *
- * Every colour lives here and every class is `lens-`-prefixed, so nothing
- * collides with theme or legacy classes. NativeScript has no CSS custom
- * properties, so the palette is written twice: the light values are the base
- * rule and `.ns-dark` (set by @nativescript/theme on the root) overrides them.
+ * NativeScript has no CSS custom properties, so the palette is written twice:
+ * light values in the base rule and `.ns-dark` (set by @nativescript/theme on
+ * the root) overrides. Class names keep the `lens-` prefix used by the page
+ * XML so the two halves of the design stay greppable together.
  *
- * Shape law: radius 0 everywhere, hairlines instead of cards, no shadows, no
- * elevation. Dark bg / light fg are the primary design; light theme mirrors it.
+ * Palette (Tonal):
+ *   dark   bg #0F0F0F  surface #1B1B1B  container #272727  line #363636
+ *          fg #F1F1F0  dim #A8A8A5      mute #4C4C4A
+ *          redFill #D71921  redContainer #3D1614  onRedContainer #FFB4AB
+ *   light  bg #F2F2F0  surface #FFFFFF  container #E6E6E3  line #D4D4D0
+ *          fg #151515  dim #585856      mute #BBBBB7
+ *          redFill #D71921  redContainer #FDE2DF  onRedContainer #7A0E12
  */
 
 /* ---------- page and type ---------- */
 
 .lens-page {
-  background-color: #F4F4F2;
-  color: #111111;
-  font-family: "Geist-Regular";
+  background-color: #F2F2F0;
+  color: #151515;
+  font-family: "SpaceGrotesk-Regular";
   font-size: 15;
 }
 
 .ns-dark .lens-page {
-  background-color: #000000;
-  color: #F2F2F2;
+  background-color: #0F0F0F;
+  color: #F1F1F0;
 }
 
-/* Doto Black: the wordmark, battery numerals and sheet titles. */
+/* The wordmark is Space Grotesk Bold, not the dot-matrix face. */
 .lens-wordmark {
-  font-family: "Doto-Black";
-  font-size: 27;
-  letter-spacing: 0.02;
-  color: #111111;
+  font-family: "SpaceGrotesk-Bold";
+  font-size: 26;
+  letter-spacing: -0.02;
+  color: #151515;
 }
 
 .ns-dark .lens-wordmark {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
 .lens-sheet-title {
-  font-family: "Doto-Black";
-  font-size: 24;
-  letter-spacing: 0.02;
-  color: #111111;
+  font-family: "SpaceGrotesk-Bold";
+  font-size: 22;
+  letter-spacing: -0.01;
+  color: #151515;
 }
 
 .ns-dark .lens-sheet-title {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
+/* Doto is reserved for the battery numerals. */
 .lens-battery-value {
   font-family: "Doto-Black";
-  font-size: 60;
-  line-height: 0.9;
-  color: #111111;
+  font-size: 64;
+  line-height: 0.85;
+  color: #151515;
 }
 
 .ns-dark .lens-battery-value {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
 .lens-battery-percent {
   font-family: "Doto-Black";
   font-size: 24;
-  color: #111111;
-  margin-bottom: 10;
+  color: #151515;
+  margin-bottom: 6;
 }
 
 .ns-dark .lens-battery-percent {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
-/* Caps mono label. */
+/* Card label (the small dim line above a value). */
 .lens-label {
-  font-family: "GeistMono-Regular";
-  font-size: 11;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
-  color: #555555;
+  font-family: "SpaceGrotesk-Medium";
+  font-size: 13;
+  color: #585856;
 }
 
 .ns-dark .lens-label {
-  color: #A3A3A3;
+  color: #A8A8A5;
 }
 
 .lens-label-fg {
-  font-family: "GeistMono-Regular";
-  font-size: 11;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
-  color: #111111;
+  font-family: "SpaceGrotesk-Medium";
+  font-size: 13;
+  color: #151515;
 }
 
 .ns-dark .lens-label-fg {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
 .lens-label-red {
-  font-family: "GeistMono-Regular";
-  font-size: 11;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
-  color: #C4161D;
+  font-family: "SpaceGrotesk-Bold";
+  font-size: 13;
+  color: #7A0E12;
 }
 
 .ns-dark .lens-label-red {
-  color: #FF5A4F;
-}
-
-/* Caps button / nav text. */
-.lens-caps {
-  font-family: "GeistMono-SemiBold";
-  font-size: 12;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
+  color: #FFB4AB;
 }
 
 .lens-mono-value {
-  font-family: "GeistMono-Medium";
+  font-family: "SpaceGrotesk-Medium";
   font-size: 13;
-  color: #111111;
+  color: #151515;
 }
 
 .ns-dark .lens-mono-value {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
 .lens-body {
-  font-family: "Geist-Medium";
+  font-family: "SpaceGrotesk-Medium";
   font-size: 15;
-  color: #111111;
+  color: #151515;
 }
 
 .ns-dark .lens-body {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
 .lens-body-lg {
-  font-family: "Geist-Medium";
+  font-family: "SpaceGrotesk-Medium";
   font-size: 16;
-  color: #111111;
+  color: #151515;
 }
 
 .ns-dark .lens-body-lg {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
 .lens-secondary {
-  font-family: "Geist-Regular";
+  font-family: "SpaceGrotesk-Regular";
   font-size: 13;
-  color: #555555;
+  color: #585856;
 }
 
 .ns-dark .lens-secondary {
-  color: #A3A3A3;
+  color: #A8A8A5;
 }
 
-.lens-chevron {
-  font-family: "Geist-Regular";
-  font-size: 18;
-  color: #555555;
+.lens-caps {
+  font-family: "SpaceGrotesk-SemiBold";
+  font-size: 14;
 }
 
-.ns-dark .lens-chevron {
-  color: #A3A3A3;
-}
-
-/* ---------- hairlines ---------- */
-
-.lens-hairline {
-  height: 1;
-  background-color: #D2D2CE;
-}
-
-.ns-dark .lens-hairline {
-  background-color: #2A2A2A;
-}
-
-.lens-hairline-v {
-  width: 1;
-  background-color: #D2D2CE;
-}
-
-.ns-dark .lens-hairline-v {
-  background-color: #2A2A2A;
-}
-
-/* ---------- icons (Android vector drawables, tinted per theme) ---------- */
+/* ---------- icons ---------- */
 
 .lens-icon {
   width: 20;
   height: 20;
-  tint-color: #111111;
+  tint-color: #151515;
 }
 
 .ns-dark .lens-icon {
-  tint-color: #F2F2F2;
+  tint-color: #F1F1F0;
 }
 
 .lens-icon-sm {
   width: 18;
   height: 18;
-  tint-color: #111111;
+  tint-color: #151515;
 }
 
 .ns-dark .lens-icon-sm {
-  tint-color: #F2F2F2;
+  tint-color: #F1F1F0;
 }
 
 .lens-icon-lg {
   width: 24;
   height: 24;
-  tint-color: #111111;
+  tint-color: #151515;
 }
 
 .ns-dark .lens-icon-lg {
-  tint-color: #F2F2F2;
+  tint-color: #F1F1F0;
 }
 
 .lens-icon-dim {
   width: 20;
   height: 20;
-  tint-color: #555555;
+  tint-color: #585856;
 }
 
 .ns-dark .lens-icon-dim {
-  tint-color: #A3A3A3;
-}
-
-.lens-icon-red {
-  width: 20;
-  height: 20;
-  tint-color: #C4161D;
-}
-
-.ns-dark .lens-icon-red {
-  tint-color: #FF5A4F;
+  tint-color: #A8A8A5;
 }
 
 .lens-icon-white {
@@ -246,241 +206,291 @@
   tint-color: #FFFFFF;
 }
 
-/* The header's issue glyph: small and red like the button it sits in. */
+.lens-icon-conn {
+  width: 18;
+  height: 18;
+  tint-color: #151515;
+}
+
+.ns-dark .lens-icon-conn {
+  tint-color: #F1F1F0;
+}
+
+/* Warning glyphs sit on the red tonal container, not on the page. */
 .lens-icon-warn {
   width: 16;
   height: 16;
-  tint-color: #C4161D;
+  tint-color: #7A0E12;
 }
 
 .ns-dark .lens-icon-warn {
-  tint-color: #FF5A4F;
+  tint-color: #FFB4AB;
+}
+
+.lens-icon-warn-lg {
+  width: 22;
+  height: 22;
+  tint-color: #7A0E12;
+}
+
+.ns-dark .lens-icon-warn-lg {
+  tint-color: #FFB4AB;
 }
 
 /* ---------- header ---------- */
 
 .lens-header {
-  padding: 20 16 12 20;
+  padding: 18 16 10 20;
 }
 
-/* The EvenHub app button, close button and similar square icon buttons. */
-.lens-icon-button {
+/* Round icon buttons in the header and on cards. */
+.lens-circle {
   width: 44;
   height: 44;
+  border-radius: 22;
+  background-color: #E6E6E3;
+}
+
+.ns-dark .lens-circle {
+  background-color: #272727;
 }
 
 .lens-conn-button {
   height: 44;
-  border-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
-  background-color: transparent;
-  padding: 0 12;
+  border-radius: 22;
+  background-color: #E6E6E3;
+  padding: 0 16 0 12;
 }
 
 .ns-dark .lens-conn-button {
-  border-color: #2A2A2A;
-}
-
-.lens-conn-glyph {
-  width: 7;
-  height: 7;
-  background-color: #111111;
-  margin-right: 8;
-}
-
-.ns-dark .lens-conn-glyph {
-  background-color: #F2F2F2;
+  background-color: #272727;
 }
 
 .lens-conn-label {
-  font-family: "GeistMono-Medium";
-  font-size: 11;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
-  color: #111111;
+  font-family: "SpaceGrotesk-Medium";
+  font-size: 14;
+  color: #151515;
+  margin-left: 8;
 }
 
 .ns-dark .lens-conn-label {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
 .lens-issue-button {
   height: 44;
-  min-width: 44;
-  border-width: 1;
-  border-color: #C4161D;
-  border-radius: 0;
-  padding: 0 10;
+  min-width: 56;
+  border-radius: 22;
+  background-color: #FDE2DF;
+  padding: 0 12;
 }
 
 .ns-dark .lens-issue-button {
-  border-color: #FF5A4F;
+  background-color: #3D1614;
 }
 
 .lens-issue-count {
-  font-family: "GeistMono-SemiBold";
-  font-size: 13;
-  color: #C4161D;
+  font-family: "SpaceGrotesk-Bold";
+  font-size: 14;
+  color: #7A0E12;
   margin-left: 6;
 }
 
 .ns-dark .lens-issue-count {
-  color: #FF5A4F;
+  color: #FFB4AB;
 }
 
 /* ---------- mirror ---------- */
 
 .lens-mirror {
   background-color: #000000;
+  border-radius: 24;
+  margin: 6 16 0 16;
 }
 
 .lens-mirror-message {
   background-color: #000000;
+  border-radius: 24;
   padding: 16;
 }
 
 .lens-mirror-message Label {
   color: #FFFFFF;
-  font-family: "Geist-Regular";
+  font-family: "SpaceGrotesk-Medium";
   font-size: 15;
   text-align: center;
 }
 
-.lens-mirror-strip {
-  padding: 4 10 4 8;
-}
-
-.lens-strip-toggle {
-  min-height: 44;
-  padding: 0 12;
-}
-
-.lens-strip-caption {
-  font-family: "GeistMono-Regular";
-  font-size: 11;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
-  color: #555555;
-  margin-left: 10;
-}
-
-.ns-dark .lens-strip-caption {
-  color: #A3A3A3;
-}
-
-.lens-strip-focus {
-  font-family: "Geist-Medium";
-  font-size: 15;
-  color: #111111;
-  margin-top: 3;
-}
-
-.ns-dark .lens-strip-focus {
-  color: #F2F2F2;
-}
-
-.lens-strip-icon-button {
+/* Floating controls over the mirror image. */
+.lens-float-button {
   width: 44;
   height: 44;
+  border-radius: 22;
+  background-color: rgba(24, 24, 24, 0.78);
+  border-width: 1;
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
-/* While recording the record icon is replaced by this: a filled red STOP. */
+.lens-float-icon {
+  width: 19;
+  height: 19;
+  tint-color: #FFFFFF;
+}
+
+/* Minimized: a 64dp row card with the focus line and the capture buttons. */
+.lens-mini-card {
+  height: 64;
+  border-radius: 24;
+  background-color: #FFFFFF;
+  margin: 6 16 0 16;
+  padding: 0 10 0 4;
+}
+
+.ns-dark .lens-mini-card {
+  background-color: #1B1B1B;
+}
+
+.lens-mini-toggle {
+  height: 56;
+  border-radius: 20;
+}
+
+.lens-mini-icon {
+  width: 40;
+  height: 40;
+  border-radius: 20;
+  background-color: #000000;
+}
+
+.lens-mini-caption {
+  font-family: "SpaceGrotesk-Medium";
+  font-size: 12;
+  color: #585856;
+}
+
+.ns-dark .lens-mini-caption {
+  color: #A8A8A5;
+}
+
+.lens-mini-focus {
+  font-family: "SpaceGrotesk-SemiBold";
+  font-size: 15;
+  color: #151515;
+  margin-top: 2;
+}
+
+.ns-dark .lens-mini-focus {
+  color: #F1F1F0;
+}
+
 .lens-stop {
   height: 44;
   min-height: 44;
+  border-radius: 22;
   background-color: #D71921;
   color: #FFFFFF;
-  border-radius: 0;
   border-width: 0;
-  padding: 0 14;
-  font-family: "GeistMono-SemiBold";
-  font-size: 12;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
+  padding: 0 18;
+  font-family: "SpaceGrotesk-SemiBold";
+  font-size: 14;
   android-elevation: 0;
 }
 
-/* ---------- issue rows ---------- */
+/* ---------- issue cards ---------- */
 
-.lens-issue-row {
-  padding: 12 16 12 20;
+.lens-issue-card {
+  border-radius: 24;
+  background-color: #FDE2DF;
+  margin: 12 16 0 16;
+  padding: 12 12 12 16;
+}
+
+.ns-dark .lens-issue-card {
+  background-color: #3D1614;
 }
 
 .lens-issue-title {
-  font-family: "Geist-Medium";
+  font-family: "SpaceGrotesk-SemiBold";
   font-size: 15;
-  color: #111111;
+  color: #7A0E12;
 }
 
 .ns-dark .lens-issue-title {
-  color: #F2F2F2;
+  color: #FFB4AB;
 }
 
 .lens-issue-body {
-  font-family: "Geist-Regular";
+  font-family: "SpaceGrotesk-Regular";
   font-size: 13;
-  color: #555555;
+  color: #7A0E12;
   margin-top: 2;
 }
 
 .ns-dark .lens-issue-body {
-  color: #A3A3A3;
+  color: #FFB4AB;
 }
 
 .lens-fix {
   height: 44;
   min-height: 44;
+  border-radius: 22;
   background-color: #D71921;
   color: #FFFFFF;
-  border-radius: 0;
   border-width: 0;
-  padding: 0 16;
-  font-family: "GeistMono-SemiBold";
-  font-size: 12;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
+  padding: 0 18;
+  font-family: "SpaceGrotesk-SemiBold";
+  font-size: 14;
   android-elevation: 0;
 }
 
-/* ---------- status grid ---------- */
+/* ---------- status cards ---------- */
 
-.lens-status-left {
-  padding: 16 20;
+.lens-status-grid {
+  margin: 12 16 0 16;
 }
 
-.lens-status-right-top {
-  padding: 14 12 6 16;
+.lens-card {
+  border-radius: 24;
+  background-color: #FFFFFF;
 }
 
-.lens-status-right-bottom {
+.ns-dark .lens-card {
+  background-color: #1B1B1B;
+}
+
+.lens-card-battery {
+  padding: 16 16 14 16;
+}
+
+.lens-card-display {
+  padding: 14 14 14 16;
+}
+
+.lens-card-auto {
   padding: 10 8 10 16;
-}
-
-.lens-display-button {
-  height: 44;
-  padding: 0;
+  margin-top: 10;
 }
 
 .lens-display-value {
-  font-family: "Geist-Medium";
+  font-family: "SpaceGrotesk-SemiBold";
   font-size: 16;
-  color: #111111;
+  color: #151515;
+  margin-top: 4;
 }
 
 .ns-dark .lens-display-value {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
 .lens-auto-value {
-  font-family: "Geist-Medium";
+  font-family: "SpaceGrotesk-SemiBold";
   font-size: 16;
-  color: #111111;
+  color: #151515;
   margin-top: 4;
 }
 
 .ns-dark .lens-auto-value {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
 .lens-dots {
@@ -488,59 +498,82 @@
 }
 
 .lens-dot {
-  width: 10;
-  height: 10;
+  width: 9;
+  height: 9;
+  border-radius: 5;
   margin-right: 4;
-  background-color: #C4C4C0;
+  background-color: #BBBBB7;
 }
 
 .ns-dark .lens-dot {
-  background-color: #3C3C3C;
+  background-color: #4C4C4A;
 }
 
 .lens-dot-lit {
-  background-color: #111111;
+  background-color: #151515;
 }
 
 .ns-dark .lens-dot-lit {
-  background-color: #F2F2F2;
+  background-color: #F1F1F0;
 }
 
 .lens-charging {
-  margin-top: 10;
+  margin-top: 8;
 }
 
-/* The native Switch shape is kept; only its colour follows the state. */
-.lens-switch {
-  color: #C4C4C0;
+/*
+ * Native Switch kept for the two-way binding. Android tints the thumb from
+ * `color` and the track from `background-color`; the theme's
+ * `.ns-android Switch[checked=true]` is more specific, so the Lens class is
+ * matched with the same shape to win.
+ */
+/* The theme gives Android switches a 14/16 margin; the card lays it out. */
+Switch.lens-switch {
+  margin: 0;
 }
 
-.ns-dark .lens-switch {
-  color: #3C3C3C;
+.ns-android Switch.lens-switch {
+  color: #BBBBB7;
+  background-color: #E6E6E3;
 }
 
-.lens-switch-on {
+.ns-dark.ns-android Switch.lens-switch {
+  color: #4C4C4A;
+  background-color: #272727;
+}
+
+/* On: a red thumb on the red tonal container, readable on both grounds. */
+.ns-android Switch.lens-switch-on {
   color: #D71921;
+  background-color: #FDE2DF;
 }
 
-.ns-dark .lens-switch-on {
+.ns-dark.ns-android Switch.lens-switch-on {
   color: #D71921;
+  background-color: #3D1614;
 }
 
 /* ---------- brightness ---------- */
 
-.lens-brightness-row {
-  padding: 6 20;
+.lens-brightness-card {
+  border-radius: 24;
+  background-color: #FFFFFF;
+  margin: 10 16 0 16;
+  padding: 4 18 4 16;
+}
+
+.ns-dark .lens-brightness-card {
+  background-color: #1B1B1B;
 }
 
 .lens-slider {
   color: #D71921;
-  background-color: #D2D2CE;
+  background-color: #D4D4D0;
   height: 44;
 }
 
 .ns-dark .lens-slider {
-  background-color: #2A2A2A;
+  background-color: #363636;
 }
 
 .lens-slider-disabled {
@@ -548,16 +581,16 @@
 }
 
 .lens-brightness-value {
-  font-family: "GeistMono-Medium";
-  font-size: 13;
-  color: #111111;
-  width: 34;
+  font-family: "SpaceGrotesk-SemiBold";
+  font-size: 14;
+  color: #151515;
+  width: 40;
   text-align: right;
   vertical-align: center;
 }
 
 .ns-dark .lens-brightness-value {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
 /* ---------- input bar ---------- */
@@ -567,121 +600,125 @@
 }
 
 .lens-input-button {
-  height: 52;
+  height: 56;
+  border-radius: 28;
   background-color: #FFFFFF;
-  border-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
   padding: 0 14;
 }
 
 .ns-dark .lens-input-button {
-  background-color: #0E0E0E;
-  border-color: #2A2A2A;
+  background-color: #1B1B1B;
 }
 
 .lens-input-text {
-  font-family: "Geist-Regular";
+  font-family: "SpaceGrotesk-Regular";
   font-size: 15;
-  color: #555555;
-  margin-left: 10;
+  color: #585856;
+  margin-left: 8;
 }
 
 .ns-dark .lens-input-text {
-  color: #A3A3A3;
+  color: #A8A8A5;
 }
 
 .lens-mic {
-  width: 52;
-  height: 52;
+  width: 56;
+  height: 56;
+  border-radius: 28;
   background-color: #D71921;
 }
 
 .lens-remote-button {
-  height: 52;
-  border-width: 1;
-  border-color: #111111;
-  border-radius: 0;
-  padding: 0 14;
+  height: 56;
+  border-radius: 28;
+  background-color: #E6E6E3;
+  padding: 0 16 0 12;
 }
 
 .ns-dark .lens-remote-button {
-  border-color: #F2F2F2;
+  background-color: #272727;
 }
 
 .lens-remote-text {
-  font-family: "GeistMono-SemiBold";
-  font-size: 12;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
-  color: #111111;
+  font-family: "SpaceGrotesk-SemiBold";
+  font-size: 15;
+  color: #151515;
   margin-left: 8;
 }
 
 .ns-dark .lens-remote-text {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
 /* ---------- bottom nav ---------- */
 
 .lens-nav {
-  padding-bottom: 10;
+  background-color: #FFFFFF;
+  padding: 10 0 16 0;
+}
+
+.ns-dark .lens-nav {
+  background-color: #1B1B1B;
 }
 
 .lens-nav-tab {
-  height: 62;
-  color: #555555;
+  height: 64;
+  color: #585856;
 }
 
 .ns-dark .lens-nav-tab {
-  color: #A3A3A3;
+  color: #A8A8A5;
 }
 
-/* The active tab: fg glyph and label, plus the 2dp red top bar. */
-.lens-nav-tab-active {
-  height: 62;
-  color: #111111;
-}
-
-.ns-dark .lens-nav-tab-active {
-  color: #F2F2F2;
-}
-
-.lens-nav-tab-active .lens-nav-label {
-  font-family: "GeistMono-SemiBold";
-}
-
-.lens-nav-tab-active .lens-nav-bar {
-  background-color: #D71921;
-}
-
-.lens-nav-tab-active Image {
-  tint-color: #111111;
-}
-
-.ns-dark .lens-nav-tab-active Image {
-  tint-color: #F2F2F2;
-}
-
-.lens-nav-tab-inactive Image {
-  tint-color: #555555;
-}
-
-.ns-dark .lens-nav-tab-inactive Image {
-  tint-color: #A3A3A3;
-}
-
-.lens-nav-bar {
-  height: 2;
+/* The active tab's pill sits behind the glyph. */
+.lens-nav-pill {
+  width: 64;
+  height: 32;
+  border-radius: 16;
   background-color: transparent;
 }
 
+.lens-nav-tab-active {
+  height: 64;
+  color: #151515;
+}
+
+.ns-dark .lens-nav-tab-active {
+  color: #F1F1F0;
+}
+
+.lens-nav-tab-active .lens-nav-pill {
+  background-color: #FDE2DF;
+}
+
+.ns-dark .lens-nav-tab-active .lens-nav-pill {
+  background-color: #3D1614;
+}
+
+.lens-nav-tab-active .lens-nav-label {
+  font-family: "SpaceGrotesk-Bold";
+}
+
+.lens-nav-tab-active Image {
+  tint-color: #7A0E12;
+}
+
+.ns-dark .lens-nav-tab-active Image {
+  tint-color: #FFB4AB;
+}
+
+.lens-nav-tab-inactive Image {
+  tint-color: #585856;
+}
+
+.ns-dark .lens-nav-tab-inactive Image {
+  tint-color: #A8A8A5;
+}
+
 .lens-nav-label {
-  font-family: "GeistMono-Medium";
-  font-size: 11;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
-  margin-top: 5;
+  font-family: "SpaceGrotesk-Medium";
+  font-size: 12;
+  margin-top: 4;
 }
 
 .lens-nav-icon {
@@ -696,60 +733,65 @@
 }
 
 .lens-row {
-  min-height: 56;
-  padding: 16 20;
+  min-height: 64;
+  border-radius: 24;
+  background-color: #FFFFFF;
+  margin: 6 16 0 16;
+  padding: 16;
+}
+
+.ns-dark .lens-row {
+  background-color: #1B1B1B;
 }
 
 .lens-row-title {
-  font-family: "Geist-Medium";
+  font-family: "SpaceGrotesk-SemiBold";
   font-size: 16;
-  color: #111111;
+  color: #151515;
 }
 
 .ns-dark .lens-row-title {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
 .lens-row-title-red {
-  font-family: "Geist-Medium";
+  font-family: "SpaceGrotesk-SemiBold";
   font-size: 16;
-  color: #C4161D;
+  color: #7A0E12;
 }
 
 .ns-dark .lens-row-title-red {
-  color: #FF5A4F;
+  color: #FFB4AB;
 }
 
 .lens-row-secondary {
-  font-family: "Geist-Regular";
+  font-family: "SpaceGrotesk-Regular";
   font-size: 13;
-  color: #555555;
+  color: #585856;
   margin-top: 2;
 }
 
 .ns-dark .lens-row-secondary {
-  color: #A3A3A3;
+  color: #A8A8A5;
 }
 
 .lens-row-button {
   height: 44;
   min-height: 44;
   min-width: 44;
-  border-width: 1;
-  border-color: #111111;
-  border-radius: 0;
-  background-color: transparent;
-  color: #111111;
-  padding: 0 14;
-  font-family: "GeistMono-SemiBold";
-  font-size: 12;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
+  border-radius: 22;
+  background-color: #E6E6E3;
+  color: #151515;
+  border-width: 0;
+  padding: 0 16;
+  font-family: "SpaceGrotesk-SemiBold";
+  font-size: 14;
+  android-elevation: 0;
 }
 
 .ns-dark .lens-row-button {
-  border-color: #F2F2F2;
-  color: #F2F2F2;
+  background-color: #272727;
+  color: #F1F1F0;
 }
 
 .lens-danger-gap {
@@ -763,207 +805,190 @@
 /* ---------- Remote sheet ---------- */
 
 .lens-scrim {
-  background-color: rgba(17, 17, 17, 0.45);
+  background-color: rgba(20, 20, 20, 0.4);
 }
 
 .ns-dark .lens-scrim {
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: rgba(0, 0, 0, 0.6);
 }
 
 .lens-sheet {
   background-color: #FFFFFF;
-  border-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
+  border-radius: 28;
   padding: 0 20 0 20;
 }
 
 .ns-dark .lens-sheet {
-  background-color: #0E0E0E;
-  border-color: #2A2A2A;
+  background-color: #1B1B1B;
 }
 
 .lens-sheet-handle {
-  width: 40;
+  width: 32;
   height: 4;
-  background-color: #C4C4C0;
+  border-radius: 2;
+  background-color: #BBBBB7;
 }
 
 .ns-dark .lens-sheet-handle {
-  background-color: #3C3C3C;
-}
-
-.lens-sheet-header {
-  padding-left: 0;
+  background-color: #4C4C4A;
 }
 
 .lens-sheet-footer {
-  padding: 12 0 22 0;
-}
-
-.lens-segment {
-  border-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
-}
-
-.ns-dark .lens-segment {
-  border-color: #2A2A2A;
+  padding: 12 4 24 4;
 }
 
 /*
  * The segment buttons carry the shared view model's legacy tab classes
- * (tab-button / tab-button-selected), so lens.css re-skins them inside the
- * sheet only. remote-controls.xml is untouched and iOS keeps its own styles.
+ * (tab-button / tab-button-selected); lens.css re-skins them as Tonal pills
+ * inside the sheet only. remote-controls.xml is untouched and iOS keeps its
+ * own rules.
  */
 .lens-segment .tab-button {
   height: 44;
   min-height: 44;
   margin: 0;
   border-width: 0;
-  border-radius: 0;
-  background-color: transparent;
-  color: #555555;
-  font-family: "GeistMono-SemiBold";
-  font-size: 12;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
+  border-radius: 22;
+  background-color: #E6E6E3;
+  color: #151515;
+  font-family: "SpaceGrotesk-SemiBold";
+  font-size: 14;
   android-elevation: 0;
 }
 
 .ns-dark .lens-segment .tab-button {
-  color: #A3A3A3;
+  background-color: #272727;
+  color: #F1F1F0;
 }
 
 .lens-segment .tab-button-selected {
-  background-color: #111111;
-  color: #F4F4F2;
+  background-color: #FDE2DF;
+  color: #7A0E12;
 }
 
 .ns-dark .lens-segment .tab-button-selected {
-  background-color: #F2F2F2;
-  color: #000000;
+  background-color: #3D1614;
+  color: #FFB4AB;
 }
 
 .lens-pad {
-  background-color: #ECECE9;
-  border-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
-  color: #111111;
+  background-color: #E6E6E3;
+  border-radius: 24;
+  color: #151515;
 }
 
 .ns-dark .lens-pad {
-  background-color: #161616;
-  border-color: #2A2A2A;
-  color: #F2F2F2;
+  background-color: #272727;
+  color: #F1F1F0;
 }
 
-.lens-pad-focus {
-  font-family: "Geist-Medium";
-  font-size: 26;
-  color: #111111;
-}
-
-.ns-dark .lens-pad-focus {
-  color: #F2F2F2;
-}
-
-/* "Display off": dimmed like the dark screen it describes. */
-.lens-pad-focus-asleep {
-  color: #555555;
-}
-
-.ns-dark .lens-pad-focus-asleep {
-  color: #A3A3A3;
-}
-
-.lens-pad-wake {
-  font-family: "Geist-Regular";
-  font-size: 13;
-  color: #555555;
-  margin-top: 4;
-}
-
-.ns-dark .lens-pad-wake {
-  color: #A3A3A3;
-}
-
-/* The sheet uses the shared padFocusClass ("pad-focus" / "pad-focus-asleep")
- * and the existing wake hint; these Android-only overrides give them Lens type.
- * remote-controls.xml is untouched, so iOS keeps the original rules. */
+/* The shared padFocusClass is restyled here (Android-only). */
 .pad-focus {
-  font-family: "Geist-Medium";
-  font-size: 26;
-  color: #111111;
+  font-family: "SpaceGrotesk-SemiBold";
+  font-size: 28;
+  color: #151515;
 }
 
 .ns-dark .pad-focus {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
 .pad-focus-asleep {
-  color: #555555;
+  color: #585856;
 }
 
 .ns-dark .pad-focus-asleep {
-  color: #A3A3A3;
+  color: #A8A8A5;
 }
 
 .pad-wake-hint {
-  font-family: "Geist-Regular";
+  font-family: "SpaceGrotesk-Regular";
   font-size: 13;
-  color: #555555;
+  color: #585856;
   margin-top: 4;
 }
 
 .ns-dark .pad-wake-hint {
-  color: #A3A3A3;
+  color: #A8A8A5;
+}
+
+.lens-pad-wake {
+  font-family: "SpaceGrotesk-Regular";
+  font-size: 13;
+  color: #585856;
+  margin-top: 4;
+}
+
+.ns-dark .lens-pad-wake {
+  color: #A8A8A5;
 }
 
 .lens-legend {
-  margin-top: 16;
+  margin-top: 14;
 }
 
-.lens-legend-value {
-  font-family: "Geist-Medium";
-  font-size: 14;
-  color: #111111;
-  margin-top: 3;
+/* Legend chips: a bold gesture and a dim action on a hairline outline. */
+.lens-chip {
+  height: 34;
+  border-radius: 17;
+  border-width: 1;
+  border-color: #D4D4D0;
+  padding: 0 12;
+  margin: 0 8 8 0;
 }
 
-.ns-dark .lens-legend-value {
-  color: #F2F2F2;
+.ns-dark .lens-chip {
+  border-color: #363636;
+}
+
+.lens-chip-key {
+  font-family: "SpaceGrotesk-Bold";
+  font-size: 13;
+  color: #151515;
+}
+
+.ns-dark .lens-chip-key {
+  color: #F1F1F0;
+}
+
+.lens-chip-value {
+  font-family: "SpaceGrotesk-Regular";
+  font-size: 13;
+  color: #585856;
+  margin-left: 6;
+}
+
+.ns-dark .lens-chip-value {
+  color: #A8A8A5;
 }
 
 .lens-ring-pad {
   width: 96;
+  border-radius: 48;
 }
 
 .lens-ring-mark {
   width: 28;
-  height: 2;
-  background-color: #C4C4C0;
+  height: 3;
+  border-radius: 2;
+  background-color: #BBBBB7;
 }
 
 .ns-dark .lens-ring-mark {
-  background-color: #3C3C3C;
+  background-color: #4C4C4A;
 }
 
 /* ---------- text-setting editor panel ---------- */
 
 .lens-panel {
   background-color: #FFFFFF;
-  border-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
+  border-radius: 24;
   margin: 8;
   padding: 16;
 }
 
 .ns-dark .lens-panel {
-  background-color: #0E0E0E;
-  border-color: #2A2A2A;
+  background-color: #1B1B1B;
 }
 
 /*
@@ -977,58 +1002,51 @@
   background-color: #FFFFFF;
   color: #222222;
   placeholder-color: #666666;
-  border-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
-  padding: 8;
-  font-family: "Geist-Regular";
+  border-width: 0;
+  border-radius: 16;
+  padding: 10;
+  font-family: "SpaceGrotesk-Regular";
   font-size: 15;
 }
 
 .lens-panel Label {
-  color: #111111;
-  font-family: "Geist-Regular";
+  color: #151515;
+  font-family: "SpaceGrotesk-Regular";
   font-size: 15;
 }
 
 .ns-dark .lens-panel Label {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
 .lens-panel .h2 {
-  font-family: "GeistMono-SemiBold";
-  font-size: 13;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
-  color: #111111;
+  font-family: "SpaceGrotesk-Bold";
+  font-size: 18;
+  color: #151515;
 }
 
 .ns-dark .lens-panel .h2 {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
 .lens-panel Button {
   min-height: 44;
-  border-width: 1;
-  border-color: #2A2A2A;
-  border-radius: 0;
-  background-color: transparent;
-  color: #111111;
-  font-family: "GeistMono-SemiBold";
-  font-size: 12;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
+  border-width: 0;
+  border-radius: 22;
+  background-color: #E6E6E3;
+  color: #151515;
+  font-family: "SpaceGrotesk-SemiBold";
+  font-size: 14;
   android-elevation: 0;
 }
 
 .ns-dark .lens-panel Button {
-  border-color: #A3A3A3;
-  color: #F2F2F2;
+  background-color: #272727;
+  color: #F1F1F0;
 }
 
 .lens-panel Button.-primary {
   background-color: #D71921;
-  border-color: #D71921;
   color: #FFFFFF;
 }
 
@@ -1038,261 +1056,190 @@
  */
 .system-name-modal.keyboard-input-panel {
   background-color: #FFFFFF;
-  border-color: #D2D2CE;
-  border-radius: 0;
+  border-radius: 24;
 }
 
 .ns-dark .system-name-modal.keyboard-input-panel {
-  background-color: #0E0E0E;
-  border-color: #2A2A2A;
+  background-color: #1B1B1B;
 }
 
 .ns-dark .system-name-modal.keyboard-input-panel Label {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
 .ns-dark .system-name-modal Label.keyboard-input-hidden-hint {
-  color: #A3A3A3;
+  color: #A8A8A5;
 }
 
 .ns-dark .panel-icon {
-  tint-color: #F2F2F2;
+  tint-color: #F1F1F0;
 }
 
 .system-name-modal.keyboard-input-panel Button {
-  border-radius: 0;
-  border-width: 1;
-  border-color: #2A2A2A;
-  background-color: transparent;
-  color: #111111;
-  font-family: "GeistMono-SemiBold";
-  font-size: 12;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
+  border-radius: 22;
+  border-width: 0;
+  background-color: #E6E6E3;
+  color: #151515;
+  font-family: "SpaceGrotesk-SemiBold";
+  font-size: 14;
 }
 
 .ns-dark .system-name-modal.keyboard-input-panel Button {
-  border-color: #A3A3A3;
-  color: #F2F2F2;
+  background-color: #272727;
+  color: #F1F1F0;
 }
 
 .system-name-modal.keyboard-input-panel Button.-primary {
   background-color: #D71921;
-  border-color: #D71921;
   color: #FFFFFF;
 }
 
 /* ---------- developer BLE label ---------- */
 
 .lens-ble-label {
-  color: #555555;
-  font-family: "GeistMono-Regular";
+  color: #585856;
+  font-family: "SpaceGrotesk-Regular";
   font-size: 11;
   padding: 2 8;
-  margin-bottom: 74;
+  margin-bottom: 82;
   horizontal-align: center;
 }
 
 .ns-dark .lens-ble-label {
-  color: #A3A3A3;
+  color: #A8A8A5;
 }
 
 /* =====================================================================
- * 5.8 Secondary pages
+ * Secondary pages (conversations, ask, speakers, permissions, pairing,
+ * config, document, onboarding). Android-only: iOS never imports lens.css.
  *
- * Conversations, conversation, ask, speakers, permissions, pairing,
- * config, document and the onboarding pages. Android-only: iOS never
- * imports this file. The pages carry `lens-secondary-page` on their Page
- * element; everything else here is either a global control style or an
- * override of a legacy class that lives in app.css / pairing.css.
- *
- * Speaker and emotion chip background colours come from bindings
- * (`chipBackground`, `emotionColor`) and are data, so those classes only
- * change shape/border here. Never add a background-color to them.
+ * The flash and firmware-check pages are not editable, so the palette is also
+ * set on the bare Page selector they inherit.
  * ===================================================================== */
 
-/* ---------- page shell ---------- */
-
-/*
- * Global page ground. The secondary pages also carry `lens-secondary-page`
- * (used below to scope fields), but the flash and firmware-check pages must
- * inherit the page look without any XML edit, so the palette is set on Page
- * itself as well.
- */
 Page {
-  background-color: #F4F4F2;
-  color: #111111;
-  font-family: "Geist-Regular";
+  background-color: #F2F2F0;
+  color: #151515;
+  font-family: "SpaceGrotesk-Regular";
   font-size: 15;
 }
 
 .ns-dark Page {
-  background-color: #000000;
-  color: #F2F2F2;
+  background-color: #0F0F0F;
+  color: #F1F1F0;
 }
 
 .lens-secondary-page {
-  background-color: #F4F4F2;
-  color: #111111;
-  font-family: "Geist-Regular";
+  background-color: #F2F2F0;
+  color: #151515;
+  font-family: "SpaceGrotesk-Regular";
   font-size: 15;
 }
 
 .ns-dark .lens-secondary-page {
-  background-color: #000000;
-  color: #F2F2F2;
+  background-color: #0F0F0F;
+  color: #F1F1F0;
 }
-
-/* ---------- secondary-page type ---------- */
-
-/* In-page headline (welcome, pair, permissions), not the ActionBar title. */
-.h1 {
-  font-family: "Doto-Black";
-  font-size: 24;
-  letter-spacing: 0.02;
-  color: #111111;
-}
-
-.ns-dark .h1 {
-  color: #F2F2F2;
-}
-
-/* Section heading: Glasses / Ring / Selected. */
-.h2 {
-  font-family: "GeistMono-SemiBold";
-  font-size: 13;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
-  color: #111111;
-}
-
-.ns-dark .h2 {
-  color: #F2F2F2;
-}
-
-.body-text {
-  font-family: "Geist-Regular";
-  font-size: 15;
-  color: #111111;
-}
-
-.ns-dark .body-text {
-  color: #F2F2F2;
-}
-
-.document-text {
-  font-family: "Geist-Regular";
-  font-size: 13;
-  color: #111111;
-}
-
-.ns-dark .document-text {
-  color: #F2F2F2;
-}
-
-.footer-link {
-  color: #111111;
-  font-family: "GeistMono-Regular";
-  font-size: 11;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
-  text-decoration: underline;
-  padding: 4 8;
-}
-
-.ns-dark .footer-link {
-  color: #F2F2F2;
-}
-
-.footer-link-separator {
-  color: #555555;
-  font-size: 11;
-  padding: 4 0;
-}
-
-.ns-dark .footer-link-separator {
-  color: #A3A3A3;
-}
-
-.ns-dark .onboarding-logo {
-  tint-color: #F2F2F2;
-}
-
-/* ---------- ActionBar ---------- */
 
 ActionBar {
-  background-color: #F4F4F2;
-  color: #111111;
-  font-family: "GeistMono-SemiBold";
-  font-size: 13;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
+  background-color: #F2F2F0;
+  color: #151515;
+  font-family: "SpaceGrotesk-Bold";
+  font-size: 16;
   android-elevation: 0;
   android-dynamic-elevation-offset: 0;
 }
 
 .ns-dark ActionBar {
-  background-color: #000000;
-  color: #F2F2F2;
+  background-color: #0F0F0F;
+  color: #F1F1F0;
 }
 
 ActionItem,
 NavigationButton {
-  color: #111111;
+  color: #151515;
   background-color: transparent;
-  font-family: "GeistMono-SemiBold";
-  font-size: 12;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
+  font-family: "SpaceGrotesk-Medium";
+  font-size: 15;
   android-elevation: 0;
-  android-dynamic-elevation-offset: 0;
 }
 
 .ns-dark ActionItem,
 .ns-dark NavigationButton {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
-/* ---------- global buttons ---------- */
+.h1 {
+  font-family: "SpaceGrotesk-Bold";
+  font-size: 26;
+  letter-spacing: -0.02;
+  color: #151515;
+}
 
+.ns-dark .h1 {
+  color: #F1F1F0;
+}
+
+.h2 {
+  font-family: "SpaceGrotesk-SemiBold";
+  font-size: 17;
+  color: #151515;
+}
+
+.ns-dark .h2 {
+  color: #F1F1F0;
+}
+
+.body-text {
+  font-family: "SpaceGrotesk-Regular";
+  font-size: 15;
+  color: #151515;
+}
+
+.ns-dark .body-text {
+  color: #F1F1F0;
+}
+
+.document-text {
+  font-family: "SpaceGrotesk-Regular";
+  font-size: 13;
+  color: #151515;
+}
+
+.ns-dark .document-text {
+  color: #F1F1F0;
+}
+
+/* Global buttons: pills with tonal fill, no outline. */
 Button {
   min-height: 48;
-  border-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
-  background-color: transparent;
-  color: #111111;
-  font-family: "GeistMono-SemiBold";
-  font-size: 12;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
-  padding: 0 16;
+  border-width: 0;
+  border-radius: 24;
+  background-color: #E6E6E3;
+  color: #151515;
+  font-family: "SpaceGrotesk-SemiBold";
+  font-size: 15;
+  padding: 0 20;
   android-elevation: 0;
   android-dynamic-elevation-offset: 0;
 }
 
 .ns-dark Button {
-  border-color: #2A2A2A;
-  background-color: transparent;
-  color: #F2F2F2;
+  background-color: #272727;
+  color: #F1F1F0;
 }
 
 .lens-secondary-page Button:active {
-  background-color: #ECECE9;
-  border-color: #D2D2CE;
-  color: #111111;
+  background-color: #D4D4D0;
 }
 
 .ns-dark .lens-secondary-page Button:active {
-  background-color: #161616;
-  border-color: #2A2A2A;
-  color: #F2F2F2;
+  background-color: #363636;
 }
 
 Button.-primary,
 .ns-dark Button.-primary {
   background-color: #D71921;
-  border-color: #D71921;
   color: #FFFFFF;
 }
 
@@ -1300,491 +1247,241 @@ Button.-primary:active,
 Button.-primary.-active,
 .ns-dark Button.-primary:active,
 .ns-dark Button.-primary.-active {
-  background-color: #D71921;
-  border-color: #D71921;
+  background-color: #B5141B;
   color: #FFFFFF;
 }
 
-/* The two pairing footer actions are still buttons: same outline, dim text. */
 Button.pairing-link {
-  border-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
+  border-width: 0;
+  border-radius: 22;
   background-color: transparent;
-  color: #555555;
-  font-family: "GeistMono-Regular";
-  font-size: 11;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
-  padding: 0 8;
+  color: #585856;
+  font-family: "SpaceGrotesk-Medium";
+  font-size: 14;
+  padding: 0 12;
   android-elevation: 0;
-  android-dynamic-elevation-offset: 0;
 }
 
 .ns-dark Button.pairing-link {
-  border-color: #2A2A2A;
-  color: #A3A3A3;
+  color: #A8A8A5;
 }
 
-/* ---------- text fields and search ---------- */
-
+/* Fields */
+TextField,
+SearchBar,
 .lens-secondary-page TextField {
   background-color: #FFFFFF;
-  color: #111111;
-  placeholder-color: #555555;
-  border-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
-  min-height: 48;
-  padding: 0 12;
-  font-family: "Geist-Regular";
+  color: #151515;
+  placeholder-color: #585856;
+  border-width: 0;
+  border-radius: 16;
+  padding: 10 12;
+  font-family: "SpaceGrotesk-Regular";
   font-size: 15;
+  min-height: 48;
 }
 
+.ns-dark TextField,
+.ns-dark SearchBar,
 .ns-dark .lens-secondary-page TextField {
-  background-color: #0E0E0E;
-  color: #F2F2F2;
-  placeholder-color: #A3A3A3;
-  border-color: #2A2A2A;
+  background-color: #1B1B1B;
+  color: #F1F1F0;
+  placeholder-color: #A8A8A5;
 }
 
-.lens-secondary-page SearchBar {
-  background-color: #FFFFFF;
-  color: #111111;
-  text-field-background-color: transparent;
-  text-field-hint-color: #555555;
-  border-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
-  min-height: 48;
-  padding: 0 8;
-  font-family: "Geist-Regular";
-  font-size: 15;
-}
-
-.ns-dark .lens-secondary-page SearchBar {
-  background-color: #0E0E0E;
-  color: #F2F2F2;
-  text-field-hint-color: #A3A3A3;
-  border-color: #2A2A2A;
-}
-
-/* ---------- rows (conversations, speakers, pairing, permissions, config) ---------- */
-
-/*
- * Rows are separated by a hairline, not by a card: no fill, no radius, no
- * shadow. `pairing-row-selected` uses an fg left rule instead of a fill, and
- * `pairing-row-incomplete` dims the row instead of greying a card.
- */
+/* Rows are tonal cards, not outlined boxes. */
 .conversation-row,
 .pairing-row {
-  background-color: transparent;
+  background-color: #FFFFFF;
   border-width: 0;
-  border-bottom-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
-  padding: 14 0;
-  margin-bottom: 0;
+  border-radius: 24;
+  padding: 16;
+  margin: 6 16 0 16;
   android-elevation: 0;
-  android-dynamic-elevation-offset: 0;
 }
 
 .ns-dark .conversation-row,
 .ns-dark .pairing-row {
-  background-color: transparent;
-  border-color: #2A2A2A;
+  background-color: #1B1B1B;
 }
 
+.conversation-row-selected,
 .pairing-row-selected {
-  background-color: transparent;
-  border-left-width: 3;
-  border-left-color: #111111;
-  border-bottom-color: #D2D2CE;
+  background-color: #FDE2DF;
 }
 
+.ns-dark .conversation-row-selected,
 .ns-dark .pairing-row-selected {
-  background-color: transparent;
-  border-left-color: #F2F2F2;
-  border-bottom-color: #2A2A2A;
+  background-color: #3D1614;
 }
-
-.pairing-row-incomplete {
-  background-color: transparent;
-  border-color: #D2D2CE;
-  opacity: 0.55;
-}
-
-.ns-dark .pairing-row-incomplete {
-  background-color: transparent;
-  border-color: #2A2A2A;
-}
-
-/* ---------- chips (shape only; background stays bound) ---------- */
-
-.speaker-chip {
-  border-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
-  padding: 2 8;
-  color: #111111;
-  font-family: "GeistMono-Medium";
-  font-size: 11;
-}
-
-/* The chip fill is a pastel speaker colour in both themes, so its text
- * stays dark in both themes. */
-.ns-dark .speaker-chip {
-  border-color: #2A2A2A;
-  color: #111111;
-}
-
-.speaker-chip-selected {
-  border-width: 1;
-  border-color: #111111;
-  font-family: "GeistMono-SemiBold";
-}
-
-.ns-dark .speaker-chip-selected {
-  border-color: #111111;
-}
-
-.speaker-tag,
-.speaker-wearer-badge,
-.pairing-badge {
-  background-color: transparent;
-  border-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
-  color: #555555;
-  font-family: "GeistMono-Regular";
-  font-size: 10;
-  letter-spacing: 0.08;
-  text-transform: uppercase;
-  padding: 1 6;
-}
-
-.ns-dark .speaker-tag,
-.ns-dark .speaker-wearer-badge,
-.ns-dark .pairing-badge {
-  background-color: transparent;
-  border-color: #2A2A2A;
-  color: #A3A3A3;
-}
-
-/* "my voice" is the one badge that should read at fg strength. */
-.speaker-wearer-badge {
-  border-color: #111111;
-  color: #111111;
-}
-
-.ns-dark .speaker-wearer-badge {
-  border-color: #F2F2F2;
-  color: #F2F2F2;
-}
-
-/* ---------- conversations and transcripts ---------- */
 
 .conversation-title {
-  font-family: "Geist-Medium";
+  font-family: "SpaceGrotesk-SemiBold";
   font-size: 16;
-  color: #111111;
+  color: #151515;
 }
 
 .ns-dark .conversation-title {
-  color: #F2F2F2;
+  color: #F1F1F0;
 }
 
-.conversation-meta {
-  font-family: "GeistMono-Regular";
-  font-size: 11;
-  color: #555555;
-}
-
-.ns-dark .conversation-meta {
-  color: #A3A3A3;
-}
-
+.conversation-meta,
 .conversation-empty {
-  font-family: "Geist-Regular";
+  font-family: "SpaceGrotesk-Regular";
   font-size: 13;
-  color: #555555;
-  padding: 8 0;
+  color: #585856;
 }
 
+.ns-dark .conversation-meta,
 .ns-dark .conversation-empty {
-  color: #A3A3A3;
+  color: #A8A8A5;
 }
 
 .conversation-status {
-  font-family: "Geist-Regular";
+  font-family: "SpaceGrotesk-Medium";
   font-size: 13;
-  color: #555555;
+  color: #7A0E12;
 }
 
 .ns-dark .conversation-status {
-  color: #A3A3A3;
+  color: #FFB4AB;
 }
 
 .ask-answer {
-  font-family: "Geist-Medium";
+  font-family: "SpaceGrotesk-Regular";
   font-size: 15;
-  color: #111111;
+  color: #151515;
   padding: 4 0;
 }
 
 .ns-dark .ask-answer {
-  color: #F2F2F2;
+  color: #F1F1F0;
+}
+
+/* Chips keep their bound speaker/emotion background colours; shape only. */
+.speaker-chip {
+  font-family: "SpaceGrotesk-Medium";
+  font-size: 12;
+  color: #151515;
+  border-radius: 17;
+  border-width: 1;
+  border-color: transparent;
+  padding: 4 12;
+  margin: 0 6 4 0;
+}
+
+.speaker-chip-selected {
+  border-width: 2;
+  border-color: #151515;
+  font-family: "SpaceGrotesk-Bold";
+}
+
+.ns-dark .speaker-chip-selected {
+  border-color: #F1F1F0;
+}
+
+.speaker-tag {
+  font-family: "SpaceGrotesk-Medium";
+  font-size: 11;
+  color: #585856;
+  background-color: #E6E6E3;
+  border-radius: 11;
+  padding: 2 8;
+}
+
+.ns-dark .speaker-tag {
+  color: #A8A8A5;
+  background-color: #272727;
+}
+
+.speaker-wearer-badge {
+  font-family: "SpaceGrotesk-Bold";
+  font-size: 11;
+  color: #7A0E12;
+  background-color: #FDE2DF;
+  border-radius: 11;
+  padding: 2 8;
+}
+
+.ns-dark .speaker-wearer-badge {
+  color: #FFB4AB;
+  background-color: #3D1614;
 }
 
 .transcript-row {
-  border-width: 0;
-  border-bottom-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
-  padding: 10 0;
-  margin-bottom: 0;
-}
-
-.ns-dark .transcript-row {
-  border-color: #2A2A2A;
-}
-
-.transcript-row-playing {
-  background-color: #ECECE9;
-}
-
-.ns-dark .transcript-row-playing {
-  background-color: #161616;
-}
-
-.transcript-translation {
-  font-family: "Geist-Regular";
-  font-size: 13;
-  font-style: italic;
-  color: #555555;
-}
-
-.ns-dark .transcript-translation {
-  color: #A3A3A3;
-}
-
-.transcript-time {
-  font-family: "GeistMono-Regular";
-  font-size: 11;
-  color: #555555;
-}
-
-.ns-dark .transcript-time {
-  color: #A3A3A3;
-}
-
-.transcript-play {
-  font-family: "GeistMono-Regular";
-  font-size: 16;
-  color: #111111;
-}
-
-.ns-dark .transcript-play {
-  color: #F2F2F2;
-}
-
-.transcript-emotion {
-  border-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
-  color: #111111;
-  font-family: "GeistMono-Regular";
-  font-size: 11;
-  padding: 1 6;
-}
-
-/* Emotion fill is bound data too, so keep the dark text. */
-.ns-dark .transcript-emotion {
-  border-color: #2A2A2A;
-  color: #111111;
-}
-
-/* ---------- pairing / permissions ---------- */
-
-.pairing-instructions {
-  font-family: "Geist-Regular";
-  font-size: 13;
-  color: #555555;
-}
-
-.ns-dark .pairing-instructions {
-  color: #A3A3A3;
-}
-
-.pairing-status {
-  font-family: "Geist-Regular";
-  font-size: 13;
-  color: #111111;
-}
-
-.ns-dark .pairing-status {
-  color: #F2F2F2;
-}
-
-.pairing-section {
+  border-radius: 16;
+  padding: 8;
   margin-bottom: 4;
 }
 
-.pairing-empty {
-  font-family: "Geist-Regular";
+.transcript-row-playing {
+  background-color: #E6E6E3;
+}
+
+.ns-dark .transcript-row-playing {
+  background-color: #272727;
+}
+
+.transcript-translation {
+  font-family: "SpaceGrotesk-Regular";
   font-size: 13;
-  color: #555555;
-  padding: 8 0;
+  font-style: italic;
+  color: #585856;
 }
 
-.ns-dark .pairing-empty {
-  color: #A3A3A3;
+.ns-dark .transcript-translation {
+  color: #A8A8A5;
 }
 
-.pairing-title {
-  font-family: "Geist-Medium";
+.transcript-time {
+  font-family: "SpaceGrotesk-Regular";
+  font-size: 11;
+  color: #585856;
+}
+
+.ns-dark .transcript-time {
+  color: #A8A8A5;
+}
+
+.transcript-emotion {
+  font-size: 11;
+  color: #151515;
+  border-radius: 11;
+  padding: 1 6;
+}
+
+.transcript-play {
   font-size: 16;
-  color: #111111;
-}
-
-.ns-dark .pairing-title {
-  color: #F2F2F2;
-}
-
-.pairing-variant {
-  font-family: "Geist-Regular";
-  font-size: 13;
-  color: #555555;
-}
-
-.ns-dark .pairing-variant {
-  color: #A3A3A3;
-}
-
-.pairing-serial {
-  font-family: "GeistMono-Regular";
-  font-size: 12;
-  color: #555555;
-}
-
-.ns-dark .pairing-serial {
-  color: #A3A3A3;
-}
-
-.pairing-arms {
-  font-family: "Geist-Regular";
-  font-size: 12;
-  color: #555555;
-}
-
-.ns-dark .pairing-arms {
-  color: #A3A3A3;
-}
-
-.pairing-warning {
-  font-family: "Geist-Regular";
-  font-size: 12;
-  color: #C4161D;
-  margin-top: 4;
-}
-
-.ns-dark .pairing-warning {
-  color: #FF5A4F;
-}
-
-.pairing-swatch-label {
-  font-family: "GeistMono-Regular";
-  font-size: 11;
-  color: #555555;
-}
-
-.ns-dark .pairing-swatch-label {
-  color: #A3A3A3;
-}
-
-.pairing-proximity {
-  font-family: "GeistMono-Regular";
-  font-size: 11;
-  color: #555555;
-}
-
-.ns-dark .pairing-proximity {
-  color: #A3A3A3;
-}
-
-.pairing-proximity-immediate {
-  font-family: "GeistMono-SemiBold";
-  color: #111111;
-}
-
-.ns-dark .pairing-proximity-immediate {
-  color: #F2F2F2;
-}
-
-.pairing-chevron {
-  font-family: "Geist-Regular";
-  font-size: 18;
-  color: #555555;
+  color: #7A0E12;
   margin-left: 6;
 }
 
-.ns-dark .pairing-chevron {
-  color: #A3A3A3;
+.ns-dark .transcript-play {
+  color: #FFB4AB;
 }
 
-.pairing-selection {
-  background-color: transparent;
-  border-width: 0;
-  border-top-width: 1;
-  border-bottom-width: 1;
-  border-color: #D2D2CE;
-  border-radius: 0;
-  padding: 14 0;
+.footer-link {
+  color: #7A0E12;
+  font-family: "SpaceGrotesk-Medium";
+  font-size: 14;
+  padding: 4 8;
 }
 
-.ns-dark .pairing-selection {
-  background-color: transparent;
-  border-color: #2A2A2A;
+.ns-dark .footer-link {
+  color: #FFB4AB;
 }
 
-.permissions-description {
-  font-family: "Geist-Regular";
-  font-size: 13;
-  color: #555555;
-  margin-top: 2;
+.footer-link-separator {
+  color: #BBBBB7;
+  font-size: 14;
+  padding: 4 0;
 }
 
-.ns-dark .permissions-description {
-  color: #A3A3A3;
+.ns-dark .footer-link-separator {
+  color: #4C4C4A;
 }
 
-.permissions-check {
-  font-family: "GeistMono-SemiBold";
-  font-size: 20;
-  color: #111111;
-  margin-left: 10;
-}
-
-.ns-dark .permissions-check {
-  color: #F2F2F2;
-}
-
-/* ---------- progress / activity (flash and firmware inherit these) ---------- */
-
-ActivityIndicator {
-  color: #111111;
-}
-
-.ns-dark ActivityIndicator {
-  color: #F2F2F2;
-}
-
-Progress {
-  color: #111111;
-  background-color: #D2D2CE;
-}
-
-.ns-dark Progress {
-  color: #F2F2F2;
-  background-color: #2A2A2A;
+/* The logo art is black-on-transparent; tint it light in dark mode. */
+.ns-dark .onboarding-logo {
+  tint-color: #F1F1F0;
 }

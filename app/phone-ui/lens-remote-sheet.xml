@@ -7,110 +7,106 @@
       and pad measurements. The pads' gesture attributes stay android:-prefixed
       exactly as in remote-controls.xml (iOS feeds raw touches itself and never
       loads this file).
-    -->
-    <!--
+
       Two visibilities by design: the root is the sheet's open state, and the
-      inner layer is the shared controlsVisibility, so the sheet still
-      collapses while the text editor or keyboard panel is up.
+      inner layer is the shared controlsVisibility, so the sheet still collapses
+      while the text editor or keyboard panel is up.
     -->
     <GridLayout rows="*" visibility="{{ controlsVisibility }}">
         <GridLayout rows="*" class="lens-scrim" tap="{{ onRemoteCloseTap }}" />
 
         <GridLayout rows="auto,auto,auto,*,auto,auto" height="{{ remoteSheetHeight }}" class="lens-sheet" verticalAlignment="bottom">
-        <!-- Drag handle -->
-        <GridLayout row="0" rows="auto" height="16">
-            <GridLayout class="lens-sheet-handle" horizontalAlignment="center" verticalAlignment="center" />
-        </GridLayout>
-
-        <!-- Title row -->
-        <GridLayout row="1" columns="*,44" rows="auto">
-            <Label col="0" text="REMOTE" class="lens-sheet-title" verticalAlignment="center" />
-            <GridLayout col="1" class="lens-icon-button" tap="{{ onRemoteCloseTap }}"
-                accessible="true" accessibilityRole="button" accessibilityLabel="Close remote">
-                <Image src="res://ic_lens_close" class="lens-icon" horizontalAlignment="center" verticalAlignment="center" />
-            </GridLayout>
-        </GridLayout>
-
-        <!-- Watch / Ring segments (the shared view model's tab classes) -->
-        <GridLayout row="2" columns="*,*" rows="auto" class="lens-segment" marginTop="8">
-            <Button col="0" text="WATCH" textWrap="false" class="{{ watchTabClass }}" tap="{{ onWatchTabTap }}" />
-            <Button col="1" text="RING" textWrap="false" class="{{ ringTabClass }}" tap="{{ onRingTabTap }}" />
-        </GridLayout>
-
-        <!-- Pads. The container's measured height feeds watchFaceHeight and
-             ringTouchpadHeight; without layoutChanged they stay at their caps. -->
-        <GridLayout row="3" rows="*" layoutChanged="{{ onControlsContentLayoutChanged }}">
-
-            <!-- Watch pad: tap = select, double-tap or two fingers = back,
-                 hold = menu, swipes navigate. -->
-            <GridLayout visibility="{{ watchTabVisibility }}" width="{{ watchFaceWidth }}" height="{{ watchFaceHeight }}"
-                rows="*,auto,auto,auto,*" horizontalAlignment="center" verticalAlignment="center" class="lens-pad"
-                android:tap="{{ onPadTap }}" android:doubleTap="{{ onPadDoubleTap }}" android:longPress="{{ onPadLongPress }}"
-                android:swipe="{{ onPadSwipe }}" touch="{{ onPadTouch }}">
-                <Label row="1" text="FOCUSED" class="lens-label" horizontalAlignment="center" isUserInteractionEnabled="false" />
-                <Label row="2" text="{{ padFocusLine }}" class="{{ padFocusClass }}" horizontalAlignment="center" isUserInteractionEnabled="false" />
-                <Label row="3" text="&#x25CF;&#x25CF; wake" visibility="{{ padWakeHintVisibility }}" class="lens-pad-wake" horizontalAlignment="center" isUserInteractionEnabled="false" />
+            <!-- Drag handle -->
+            <GridLayout row="0" rows="auto" height="16">
+                <GridLayout class="lens-sheet-handle" horizontalAlignment="center" verticalAlignment="center" />
             </GridLayout>
 
-            <!-- Ring pad: portrait strip with the six cosmetic markings. -->
-            <GridLayout visibility="{{ ringTabVisibility }}" width="96" height="{{ ringTouchpadHeight }}"
-                rows="*,auto,*,auto,*,auto,*,auto,*,auto,*,auto,*" horizontalAlignment="center" verticalAlignment="center"
-                class="lens-pad lens-ring-pad"
-                android:tap="{{ onRingPadTap }}" android:doubleTap="{{ onRingPadDoubleTap }}" android:longPress="{{ onRingPadLongPress }}"
-                android:swipe="{{ onRingPadSwipe }}" touch="{{ onRingPadTouch }}">
-                <Label row="1" class="lens-ring-mark" isUserInteractionEnabled="false" />
-                <Label row="3" class="lens-ring-mark" isUserInteractionEnabled="false" />
-                <Label row="5" class="lens-ring-mark" isUserInteractionEnabled="false" />
-                <Label row="7" class="lens-ring-mark" isUserInteractionEnabled="false" />
-                <Label row="9" class="lens-ring-mark" isUserInteractionEnabled="false" />
-                <Label row="11" class="lens-ring-mark" isUserInteractionEnabled="false" />
+            <!-- Title row -->
+            <GridLayout row="1" columns="*,44" rows="auto" marginTop="4">
+                <Label col="0" text="Remote" class="lens-sheet-title" verticalAlignment="center" />
+                <GridLayout col="1" class="lens-circle" tap="{{ onRemoteCloseTap }}"
+                    accessible="true" accessibilityRole="button" accessibilityLabel="Close remote">
+                    <Image src="res://ic_lens_close" class="lens-icon" horizontalAlignment="center" verticalAlignment="center" />
+                </GridLayout>
             </GridLayout>
-        </GridLayout>
 
-        <!-- Legend for the active pad -->
-        <GridLayout row="4" columns="*,*,*,*" rows="auto" class="lens-legend" visibility="{{ watchTabVisibility }}">
-            <StackLayout col="0" marginRight="8">
-                <Label text="TAP" class="lens-label" />
-                <Label text="Select" class="lens-legend-value" />
-            </StackLayout>
-            <StackLayout col="1" marginRight="8">
-                <Label text="2&#xD7; TAP" class="lens-label" />
-                <Label text="Back" class="lens-legend-value" />
-            </StackLayout>
-            <StackLayout col="2" marginRight="8">
-                <Label text="HOLD" class="lens-label" />
-                <Label text="Menu" class="lens-legend-value" />
-            </StackLayout>
-            <StackLayout col="3">
-                <Label text="SWIPE" class="lens-label" />
-                <Label text="Navigate" class="lens-legend-value" />
-            </StackLayout>
-        </GridLayout>
+            <!-- Watch / Ring pills (the shared view model's tab classes) -->
+            <GridLayout row="2" columns="*,*" rows="auto" class="lens-segment" marginTop="12">
+                <Button col="0" text="Watch" textWrap="false" marginRight="4" class="{{ watchTabClass }}" tap="{{ onWatchTabTap }}" />
+                <Button col="1" text="Ring" textWrap="false" marginLeft="4" class="{{ ringTabClass }}" tap="{{ onRingTabTap }}" />
+            </GridLayout>
 
-        <GridLayout row="4" columns="*,*,*,*" rows="auto" class="lens-legend" visibility="{{ ringTabVisibility }}">
-            <StackLayout col="0" marginRight="8">
-                <Label text="SWIPE &#x2195;" class="lens-label" />
-                <Label text="Scroll" class="lens-legend-value" />
-            </StackLayout>
-            <StackLayout col="1" marginRight="8">
-                <Label text="TAP" class="lens-label" />
-                <Label text="Click" class="lens-legend-value" />
-            </StackLayout>
-            <StackLayout col="2" marginRight="8">
-                <Label text="2&#xD7; TAP" class="lens-label" />
-                <Label text="Double" class="lens-legend-value" />
-            </StackLayout>
-            <StackLayout col="3">
-                <Label text="HOLD" class="lens-label" />
-                <Label text="Long" class="lens-legend-value" />
-            </StackLayout>
-        </GridLayout>
+            <!-- Pads. The container's measured height feeds watchFaceHeight and
+                 ringTouchpadHeight; without layoutChanged they stay at their caps. -->
+            <GridLayout row="3" rows="*" layoutChanged="{{ onControlsContentLayoutChanged }}">
 
-        <!-- Footer -->
-        <StackLayout row="5">
-            <GridLayout class="lens-hairline" />
-            <Label text="Tap, then hold, on either pad opens the G2 system menu." textWrap="true" class="lens-secondary lens-sheet-footer" />
-        </StackLayout>
+                <!-- Watch pad: tap = select, double-tap or two fingers = back,
+                     hold = menu, swipes navigate. -->
+                <GridLayout visibility="{{ watchTabVisibility }}" width="{{ watchFaceWidth }}" height="{{ watchFaceHeight }}"
+                    rows="*,auto,auto,auto,*" horizontalAlignment="center" verticalAlignment="center" class="lens-pad"
+                    android:tap="{{ onPadTap }}" android:doubleTap="{{ onPadDoubleTap }}" android:longPress="{{ onPadLongPress }}"
+                    android:swipe="{{ onPadSwipe }}" touch="{{ onPadTouch }}">
+                    <Label row="1" text="Focused" class="lens-label" horizontalAlignment="center" isUserInteractionEnabled="false" />
+                    <Label row="2" text="{{ padFocusLine }}" class="{{ padFocusClass }}" horizontalAlignment="center" isUserInteractionEnabled="false" />
+                    <Label row="3" text="&#x25CF;&#x25CF; wake" visibility="{{ padWakeHintVisibility }}" class="lens-pad-wake" horizontalAlignment="center" isUserInteractionEnabled="false" />
+                </GridLayout>
+
+                <!-- Ring pad: portrait strip with the six cosmetic markings. -->
+                <GridLayout visibility="{{ ringTabVisibility }}" width="96" height="{{ ringTouchpadHeight }}"
+                    rows="*,auto,*,auto,*,auto,*,auto,*,auto,*,auto,*" horizontalAlignment="center" verticalAlignment="center"
+                    class="lens-pad lens-ring-pad"
+                    android:tap="{{ onRingPadTap }}" android:doubleTap="{{ onRingPadDoubleTap }}" android:longPress="{{ onRingPadLongPress }}"
+                    android:swipe="{{ onRingPadSwipe }}" touch="{{ onRingPadTouch }}">
+                    <Label row="1" class="lens-ring-mark" isUserInteractionEnabled="false" />
+                    <Label row="3" class="lens-ring-mark" isUserInteractionEnabled="false" />
+                    <Label row="5" class="lens-ring-mark" isUserInteractionEnabled="false" />
+                    <Label row="7" class="lens-ring-mark" isUserInteractionEnabled="false" />
+                    <Label row="9" class="lens-ring-mark" isUserInteractionEnabled="false" />
+                    <Label row="11" class="lens-ring-mark" isUserInteractionEnabled="false" />
+                </GridLayout>
+            </GridLayout>
+
+            <!-- Legend chips for the active pad -->
+            <FlexboxLayout row="4" flexWrap="wrap" class="lens-legend" visibility="{{ watchTabVisibility }}">
+                <StackLayout orientation="horizontal" class="lens-chip">
+                    <Label text="Tap" class="lens-chip-key" />
+                    <Label text="select" class="lens-chip-value" />
+                </StackLayout>
+                <StackLayout orientation="horizontal" class="lens-chip">
+                    <Label text="Double-tap" class="lens-chip-key" />
+                    <Label text="back" class="lens-chip-value" />
+                </StackLayout>
+                <StackLayout orientation="horizontal" class="lens-chip">
+                    <Label text="Hold" class="lens-chip-key" />
+                    <Label text="menu" class="lens-chip-value" />
+                </StackLayout>
+                <StackLayout orientation="horizontal" class="lens-chip">
+                    <Label text="Swipe" class="lens-chip-key" />
+                    <Label text="navigate" class="lens-chip-value" />
+                </StackLayout>
+            </FlexboxLayout>
+
+            <FlexboxLayout row="4" flexWrap="wrap" class="lens-legend" visibility="{{ ringTabVisibility }}">
+                <StackLayout orientation="horizontal" class="lens-chip">
+                    <Label text="Swipe up/down" class="lens-chip-key" />
+                    <Label text="scroll" class="lens-chip-value" />
+                </StackLayout>
+                <StackLayout orientation="horizontal" class="lens-chip">
+                    <Label text="Tap" class="lens-chip-key" />
+                    <Label text="click" class="lens-chip-value" />
+                </StackLayout>
+                <StackLayout orientation="horizontal" class="lens-chip">
+                    <Label text="Double-tap" class="lens-chip-key" />
+                    <Label text="double-click" class="lens-chip-value" />
+                </StackLayout>
+                <StackLayout orientation="horizontal" class="lens-chip">
+                    <Label text="Hold" class="lens-chip-key" />
+                    <Label text="long-press" class="lens-chip-value" />
+                </StackLayout>
+            </FlexboxLayout>
+
+            <!-- Footer -->
+            <Label row="5" text="Tap, then hold, on either pad opens the G2 system menu." textWrap="true" class="lens-secondary lens-sheet-footer" />
         </GridLayout>
     </GridLayout>
 </GridLayout>

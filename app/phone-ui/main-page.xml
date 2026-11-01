@@ -1,10 +1,10 @@
 <Page xmlns="http://schemas.nativescript.org/tns.xsd" xmlns:rc="phone-ui" xmlns:lens="phone-ui" actionBarHidden="true" navigatingTo="navigatingTo" loaded="loaded" unloaded="unloaded">
     <!--
-      The Lens phone UI. The header, input bar and bottom nav are fixed; the
+      The Tonal phone UI. The header, input bar and bottom nav are fixed; the
       middle is one of three tabs (Glasses / Devices / More), and the Glasses
-      tab scrolls the mirror, its strip, the issue rows and the status cells.
-      The action bar is drawn in-page (actionBarHidden) so it can follow the
-      theme and the header spec exactly.
+      tab scrolls the mirror card, its minimized row, the issue cards and the
+      status cards. The action bar is drawn in-page (actionBarHidden) so it can
+      follow the theme and the mockup exactly.
 
       iOS does not use this file (main-page.ios.ts builds its page in code);
       shared remote-controls/keyboard components are only restyled through
@@ -13,20 +13,22 @@
     <GridLayout rows="*" class="lens-page">
 
         <!-- ================= portrait ================= -->
-        <GridLayout rows="auto,*,auto,auto" visibility="{{ portraitLayoutVisibility }}">
+        <GridLayout rows="auto,*,auto,auto" visibility="{{ portraitLayoutVisibility }}" layoutChanged="{{ onPortraitRootLayoutChanged }}">
 
             <!-- Header: wordmark left; app button, connection and issue right. -->
-            <GridLayout row="0" columns="*,auto" rows="auto" class="lens-header">
-                <Label col="0" text="FACECLAW" class="lens-wordmark" verticalAlignment="center" />
+            <GridLayout row="0" columns="*,auto" rows="auto" class="lens-header" layoutChanged="{{ onPageHeaderLayoutChanged }}">
+                <Label col="0" text="Faceclaw" class="lens-wordmark" verticalAlignment="center" />
                 <GridLayout col="1" columns="auto,auto,auto" rows="auto" verticalAlignment="center">
-                    <Image col="0" src="{{ evenHubPhoneUiIcon }}" visibility="{{ evenHubPhoneUiVisibility }}" tap="{{ onEvenHubPhoneUiTap }}" class="lens-icon-button" stretch="aspectFit" marginRight="8"
-                        accessible="true" accessibilityRole="button" accessibilityLabel="Open the app's phone UI" />
-                    <GridLayout col="1" columns="auto,auto" rows="auto" class="lens-conn-button" tap="{{ onConnectionStatusTap }}"
+                    <GridLayout col="0" class="lens-circle" marginRight="8" visibility="{{ evenHubPhoneUiVisibility }}" tap="{{ onEvenHubPhoneUiTap }}"
+                        accessible="true" accessibilityRole="button" accessibilityLabel="Open the app's phone UI">
+                        <Image src="{{ evenHubPhoneUiIcon }}" stretch="aspectFit" class="lens-icon-lg" horizontalAlignment="center" verticalAlignment="center" />
+                    </GridLayout>
+                    <GridLayout col="1" columns="auto,auto" rows="*" class="lens-conn-button" tap="{{ onConnectionStatusTap }}"
                         accessible="true" accessibilityRole="button" accessibilityLabel="Connection status. Tap for details">
-                        <GridLayout col="0" class="lens-conn-glyph" verticalAlignment="center" />
+                        <Image col="0" src="res://ic_lens_glasses" class="lens-icon-conn" verticalAlignment="center" />
                         <Label col="1" text="{{ connectionStatusLabel }}" class="lens-conn-label" verticalAlignment="center" />
                     </GridLayout>
-                    <GridLayout col="2" columns="auto,auto" rows="auto" class="lens-issue-button" tap="{{ onWarningIconTap }}" visibility="{{ warningIconVisibility }}" marginLeft="8"
+                    <GridLayout col="2" columns="auto,auto" rows="*" class="lens-issue-button" marginLeft="8" visibility="{{ warningIconVisibility }}" tap="{{ onWarningIconTap }}"
                         accessible="true" accessibilityRole="button" accessibilityLabel="Issues need attention. Tap to show them">
                         <Image col="0" src="res://ic_lens_warning" class="lens-icon-warn" verticalAlignment="center" />
                         <Label col="1" text="{{ warningCount }}" class="lens-issue-count" verticalAlignment="center" />
@@ -41,141 +43,145 @@
                 <ScrollView id="homeScroll" visibility="{{ glassesPanelVisibility }}">
                     <StackLayout>
 
-                        <!-- Live mirror; collapses entirely when minimized. -->
+                        <!-- Live mirror in a rounded card; the controls float on it. -->
                         <GridLayout rows="*" height="{{ displayPreviewHeight }}" visibility="{{ mirrorExpandedVisibility }}" class="lens-mirror">
                             <Image src="{{ displayPreview }}" stretch="fill" height="{{ displayPreviewHeight }}" visibility="{{ displayPreviewVisibility }}"
                                 tap="{{ onMirrorTap }}" doubleTap="{{ onMirrorDoubleTap }}" longPress="{{ onMirrorLongPress }}" swipe="{{ onMirrorSwipe }}" />
                             <GridLayout class="lens-mirror-message" height="{{ displayPreviewHeight }}" visibility="{{ displayPreviewMessageVisibility }}">
                                 <Label text="{{ displayPreviewMessage }}" textWrap="true" horizontalAlignment="center" verticalAlignment="center" />
                             </GridLayout>
+                            <GridLayout class="lens-float-button" horizontalAlignment="left" verticalAlignment="top" marginLeft="10" marginTop="10"
+                                tap="{{ onMirrorToggleTap }}" accessible="true" accessibilityRole="button" accessibilityLabel="{{ mirrorToggleLabel }}">
+                                <Image src="res://ic_lens_chevron_up" class="lens-float-icon" horizontalAlignment="center" verticalAlignment="center" />
+                            </GridLayout>
+                            <StackLayout orientation="horizontal" horizontalAlignment="right" verticalAlignment="top" marginRight="10" marginTop="10">
+                                <GridLayout class="lens-float-button" marginRight="8" tap="{{ onTakeScreenshotTap }}"
+                                    accessible="true" accessibilityRole="button" accessibilityLabel="Take screenshot">
+                                    <Image src="res://ic_lens_camera" class="lens-float-icon" horizontalAlignment="center" verticalAlignment="center" />
+                                </GridLayout>
+                                <GridLayout class="lens-float-button" visibility="{{ recordButtonVisibility }}" tap="{{ onRecordScreenTap }}"
+                                    accessible="true" accessibilityRole="button" accessibilityLabel="Record screen">
+                                    <Image src="res://ic_lens_record" class="lens-float-icon" horizontalAlignment="center" verticalAlignment="center" />
+                                </GridLayout>
+                                <Button text="STOP" class="lens-stop" visibility="{{ stopRecordingButtonVisibility }}" tap="{{ onStopRecordingTap }}" />
+                            </StackLayout>
                         </GridLayout>
 
-                        <!-- Mirror strip: the toggle fills the left, capture on the right. -->
-                        <StackLayout>
-                            <GridLayout columns="*,auto" rows="auto">
-                                <GridLayout col="0" rows="auto" class="lens-strip-toggle" tap="{{ onMirrorToggleTap }}"
-                                    accessible="true" accessibilityRole="button" accessibilityLabel="{{ mirrorToggleLabel }}">
-                                    <GridLayout rows="auto" columns="auto,auto" visibility="{{ mirrorExpandedVisibility }}">
-                                        <Image col="0" src="res://ic_lens_chevron_up" class="lens-icon-dim" verticalAlignment="center" />
-                                        <Label col="1" text="LIVE MIRROR" class="lens-strip-caption" verticalAlignment="center" />
-                                    </GridLayout>
-                                    <GridLayout rows="auto" columns="auto,*" visibility="{{ mirrorMinimizedVisibility }}">
-                                        <Image col="0" src="res://ic_lens_chevron_down" class="lens-icon-dim" verticalAlignment="center" />
-                                        <StackLayout col="1" marginLeft="10">
-                                            <Label text="MIRROR MINIMIZED" class="lens-label" />
-                                            <Label text="{{ padFocusLine }}" class="lens-strip-focus" textWrap="false" />
-                                        </StackLayout>
-                                    </GridLayout>
+                        <!-- Minimized: a 64dp row with the focus line and capture. -->
+                        <GridLayout height="64" columns="*,auto,auto" rows="*" class="lens-mini-card" visibility="{{ mirrorMinimizedVisibility }}">
+                            <GridLayout col="0" columns="auto,*" rows="*" class="lens-mini-toggle" tap="{{ onMirrorToggleTap }}"
+                                accessible="true" accessibilityRole="button" accessibilityLabel="{{ mirrorToggleLabel }}">
+                                <GridLayout col="0" class="lens-mini-icon" marginRight="12" verticalAlignment="center">
+                                    <Image src="res://ic_lens_chevron_down" class="lens-float-icon" horizontalAlignment="center" verticalAlignment="center" />
                                 </GridLayout>
-                                <GridLayout col="1" columns="auto,auto,auto" rows="auto">
-                                    <GridLayout col="0" class="lens-strip-icon-button" tap="{{ onTakeScreenshotTap }}"
-                                        accessible="true" accessibilityRole="button" accessibilityLabel="Take screenshot">
-                                        <Image src="res://ic_lens_camera" class="lens-icon" horizontalAlignment="center" verticalAlignment="center" />
-                                    </GridLayout>
-                                    <GridLayout col="1" class="lens-strip-icon-button" visibility="{{ recordButtonVisibility }}" tap="{{ onRecordScreenTap }}"
-                                        accessible="true" accessibilityRole="button" accessibilityLabel="Record screen">
-                                        <Image src="res://ic_lens_record" class="lens-icon" horizontalAlignment="center" verticalAlignment="center" />
-                                    </GridLayout>
-                                    <Button col="2" text="STOP" class="lens-stop" visibility="{{ stopRecordingButtonVisibility }}" tap="{{ onStopRecordingTap }}" />
-                                </GridLayout>
+                                <StackLayout col="1" verticalAlignment="center">
+                                    <Label text="Live mirror minimized" class="lens-mini-caption" />
+                                    <Label text="{{ padFocusLine }}" class="lens-mini-focus" textWrap="false" />
+                                </StackLayout>
                             </GridLayout>
-                            <GridLayout class="lens-hairline" />
-                        </StackLayout>
+                            <GridLayout col="1" class="lens-circle" marginRight="8" verticalAlignment="center" tap="{{ onTakeScreenshotTap }}"
+                                accessible="true" accessibilityRole="button" accessibilityLabel="Take screenshot">
+                                <Image src="res://ic_lens_camera" class="lens-icon" horizontalAlignment="center" verticalAlignment="center" />
+                            </GridLayout>
+                            <GridLayout col="2" class="lens-circle" verticalAlignment="center" visibility="{{ recordButtonVisibility }}" tap="{{ onRecordScreenTap }}"
+                                accessible="true" accessibilityRole="button" accessibilityLabel="Record screen">
+                                <Image src="res://ic_lens_record" class="lens-icon" horizontalAlignment="center" verticalAlignment="center" />
+                            </GridLayout>
+                            <Button col="2" text="STOP" class="lens-stop" verticalAlignment="center" visibility="{{ stopRecordingButtonVisibility }}" tap="{{ onStopRecordingTap }}" />
+                        </GridLayout>
 
-                        <!-- Issue rows; the block collapses when nothing is wrong. -->
+                        <!-- Issue cards; the block collapses when nothing is wrong. -->
                         <StackLayout id="issuesBlock" visibility="{{ warningIconVisibility }}">
-                            <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-row" visibility="{{ evenAppConflictWarningVisibility }}">
-                                <Image col="0" src="res://ic_lens_warning" class="lens-icon-red" verticalAlignment="top" marginRight="12" />
+                            <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-card" visibility="{{ evenAppConflictWarningVisibility }}">
+                                <Image col="0" src="res://ic_lens_warning" class="lens-icon-warn-lg" verticalAlignment="center" marginRight="12" />
                                 <Label col="1" text="{{ evenAppConflictMessage }}" textWrap="true" class="lens-issue-body" verticalAlignment="center" />
-                                <Button col="2" text="OPEN" class="lens-fix" tap="{{ onOpenEvenAppSettingsTap }}" verticalAlignment="center" />
+                                <Button col="2" text="Open" class="lens-fix" tap="{{ onOpenEvenAppSettingsTap }}" verticalAlignment="center" />
                             </GridLayout>
-                            <GridLayout class="lens-hairline" visibility="{{ evenAppConflictWarningVisibility }}" />
-                            <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-row" visibility="{{ firmwareWarningVisibility }}">
-                                <Image col="0" src="res://ic_lens_warning" class="lens-icon-red" verticalAlignment="top" marginRight="12" />
+                            <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-card" visibility="{{ firmwareWarningVisibility }}">
+                                <Image col="0" src="res://ic_lens_warning" class="lens-icon-warn-lg" verticalAlignment="center" marginRight="12" />
                                 <Label col="1" text="{{ firmwareWarningMessage }}" textWrap="true" class="lens-issue-body" verticalAlignment="center" />
-                                <Button col="2" text="INSTALL" class="lens-fix" tap="{{ onInstallFirmwareTap }}" verticalAlignment="center" />
+                                <Button col="2" text="Install" class="lens-fix" tap="{{ onInstallFirmwareTap }}" verticalAlignment="center" />
                             </GridLayout>
-                            <GridLayout class="lens-hairline" visibility="{{ firmwareWarningVisibility }}" />
-                            <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-row" visibility="{{ batteryOptimizationWarningVisibility }}">
-                                <Image col="0" src="res://ic_lens_warning" class="lens-icon-red" verticalAlignment="top" marginRight="12" />
+                            <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-card" visibility="{{ batteryOptimizationWarningVisibility }}">
+                                <Image col="0" src="res://ic_lens_warning" class="lens-icon-warn-lg" verticalAlignment="center" marginRight="12" />
                                 <StackLayout col="1" verticalAlignment="center">
                                     <Label text="Background use is restricted" textWrap="true" class="lens-issue-title" />
                                     <Label text="Android will slow Faceclaw to a crawl when the phone screen is off unless it is exempt from battery optimization." textWrap="true" class="lens-issue-body" />
                                 </StackLayout>
-                                <Button col="2" text="FIX" class="lens-fix" tap="{{ onAllowBackgroundUsageTap }}" verticalAlignment="center" />
+                                <Button col="2" text="Fix" class="lens-fix" tap="{{ onAllowBackgroundUsageTap }}" verticalAlignment="center" />
                             </GridLayout>
-                            <GridLayout class="lens-hairline" visibility="{{ batteryOptimizationWarningVisibility }}" />
-                            <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-row" visibility="{{ fontsMissingWarningVisibility }}">
-                                <Image col="0" src="res://ic_lens_warning" class="lens-icon-red" verticalAlignment="top" marginRight="12" />
+                            <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-card" visibility="{{ fontsMissingWarningVisibility }}">
+                                <Image col="0" src="res://ic_lens_warning" class="lens-icon-warn-lg" verticalAlignment="center" marginRight="12" />
                                 <StackLayout col="1" verticalAlignment="center">
                                     <Label text="G2 fonts not prepared" textWrap="true" class="lens-issue-title" />
                                     <Label text="The G2 fonts have not been extracted, so EvenHub apps will render with fallback fonts. Preparing them downloads the official firmware to extract its fonts; your glasses are not reflashed." textWrap="true" class="lens-issue-body" />
                                 </StackLayout>
-                                <Button col="2" text="PREPARE" class="lens-fix" tap="{{ onPrepareFontsTap }}" verticalAlignment="center" />
+                                <Button col="2" text="Prepare" class="lens-fix" tap="{{ onPrepareFontsTap }}" verticalAlignment="center" />
                             </GridLayout>
-                            <GridLayout class="lens-hairline" visibility="{{ fontsMissingWarningVisibility }}" />
-                            <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-row" visibility="{{ alarmReliabilityWarningVisibility }}">
-                                <Image col="0" src="res://ic_lens_warning" class="lens-icon-red" verticalAlignment="top" marginRight="12" />
+                            <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-card" visibility="{{ alarmReliabilityWarningVisibility }}">
+                                <Image col="0" src="res://ic_lens_warning" class="lens-icon-warn-lg" verticalAlignment="center" marginRight="12" />
                                 <Label col="1" text="{{ alarmReliabilityMessage }}" textWrap="true" class="lens-issue-body" verticalAlignment="center" />
-                                <Button col="2" text="OPEN" class="lens-fix" tap="{{ onFixAlarmReliabilityTap }}" verticalAlignment="center" />
+                                <Button col="2" text="Open" class="lens-fix" tap="{{ onFixAlarmReliabilityTap }}" verticalAlignment="center" />
                             </GridLayout>
-                            <GridLayout class="lens-hairline" visibility="{{ alarmReliabilityWarningVisibility }}" />
                         </StackLayout>
 
-                        <!-- Status: battery left, display mode + auto brightness right. -->
-                        <GridLayout columns="*,1,*" rows="auto">
-                            <StackLayout col="0" class="lens-status-left">
-                                <Label text="GLASSES BATTERY" class="lens-label" />
-                                <GridLayout columns="auto,auto" rows="auto" horizontalAlignment="left" marginTop="4">
-                                    <Label col="0" text="{{ glassesBatteryText }}" class="lens-battery-value" />
-                                    <Label col="1" text="%" class="lens-battery-percent" visibility="{{ glassesBatteryPercentVisibility }}" />
-                                </GridLayout>
-                                <StackLayout orientation="horizontal" class="lens-dots">
-                                    <Repeater items="{{ batteryDots }}">
-                                        <Repeater.itemTemplate>
-                                            <Label class="{{ lit ? 'lens-dot lens-dot-lit' : 'lens-dot' }}" />
-                                        </Repeater.itemTemplate>
-                                    </Repeater>
+                        <!-- Status: battery card left; display mode + auto right. -->
+                        <GridLayout columns="*,*" rows="auto" class="lens-status-grid">
+                            <GridLayout col="0" rows="auto" class="lens-card lens-card-battery" marginRight="5" verticalAlignment="top">
+                                <StackLayout>
+                                    <Label text="Glasses battery" class="lens-label" />
+                                    <GridLayout columns="auto,auto" rows="auto" horizontalAlignment="left" marginTop="4">
+                                        <Label col="0" text="{{ glassesBatteryText }}" class="lens-battery-value" />
+                                        <Label col="1" text="%" class="lens-battery-percent" visibility="{{ glassesBatteryPercentVisibility }}" />
+                                    </GridLayout>
+                                    <StackLayout orientation="horizontal" class="lens-dots">
+                                        <Label class="{{ batteryDot1Class }}" />
+                                        <Label class="{{ batteryDot2Class }}" />
+                                        <Label class="{{ batteryDot3Class }}" />
+                                        <Label class="{{ batteryDot4Class }}" />
+                                        <Label class="{{ batteryDot5Class }}" />
+                                        <Label class="{{ batteryDot6Class }}" />
+                                        <Label class="{{ batteryDot7Class }}" />
+                                        <Label class="{{ batteryDot8Class }}" />
+                                        <Label class="{{ batteryDot9Class }}" />
+                                        <Label class="{{ batteryDot10Class }}" />
+                                    </StackLayout>
+                                    <Label text="{{ glassesChargingLabel }}" class="lens-label lens-charging" />
                                 </StackLayout>
-                                <Label text="{{ glassesChargingLabel }}" class="lens-label lens-charging" />
-                            </StackLayout>
-                            <GridLayout col="1" class="lens-hairline-v" />
-                            <StackLayout col="2">
-                                <StackLayout class="lens-status-right-top">
-                                    <Label text="DISPLAY MODE" class="lens-label" />
-                                    <GridLayout columns="*,auto" rows="auto" height="44" tap="{{ onDisplayModeTap }}"
-                                        accessible="true" accessibilityRole="button" accessibilityLabel="Display mode. Change">
+                            </GridLayout>
+                            <StackLayout col="1" marginLeft="5">
+                                <StackLayout class="lens-card lens-card-display" tap="{{ onDisplayModeTap }}"
+                                    accessible="true" accessibilityRole="button" accessibilityLabel="Display mode. Change">
+                                    <Label text="Display mode" class="lens-label" />
+                                    <GridLayout columns="*,auto" rows="auto" marginTop="4">
                                         <Label col="0" text="{{ displayModeValue }}" class="lens-display-value" verticalAlignment="center" textWrap="false" />
                                         <Image col="1" src="res://ic_lens_chevron_down" class="lens-icon-dim" verticalAlignment="center" />
                                     </GridLayout>
                                 </StackLayout>
-                                <GridLayout class="lens-hairline" />
-                                <GridLayout columns="*,auto" rows="auto" class="lens-status-right-bottom">
+                                <GridLayout columns="*,auto" rows="auto" class="lens-card lens-card-auto">
                                     <StackLayout col="0" verticalAlignment="center">
-                                        <Label text="AUTO BRIGHTNESS" class="lens-label" />
+                                        <Label text="Auto brightness" textWrap="true" class="lens-label" />
                                         <Label text="{{ brightnessAutoLabel }}" class="lens-auto-value" />
                                     </StackLayout>
-                                    <Switch col="1" checked="{{ brightnessAuto }}" checkedChange="{{ onBrightnessAutoChange }}" class="{{ brightnessAutoSwitchClass }}" verticalAlignment="center" />
+                                    <Switch col="1" checked="{{ brightnessAuto }}" checkedChange="{{ onBrightnessAutoChange }}" class="{{ brightnessAutoSwitchClass }}" verticalAlignment="center" horizontalAlignment="right" />
                                 </GridLayout>
                             </StackLayout>
                         </GridLayout>
-                        <GridLayout class="lens-hairline" />
 
                         <!-- Brightness -->
-                        <GridLayout columns="auto,*,auto" rows="auto" class="lens-brightness-row">
+                        <GridLayout columns="auto,*,auto" rows="auto" class="lens-brightness-card">
                             <Image col="0" src="res://ic_lens_sun" class="lens-icon-dim" verticalAlignment="center" marginRight="12" />
                             <Slider col="1" minValue="2" maxValue="100" value="{{ brightnessPercent }}" valueChange="{{ onBrightnessChange }}"
                                 isEnabled="{{ brightnessSliderEnabled }}" class="{{ brightnessSliderClass }}" />
-                            <Label col="2" text="{{ brightnessPercent }}" class="lens-brightness-value" />
+                            <Label col="2" text="{{ brightnessPercentLabel }}" class="lens-brightness-value" />
                         </GridLayout>
-                        <GridLayout class="lens-hairline" />
                     </StackLayout>
                 </ScrollView>
 
                 <!-- Devices tab -->
                 <ScrollView visibility="{{ devicesPanelVisibility }}">
                     <StackLayout>
-                        <Label text="GLASSES" class="lens-label lens-section-label" />
+                        <Label text="Glasses" class="lens-label lens-section-label" />
                         <GridLayout columns="*,auto" rows="auto" class="lens-row" visibility="{{ glassesMenuItemsVisibility }}">
                             <StackLayout col="0" verticalAlignment="center">
                                 <Label text="{{ connectionStatusLabel }}" class="lens-row-title" />
@@ -183,102 +189,93 @@
                             </StackLayout>
                             <Button col="1" text="{{ buttonLabel }}" class="lens-row-button" tap="{{ onTap }}" isEnabled="{{ connectItemEnabled }}" verticalAlignment="center" />
                         </GridLayout>
-                        <GridLayout class="lens-hairline" visibility="{{ glassesMenuItemsVisibility }}" />
-                        <GridLayout columns="*,auto" rows="auto" class="lens-row" tap="{{ onPairGlassesTap }}" isEnabled="{{ canRun }}"
+                        <GridLayout columns="*,auto" rows="auto" class="lens-row" marginTop="8" tap="{{ onPairGlassesTap }}" isEnabled="{{ canRun }}"
                             accessible="true" accessibilityRole="button" accessibilityLabel="Pair glasses">
                             <Label col="0" text="Pair glasses" class="lens-row-title" verticalAlignment="center" />
                             <Image col="1" src="res://ic_lens_chevron_right" class="lens-icon-dim" verticalAlignment="center" />
                         </GridLayout>
-                        <GridLayout class="lens-hairline" />
-                        <GridLayout columns="*,auto" rows="auto" class="lens-row" tap="{{ onPermissionsTap }}"
+                        <GridLayout columns="*,auto" rows="auto" class="lens-row" marginTop="8" tap="{{ onPermissionsTap }}"
                             accessible="true" accessibilityRole="button" accessibilityLabel="Permissions">
                             <Label col="0" text="Permissions" class="lens-row-title" verticalAlignment="center" />
                             <Image col="1" src="res://ic_lens_chevron_right" class="lens-icon-dim" verticalAlignment="center" />
                         </GridLayout>
                         <GridLayout class="lens-danger-gap" />
-                        <Label text="DANGER ZONE" class="lens-label-red lens-section-label" />
+                        <Label text="Danger zone" class="lens-label-red lens-section-label" />
                         <GridLayout columns="*,auto" rows="auto" class="lens-row" visibility="{{ glassesMenuItemsVisibility }}"
                             tap="{{ onUninstallFirmwareTap }}" isEnabled="{{ canRun }}"
                             accessible="true" accessibilityRole="button" accessibilityLabel="Uninstall custom firmware">
                             <Label col="0" text="Uninstall custom firmware" class="lens-row-title-red" verticalAlignment="center" />
                             <Image col="1" src="res://ic_lens_chevron_right" class="lens-icon-dim" verticalAlignment="center" />
                         </GridLayout>
-                        <GridLayout class="lens-hairline" visibility="{{ glassesMenuItemsVisibility }}" />
                     </StackLayout>
                 </ScrollView>
 
                 <!-- More tab -->
                 <ScrollView visibility="{{ morePanelVisibility }}">
                     <StackLayout>
-                        <Label text="MORE" class="lens-label lens-section-label" />
+                        <Label text="More" class="lens-label lens-section-label" />
                         <GridLayout columns="*,auto" rows="auto" class="lens-row" tap="{{ onConversationsTap }}"
                             accessible="true" accessibilityRole="button" accessibilityLabel="Conversations">
                             <Label col="0" text="Conversations" class="lens-row-title" verticalAlignment="center" />
                             <Image col="1" src="res://ic_lens_chevron_right" class="lens-icon-dim" verticalAlignment="center" />
                         </GridLayout>
-                        <GridLayout class="lens-hairline" />
-                        <GridLayout columns="*,auto" rows="auto" class="lens-row" tap="{{ onLicenseTap }}"
+                        <GridLayout columns="*,auto" rows="auto" class="lens-row" marginTop="8" tap="{{ onLicenseTap }}"
                             accessible="true" accessibilityRole="button" accessibilityLabel="License, GPL version 3">
                             <Label col="0" text="License (GPLv3)" class="lens-row-title" verticalAlignment="center" />
                             <Image col="1" src="res://ic_lens_chevron_right" class="lens-icon-dim" verticalAlignment="center" />
                         </GridLayout>
-                        <GridLayout class="lens-hairline" />
-                        <GridLayout columns="*,auto" rows="auto" class="lens-row" tap="{{ onPrivacyTap }}"
+                        <GridLayout columns="*,auto" rows="auto" class="lens-row" marginTop="8" tap="{{ onPrivacyTap }}"
                             accessible="true" accessibilityRole="button" accessibilityLabel="Privacy Policy">
                             <Label col="0" text="Privacy Policy" class="lens-row-title" verticalAlignment="center" />
                             <Image col="1" src="res://ic_lens_chevron_right" class="lens-icon-dim" verticalAlignment="center" />
                         </GridLayout>
-                        <GridLayout class="lens-hairline" />
                         <Label text="{{ versionLabel }}" class="lens-label lens-footer" />
                     </StackLayout>
                 </ScrollView>
             </GridLayout>
 
             <!-- Input bar (fixed) -->
-            <StackLayout row="2">
-                <GridLayout class="lens-hairline" />
-                <GridLayout columns="*,52,auto" rows="auto" class="lens-input-bar">
-                    <GridLayout col="0" columns="auto,*" rows="auto" class="lens-input-button" marginRight="8" tap="{{ onKeyboardTap }}"
-                        accessible="true" accessibilityRole="button" accessibilityLabel="Keyboard input">
-                        <Image col="0" src="res://ic_tab_keyboard" class="lens-icon-dim" verticalAlignment="center" />
-                        <Label col="1" text="Type a message" class="lens-input-text" verticalAlignment="center" textWrap="false" />
-                    </GridLayout>
-                    <GridLayout col="1" class="lens-mic" marginRight="8" tap="{{ onSyntheticMicTap }}"
-                        accessible="true" accessibilityRole="button" accessibilityLabel="Voice input">
-                        <Image src="res://ic_tab_mic" class="lens-icon-white" horizontalAlignment="center" verticalAlignment="center" />
-                    </GridLayout>
-                    <GridLayout col="2" columns="auto,auto" rows="auto" class="lens-remote-button" tap="{{ onRemoteOpenTap }}"
-                        accessible="true" accessibilityRole="button" accessibilityLabel="Open remote">
-                        <Image col="0" src="res://ic_lens_remote" class="lens-icon" verticalAlignment="center" />
-                        <Label col="1" text="REMOTE" class="lens-remote-text" verticalAlignment="center" />
-                    </GridLayout>
+            <GridLayout row="2" columns="*,56,auto" rows="auto" class="lens-input-bar">
+                <GridLayout col="0" columns="auto,*" rows="*" class="lens-input-button" marginRight="8" tap="{{ onKeyboardTap }}"
+                    accessible="true" accessibilityRole="button" accessibilityLabel="Keyboard input">
+                    <Image col="0" src="res://ic_tab_keyboard" class="lens-icon-dim" verticalAlignment="center" />
+                    <Label col="1" text="Type a message" class="lens-input-text" verticalAlignment="center" textWrap="false" />
                 </GridLayout>
-            </StackLayout>
+                <GridLayout col="1" class="lens-mic" marginRight="8" tap="{{ onSyntheticMicTap }}"
+                    accessible="true" accessibilityRole="button" accessibilityLabel="Voice input">
+                    <Image src="res://ic_tab_mic" class="lens-icon-white" horizontalAlignment="center" verticalAlignment="center" />
+                </GridLayout>
+                <GridLayout col="2" columns="auto,auto" rows="*" class="lens-remote-button" tap="{{ onRemoteOpenTap }}"
+                    accessible="true" accessibilityRole="button" accessibilityLabel="Open remote">
+                    <Image col="0" src="res://ic_lens_remote" class="lens-icon" verticalAlignment="center" />
+                    <Label col="1" text="Remote" class="lens-remote-text" verticalAlignment="center" />
+                </GridLayout>
+            </GridLayout>
 
             <!-- Bottom nav (fixed) -->
-            <StackLayout row="3">
-                <GridLayout class="lens-hairline" />
-                <GridLayout columns="*,*,*" rows="auto" class="lens-nav">
-                    <GridLayout col="0" rows="2,*,auto" class="{{ glassesNavClass }}" tap="{{ onGlassesNavTap }}"
-                        accessible="true" accessibilityRole="button" accessibilityLabel="Glasses">
-                        <GridLayout row="0" class="lens-nav-bar" />
-                        <Image row="1" src="res://ic_lens_glasses" class="lens-nav-icon" horizontalAlignment="center" verticalAlignment="center" />
-                        <Label row="2" text="Glasses" class="lens-nav-label" horizontalAlignment="center" />
+            <GridLayout row="3" columns="*,*,*" rows="auto" class="lens-nav">
+                <GridLayout col="0" rows="32,auto" class="{{ glassesNavClass }}" tap="{{ onGlassesNavTap }}"
+                    accessible="true" accessibilityRole="button" accessibilityLabel="Glasses">
+                    <GridLayout row="0" class="lens-nav-pill" horizontalAlignment="center" verticalAlignment="center">
+                        <Image src="res://ic_lens_glasses" class="lens-nav-icon" horizontalAlignment="center" verticalAlignment="center" />
                     </GridLayout>
-                    <GridLayout col="1" rows="2,*,auto" class="{{ devicesNavClass }}" tap="{{ onDevicesNavTap }}"
-                        accessible="true" accessibilityRole="button" accessibilityLabel="Devices">
-                        <GridLayout row="0" class="lens-nav-bar" />
-                        <Image row="1" src="res://ic_lens_devices" class="lens-nav-icon" horizontalAlignment="center" verticalAlignment="center" />
-                        <Label row="2" text="Devices" class="lens-nav-label" horizontalAlignment="center" />
-                    </GridLayout>
-                    <GridLayout col="2" rows="2,*,auto" class="{{ moreNavClass }}" tap="{{ onMoreNavTap }}"
-                        accessible="true" accessibilityRole="button" accessibilityLabel="More">
-                        <GridLayout row="0" class="lens-nav-bar" />
-                        <Image row="1" src="res://ic_lens_more" class="lens-nav-icon" horizontalAlignment="center" verticalAlignment="center" />
-                        <Label row="2" text="More" class="lens-nav-label" horizontalAlignment="center" />
-                    </GridLayout>
+                    <Label row="1" text="Glasses" class="lens-nav-label" horizontalAlignment="center" />
                 </GridLayout>
-            </StackLayout>
+                <GridLayout col="1" rows="32,auto" class="{{ devicesNavClass }}" tap="{{ onDevicesNavTap }}"
+                    accessible="true" accessibilityRole="button" accessibilityLabel="Devices">
+                    <GridLayout row="0" class="lens-nav-pill" horizontalAlignment="center" verticalAlignment="center">
+                        <Image src="res://ic_lens_devices" class="lens-nav-icon" horizontalAlignment="center" verticalAlignment="center" />
+                    </GridLayout>
+                    <Label row="1" text="Devices" class="lens-nav-label" horizontalAlignment="center" />
+                </GridLayout>
+                <GridLayout col="2" rows="32,auto" class="{{ moreNavClass }}" tap="{{ onMoreNavTap }}"
+                    accessible="true" accessibilityRole="button" accessibilityLabel="More">
+                    <GridLayout row="0" class="lens-nav-pill" horizontalAlignment="center" verticalAlignment="center">
+                        <Image src="res://ic_lens_more" class="lens-nav-icon" horizontalAlignment="center" verticalAlignment="center" />
+                    </GridLayout>
+                    <Label row="1" text="More" class="lens-nav-label" horizontalAlignment="center" />
+                </GridLayout>
+            </GridLayout>
         </GridLayout>
 
         <!-- ================= landscape ================= -->
@@ -286,7 +283,7 @@
              the left column collapses and the UI takes the full width. -->
         <GridLayout rows="*" visibility="{{ landscapeLayoutVisibility }}">
             <GridLayout columns="{{ landscapeColumns }}" rows="*">
-                <GridLayout col="0" layoutChanged="{{ onLandscapePreviewLayoutChanged }}" visibility="{{ mirrorExpandedVisibility }}" class="lens-mirror">
+                <GridLayout col="0" layoutChanged="{{ onLandscapePreviewLayoutChanged }}" visibility="{{ mirrorExpandedVisibility }}" class="lens-mirror" margin="12">
                     <StackLayout visibility="{{ displayPreviewVisibility }}" horizontalAlignment="left" verticalAlignment="center">
                         <Image src="{{ displayPreview }}" stretch="fill"
                             width="{{ landscapeDisplayPreviewWidth }}" height="{{ landscapeDisplayPreviewHeight }}"
@@ -297,21 +294,38 @@
                         visibility="{{ displayPreviewMessageVisibility }}">
                         <Label text="{{ displayPreviewMessage }}" textWrap="true" horizontalAlignment="center" verticalAlignment="center" />
                     </GridLayout>
+                    <GridLayout class="lens-float-button" horizontalAlignment="left" verticalAlignment="top" marginLeft="10" marginTop="10"
+                        tap="{{ onMirrorToggleTap }}" accessible="true" accessibilityRole="button" accessibilityLabel="{{ mirrorToggleLabel }}">
+                        <Image src="res://ic_lens_chevron_up" class="lens-float-icon" horizontalAlignment="center" verticalAlignment="center" />
+                    </GridLayout>
+                    <StackLayout orientation="horizontal" horizontalAlignment="right" verticalAlignment="top" marginRight="10" marginTop="10">
+                        <GridLayout class="lens-float-button" marginRight="8" tap="{{ onTakeScreenshotTap }}"
+                            accessible="true" accessibilityRole="button" accessibilityLabel="Take screenshot">
+                            <Image src="res://ic_lens_camera" class="lens-float-icon" horizontalAlignment="center" verticalAlignment="center" />
+                        </GridLayout>
+                        <GridLayout class="lens-float-button" visibility="{{ recordButtonVisibility }}" tap="{{ onRecordScreenTap }}"
+                            accessible="true" accessibilityRole="button" accessibilityLabel="Record screen">
+                            <Image src="res://ic_lens_record" class="lens-float-icon" horizontalAlignment="center" verticalAlignment="center" />
+                        </GridLayout>
+                        <Button text="STOP" class="lens-stop" visibility="{{ stopRecordingButtonVisibility }}" tap="{{ onStopRecordingTap }}" />
+                    </StackLayout>
                 </GridLayout>
 
                 <GridLayout col="1" rows="auto,auto,*,auto,auto">
                     <!-- Header -->
                     <GridLayout row="0" columns="*,auto" rows="auto" class="lens-header">
-                        <Label col="0" text="FACECLAW" class="lens-wordmark" verticalAlignment="center" />
+                        <Label col="0" text="Faceclaw" class="lens-wordmark" verticalAlignment="center" />
                         <GridLayout col="1" columns="auto,auto,auto" rows="auto" verticalAlignment="center">
-                            <Image col="0" src="{{ evenHubPhoneUiIcon }}" visibility="{{ evenHubPhoneUiVisibility }}" tap="{{ onEvenHubPhoneUiTap }}" class="lens-icon-button" stretch="aspectFit" marginRight="4"
-                                accessible="true" accessibilityRole="button" accessibilityLabel="Open the app's phone UI" />
-                            <GridLayout col="1" columns="auto,auto" rows="auto" class="lens-conn-button" tap="{{ onConnectionStatusTap }}"
+                            <GridLayout col="0" class="lens-circle" marginRight="4" visibility="{{ evenHubPhoneUiVisibility }}" tap="{{ onEvenHubPhoneUiTap }}"
+                                accessible="true" accessibilityRole="button" accessibilityLabel="Open the app's phone UI">
+                                <Image src="{{ evenHubPhoneUiIcon }}" stretch="aspectFit" class="lens-icon-lg" horizontalAlignment="center" verticalAlignment="center" />
+                            </GridLayout>
+                            <GridLayout col="1" columns="auto,auto" rows="*" class="lens-conn-button" tap="{{ onConnectionStatusTap }}"
                                 accessible="true" accessibilityRole="button" accessibilityLabel="Connection status. Tap for details">
-                                <GridLayout col="0" class="lens-conn-glyph" verticalAlignment="center" />
+                                <Image col="0" src="res://ic_lens_glasses" class="lens-icon-conn" verticalAlignment="center" />
                                 <Label col="1" text="{{ connectionStatusLabel }}" class="lens-conn-label" verticalAlignment="center" />
                             </GridLayout>
-                            <GridLayout col="2" columns="auto,auto" rows="auto" class="lens-issue-button" tap="{{ onWarningIconTap }}" visibility="{{ warningIconVisibility }}" marginLeft="4"
+                            <GridLayout col="2" columns="auto,auto" rows="*" class="lens-issue-button" marginLeft="4" visibility="{{ warningIconVisibility }}" tap="{{ onWarningIconTap }}"
                                 accessible="true" accessibilityRole="button" accessibilityLabel="Issues need attention. Tap to show them">
                                 <Image col="0" src="res://ic_lens_warning" class="lens-icon-warn" verticalAlignment="center" />
                                 <Label col="1" text="{{ warningCount }}" class="lens-issue-count" verticalAlignment="center" />
@@ -319,132 +333,121 @@
                         </GridLayout>
                     </GridLayout>
 
-                    <!-- Mirror strip -->
-                    <StackLayout row="1">
-                        <GridLayout columns="*,auto" rows="auto">
-                            <GridLayout col="0" rows="auto" class="lens-strip-toggle" tap="{{ onMirrorToggleTap }}"
-                                accessible="true" accessibilityRole="button" accessibilityLabel="{{ mirrorToggleLabel }}">
-                                <GridLayout rows="auto" columns="auto,auto" visibility="{{ mirrorExpandedVisibility }}">
-                                    <Image col="0" src="res://ic_lens_chevron_up" class="lens-icon-dim" verticalAlignment="center" />
-                                    <Label col="1" text="LIVE MIRROR" class="lens-strip-caption" verticalAlignment="center" />
-                                </GridLayout>
-                                <GridLayout rows="auto" columns="auto,*" visibility="{{ mirrorMinimizedVisibility }}">
-                                    <Image col="0" src="res://ic_lens_chevron_down" class="lens-icon-dim" verticalAlignment="center" />
-                                    <StackLayout col="1" marginLeft="10">
-                                        <Label text="MIRROR MINIMIZED" class="lens-label" />
-                                        <Label text="{{ padFocusLine }}" class="lens-strip-focus" textWrap="false" />
-                                    </StackLayout>
-                                </GridLayout>
+                    <!-- Minimized mirror row -->
+                    <GridLayout row="1" height="64" columns="*,auto,auto" rows="*" class="lens-mini-card" visibility="{{ mirrorMinimizedVisibility }}">
+                        <GridLayout col="0" columns="auto,*" rows="*" class="lens-mini-toggle" tap="{{ onMirrorToggleTap }}"
+                            accessible="true" accessibilityRole="button" accessibilityLabel="{{ mirrorToggleLabel }}">
+                            <GridLayout col="0" class="lens-mini-icon" marginRight="12" verticalAlignment="center">
+                                <Image src="res://ic_lens_chevron_down" class="lens-float-icon" horizontalAlignment="center" verticalAlignment="center" />
                             </GridLayout>
-                            <GridLayout col="1" columns="auto,auto,auto" rows="auto">
-                                <GridLayout col="0" class="lens-strip-icon-button" tap="{{ onTakeScreenshotTap }}"
-                                    accessible="true" accessibilityRole="button" accessibilityLabel="Take screenshot">
-                                    <Image src="res://ic_lens_camera" class="lens-icon" horizontalAlignment="center" verticalAlignment="center" />
-                                </GridLayout>
-                                <GridLayout col="1" class="lens-strip-icon-button" visibility="{{ recordButtonVisibility }}" tap="{{ onRecordScreenTap }}"
-                                    accessible="true" accessibilityRole="button" accessibilityLabel="Record screen">
-                                    <Image src="res://ic_lens_record" class="lens-icon" horizontalAlignment="center" verticalAlignment="center" />
-                                </GridLayout>
-                                <Button col="2" text="STOP" class="lens-stop" visibility="{{ stopRecordingButtonVisibility }}" tap="{{ onStopRecordingTap }}" />
-                            </GridLayout>
+                            <StackLayout col="1" verticalAlignment="center">
+                                <Label text="Live mirror minimized" class="lens-mini-caption" />
+                                <Label text="{{ padFocusLine }}" class="lens-mini-focus" textWrap="false" />
+                            </StackLayout>
                         </GridLayout>
-                        <GridLayout class="lens-hairline" />
-                    </StackLayout>
+                        <GridLayout col="1" class="lens-circle" marginRight="8" verticalAlignment="center" tap="{{ onTakeScreenshotTap }}"
+                            accessible="true" accessibilityRole="button" accessibilityLabel="Take screenshot">
+                            <Image src="res://ic_lens_camera" class="lens-icon" horizontalAlignment="center" verticalAlignment="center" />
+                        </GridLayout>
+                        <GridLayout col="2" class="lens-circle" verticalAlignment="center" visibility="{{ recordButtonVisibility }}" tap="{{ onRecordScreenTap }}"
+                            accessible="true" accessibilityRole="button" accessibilityLabel="Record screen">
+                            <Image src="res://ic_lens_record" class="lens-icon" horizontalAlignment="center" verticalAlignment="center" />
+                        </GridLayout>
+                        <Button col="2" text="STOP" class="lens-stop" verticalAlignment="center" visibility="{{ stopRecordingButtonVisibility }}" tap="{{ onStopRecordingTap }}" />
+                    </GridLayout>
 
                     <!-- Tab content -->
                     <GridLayout row="2" rows="*">
                         <ScrollView id="homeScrollLandscape" visibility="{{ glassesPanelVisibility }}">
                             <StackLayout>
                                 <StackLayout id="issuesBlockLandscape" visibility="{{ warningIconVisibility }}">
-                                    <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-row" visibility="{{ evenAppConflictWarningVisibility }}">
-                                        <Image col="0" src="res://ic_lens_warning" class="lens-icon-red" verticalAlignment="top" marginRight="12" />
+                                    <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-card" visibility="{{ evenAppConflictWarningVisibility }}">
+                                        <Image col="0" src="res://ic_lens_warning" class="lens-icon-warn-lg" verticalAlignment="center" marginRight="12" />
                                         <Label col="1" text="{{ evenAppConflictMessage }}" textWrap="true" class="lens-issue-body" verticalAlignment="center" />
-                                        <Button col="2" text="OPEN" class="lens-fix" tap="{{ onOpenEvenAppSettingsTap }}" verticalAlignment="center" />
+                                        <Button col="2" text="Open" class="lens-fix" tap="{{ onOpenEvenAppSettingsTap }}" verticalAlignment="center" />
                                     </GridLayout>
-                                    <GridLayout class="lens-hairline" visibility="{{ evenAppConflictWarningVisibility }}" />
-                                    <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-row" visibility="{{ firmwareWarningVisibility }}">
-                                        <Image col="0" src="res://ic_lens_warning" class="lens-icon-red" verticalAlignment="top" marginRight="12" />
+                                    <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-card" visibility="{{ firmwareWarningVisibility }}">
+                                        <Image col="0" src="res://ic_lens_warning" class="lens-icon-warn-lg" verticalAlignment="center" marginRight="12" />
                                         <Label col="1" text="{{ firmwareWarningMessage }}" textWrap="true" class="lens-issue-body" verticalAlignment="center" />
-                                        <Button col="2" text="INSTALL" class="lens-fix" tap="{{ onInstallFirmwareTap }}" verticalAlignment="center" />
+                                        <Button col="2" text="Install" class="lens-fix" tap="{{ onInstallFirmwareTap }}" verticalAlignment="center" />
                                     </GridLayout>
-                                    <GridLayout class="lens-hairline" visibility="{{ firmwareWarningVisibility }}" />
-                                    <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-row" visibility="{{ batteryOptimizationWarningVisibility }}">
-                                        <Image col="0" src="res://ic_lens_warning" class="lens-icon-red" verticalAlignment="top" marginRight="12" />
+                                    <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-card" visibility="{{ batteryOptimizationWarningVisibility }}">
+                                        <Image col="0" src="res://ic_lens_warning" class="lens-icon-warn-lg" verticalAlignment="center" marginRight="12" />
                                         <StackLayout col="1" verticalAlignment="center">
                                             <Label text="Background use is restricted" textWrap="true" class="lens-issue-title" />
                                             <Label text="Android will slow Faceclaw to a crawl when the phone screen is off unless it is exempt from battery optimization." textWrap="true" class="lens-issue-body" />
                                         </StackLayout>
-                                        <Button col="2" text="FIX" class="lens-fix" tap="{{ onAllowBackgroundUsageTap }}" verticalAlignment="center" />
+                                        <Button col="2" text="Fix" class="lens-fix" tap="{{ onAllowBackgroundUsageTap }}" verticalAlignment="center" />
                                     </GridLayout>
-                                    <GridLayout class="lens-hairline" visibility="{{ batteryOptimizationWarningVisibility }}" />
-                                    <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-row" visibility="{{ fontsMissingWarningVisibility }}">
-                                        <Image col="0" src="res://ic_lens_warning" class="lens-icon-red" verticalAlignment="top" marginRight="12" />
+                                    <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-card" visibility="{{ fontsMissingWarningVisibility }}">
+                                        <Image col="0" src="res://ic_lens_warning" class="lens-icon-warn-lg" verticalAlignment="center" marginRight="12" />
                                         <StackLayout col="1" verticalAlignment="center">
                                             <Label text="G2 fonts not prepared" textWrap="true" class="lens-issue-title" />
                                             <Label text="The G2 fonts have not been extracted, so EvenHub apps will render with fallback fonts. Preparing them downloads the official firmware to extract its fonts; your glasses are not reflashed." textWrap="true" class="lens-issue-body" />
                                         </StackLayout>
-                                        <Button col="2" text="PREPARE" class="lens-fix" tap="{{ onPrepareFontsTap }}" verticalAlignment="center" />
+                                        <Button col="2" text="Prepare" class="lens-fix" tap="{{ onPrepareFontsTap }}" verticalAlignment="center" />
                                     </GridLayout>
-                                    <GridLayout class="lens-hairline" visibility="{{ fontsMissingWarningVisibility }}" />
-                                    <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-row" visibility="{{ alarmReliabilityWarningVisibility }}">
-                                        <Image col="0" src="res://ic_lens_warning" class="lens-icon-red" verticalAlignment="top" marginRight="12" />
+                                    <GridLayout columns="auto,*,auto" rows="auto" class="lens-issue-card" visibility="{{ alarmReliabilityWarningVisibility }}">
+                                        <Image col="0" src="res://ic_lens_warning" class="lens-icon-warn-lg" verticalAlignment="center" marginRight="12" />
                                         <Label col="1" text="{{ alarmReliabilityMessage }}" textWrap="true" class="lens-issue-body" verticalAlignment="center" />
-                                        <Button col="2" text="OPEN" class="lens-fix" tap="{{ onFixAlarmReliabilityTap }}" verticalAlignment="center" />
+                                        <Button col="2" text="Open" class="lens-fix" tap="{{ onFixAlarmReliabilityTap }}" verticalAlignment="center" />
                                     </GridLayout>
-                                    <GridLayout class="lens-hairline" visibility="{{ alarmReliabilityWarningVisibility }}" />
                                 </StackLayout>
 
-                                <GridLayout columns="*,1,*" rows="auto">
-                                    <StackLayout col="0" class="lens-status-left">
-                                        <Label text="GLASSES BATTERY" class="lens-label" />
-                                        <GridLayout columns="auto,auto" rows="auto" horizontalAlignment="left" marginTop="4">
-                                            <Label col="0" text="{{ glassesBatteryText }}" class="lens-battery-value" />
-                                            <Label col="1" text="%" class="lens-battery-percent" visibility="{{ glassesBatteryPercentVisibility }}" />
-                                        </GridLayout>
-                                        <StackLayout orientation="horizontal" class="lens-dots">
-                                            <Repeater items="{{ batteryDots }}">
-                                                <Repeater.itemTemplate>
-                                                    <Label class="{{ lit ? 'lens-dot lens-dot-lit' : 'lens-dot' }}" />
-                                                </Repeater.itemTemplate>
-                                            </Repeater>
+                                <GridLayout columns="*,*" rows="auto" class="lens-status-grid">
+                                    <GridLayout col="0" rows="auto" class="lens-card lens-card-battery" marginRight="5" verticalAlignment="top">
+                                        <StackLayout>
+                                            <Label text="Glasses battery" class="lens-label" />
+                                            <GridLayout columns="auto,auto" rows="auto" horizontalAlignment="left" marginTop="4">
+                                                <Label col="0" text="{{ glassesBatteryText }}" class="lens-battery-value" />
+                                                <Label col="1" text="%" class="lens-battery-percent" visibility="{{ glassesBatteryPercentVisibility }}" />
+                                            </GridLayout>
+                                            <StackLayout orientation="horizontal" class="lens-dots">
+                                                <Label class="{{ batteryDot1Class }}" />
+                                                <Label class="{{ batteryDot2Class }}" />
+                                                <Label class="{{ batteryDot3Class }}" />
+                                                <Label class="{{ batteryDot4Class }}" />
+                                                <Label class="{{ batteryDot5Class }}" />
+                                                <Label class="{{ batteryDot6Class }}" />
+                                                <Label class="{{ batteryDot7Class }}" />
+                                                <Label class="{{ batteryDot8Class }}" />
+                                                <Label class="{{ batteryDot9Class }}" />
+                                                <Label class="{{ batteryDot10Class }}" />
+                                            </StackLayout>
+                                            <Label text="{{ glassesChargingLabel }}" class="lens-label lens-charging" />
                                         </StackLayout>
-                                        <Label text="{{ glassesChargingLabel }}" class="lens-label lens-charging" />
-                                    </StackLayout>
-                                    <GridLayout col="1" class="lens-hairline-v" />
-                                    <StackLayout col="2">
-                                        <StackLayout class="lens-status-right-top">
-                                            <Label text="DISPLAY MODE" class="lens-label" />
-                                            <GridLayout columns="*,auto" rows="auto" height="44" tap="{{ onDisplayModeTap }}"
-                                                accessible="true" accessibilityRole="button" accessibilityLabel="Display mode. Change">
+                                    </GridLayout>
+                                    <StackLayout col="1" marginLeft="5">
+                                        <StackLayout class="lens-card lens-card-display" tap="{{ onDisplayModeTap }}"
+                                            accessible="true" accessibilityRole="button" accessibilityLabel="Display mode. Change">
+                                            <Label text="Display mode" class="lens-label" />
+                                            <GridLayout columns="*,auto" rows="auto" marginTop="4">
                                                 <Label col="0" text="{{ displayModeValue }}" class="lens-display-value" verticalAlignment="center" textWrap="false" />
                                                 <Image col="1" src="res://ic_lens_chevron_down" class="lens-icon-dim" verticalAlignment="center" />
                                             </GridLayout>
                                         </StackLayout>
-                                        <GridLayout class="lens-hairline" />
-                                        <GridLayout columns="*,auto" rows="auto" class="lens-status-right-bottom">
+                                        <GridLayout columns="*,auto" rows="auto" class="lens-card lens-card-auto">
                                             <StackLayout col="0" verticalAlignment="center">
-                                                <Label text="AUTO BRIGHTNESS" class="lens-label" />
+                                                <Label text="Auto brightness" textWrap="true" class="lens-label" />
                                                 <Label text="{{ brightnessAutoLabel }}" class="lens-auto-value" />
                                             </StackLayout>
-                                            <Switch col="1" checked="{{ brightnessAuto }}" checkedChange="{{ onBrightnessAutoChange }}" class="{{ brightnessAutoSwitchClass }}" verticalAlignment="center" />
+                                            <Switch col="1" checked="{{ brightnessAuto }}" checkedChange="{{ onBrightnessAutoChange }}" class="{{ brightnessAutoSwitchClass }}" verticalAlignment="center" horizontalAlignment="right" />
                                         </GridLayout>
                                     </StackLayout>
                                 </GridLayout>
-                                <GridLayout class="lens-hairline" />
 
-                                <GridLayout columns="auto,*,auto" rows="auto" class="lens-brightness-row">
+                                <GridLayout columns="auto,*,auto" rows="auto" class="lens-brightness-card">
                                     <Image col="0" src="res://ic_lens_sun" class="lens-icon-dim" verticalAlignment="center" marginRight="12" />
                                     <Slider col="1" minValue="2" maxValue="100" value="{{ brightnessPercent }}" valueChange="{{ onBrightnessChange }}"
                                         isEnabled="{{ brightnessSliderEnabled }}" class="{{ brightnessSliderClass }}" />
-                                    <Label col="2" text="{{ brightnessPercent }}" class="lens-brightness-value" />
+                                    <Label col="2" text="{{ brightnessPercentLabel }}" class="lens-brightness-value" />
                                 </GridLayout>
-                                <GridLayout class="lens-hairline" />
                             </StackLayout>
                         </ScrollView>
 
                         <ScrollView visibility="{{ devicesPanelVisibility }}">
                             <StackLayout>
-                                <Label text="GLASSES" class="lens-label lens-section-label" />
+                                <Label text="Glasses" class="lens-label lens-section-label" />
                                 <GridLayout columns="*,auto" rows="auto" class="lens-row" visibility="{{ glassesMenuItemsVisibility }}">
                                     <StackLayout col="0" verticalAlignment="center">
                                         <Label text="{{ connectionStatusLabel }}" class="lens-row-title" />
@@ -452,101 +455,92 @@
                                     </StackLayout>
                                     <Button col="1" text="{{ buttonLabel }}" class="lens-row-button" tap="{{ onTap }}" isEnabled="{{ connectItemEnabled }}" verticalAlignment="center" />
                                 </GridLayout>
-                                <GridLayout class="lens-hairline" visibility="{{ glassesMenuItemsVisibility }}" />
-                                <GridLayout columns="*,auto" rows="auto" class="lens-row" tap="{{ onPairGlassesTap }}" isEnabled="{{ canRun }}"
+                                <GridLayout columns="*,auto" rows="auto" class="lens-row" marginTop="8" tap="{{ onPairGlassesTap }}" isEnabled="{{ canRun }}"
                                     accessible="true" accessibilityRole="button" accessibilityLabel="Pair glasses">
                                     <Label col="0" text="Pair glasses" class="lens-row-title" verticalAlignment="center" />
                                     <Image col="1" src="res://ic_lens_chevron_right" class="lens-icon-dim" verticalAlignment="center" />
                                 </GridLayout>
-                                <GridLayout class="lens-hairline" />
-                                <GridLayout columns="*,auto" rows="auto" class="lens-row" tap="{{ onPermissionsTap }}"
+                                <GridLayout columns="*,auto" rows="auto" class="lens-row" marginTop="8" tap="{{ onPermissionsTap }}"
                                     accessible="true" accessibilityRole="button" accessibilityLabel="Permissions">
                                     <Label col="0" text="Permissions" class="lens-row-title" verticalAlignment="center" />
                                     <Image col="1" src="res://ic_lens_chevron_right" class="lens-icon-dim" verticalAlignment="center" />
                                 </GridLayout>
                                 <GridLayout class="lens-danger-gap" />
-                                <Label text="DANGER ZONE" class="lens-label-red lens-section-label" />
+                                <Label text="Danger zone" class="lens-label-red lens-section-label" />
                                 <GridLayout columns="*,auto" rows="auto" class="lens-row" visibility="{{ glassesMenuItemsVisibility }}"
                                     tap="{{ onUninstallFirmwareTap }}" isEnabled="{{ canRun }}"
                                     accessible="true" accessibilityRole="button" accessibilityLabel="Uninstall custom firmware">
                                     <Label col="0" text="Uninstall custom firmware" class="lens-row-title-red" verticalAlignment="center" />
                                     <Image col="1" src="res://ic_lens_chevron_right" class="lens-icon-dim" verticalAlignment="center" />
                                 </GridLayout>
-                                <GridLayout class="lens-hairline" visibility="{{ glassesMenuItemsVisibility }}" />
                             </StackLayout>
                         </ScrollView>
 
                         <ScrollView visibility="{{ morePanelVisibility }}">
                             <StackLayout>
-                                <Label text="MORE" class="lens-label lens-section-label" />
+                                <Label text="More" class="lens-label lens-section-label" />
                                 <GridLayout columns="*,auto" rows="auto" class="lens-row" tap="{{ onConversationsTap }}"
                                     accessible="true" accessibilityRole="button" accessibilityLabel="Conversations">
                                     <Label col="0" text="Conversations" class="lens-row-title" verticalAlignment="center" />
                                     <Image col="1" src="res://ic_lens_chevron_right" class="lens-icon-dim" verticalAlignment="center" />
                                 </GridLayout>
-                                <GridLayout class="lens-hairline" />
-                                <GridLayout columns="*,auto" rows="auto" class="lens-row" tap="{{ onLicenseTap }}"
+                                <GridLayout columns="*,auto" rows="auto" class="lens-row" marginTop="8" tap="{{ onLicenseTap }}"
                                     accessible="true" accessibilityRole="button" accessibilityLabel="License, GPL version 3">
                                     <Label col="0" text="License (GPLv3)" class="lens-row-title" verticalAlignment="center" />
                                     <Image col="1" src="res://ic_lens_chevron_right" class="lens-icon-dim" verticalAlignment="center" />
                                 </GridLayout>
-                                <GridLayout class="lens-hairline" />
-                                <GridLayout columns="*,auto" rows="auto" class="lens-row" tap="{{ onPrivacyTap }}"
+                                <GridLayout columns="*,auto" rows="auto" class="lens-row" marginTop="8" tap="{{ onPrivacyTap }}"
                                     accessible="true" accessibilityRole="button" accessibilityLabel="Privacy Policy">
                                     <Label col="0" text="Privacy Policy" class="lens-row-title" verticalAlignment="center" />
                                     <Image col="1" src="res://ic_lens_chevron_right" class="lens-icon-dim" verticalAlignment="center" />
                                 </GridLayout>
-                                <GridLayout class="lens-hairline" />
                                 <Label text="{{ versionLabel }}" class="lens-label lens-footer" />
                             </StackLayout>
                         </ScrollView>
                     </GridLayout>
 
                     <!-- Input bar -->
-                    <StackLayout row="3">
-                        <GridLayout class="lens-hairline" />
-                        <GridLayout columns="*,52,auto" rows="auto" class="lens-input-bar">
-                            <GridLayout col="0" columns="auto,*" rows="auto" class="lens-input-button" marginRight="8" tap="{{ onKeyboardTap }}"
-                                accessible="true" accessibilityRole="button" accessibilityLabel="Keyboard input">
-                                <Image col="0" src="res://ic_tab_keyboard" class="lens-icon-dim" verticalAlignment="center" />
-                                <Label col="1" text="Type a message" class="lens-input-text" verticalAlignment="center" textWrap="false" />
-                            </GridLayout>
-                            <GridLayout col="1" class="lens-mic" marginRight="8" tap="{{ onSyntheticMicTap }}"
-                                accessible="true" accessibilityRole="button" accessibilityLabel="Voice input">
-                                <Image src="res://ic_tab_mic" class="lens-icon-white" horizontalAlignment="center" verticalAlignment="center" />
-                            </GridLayout>
-                            <GridLayout col="2" columns="auto,auto" rows="auto" class="lens-remote-button" tap="{{ onRemoteOpenTap }}"
-                                accessible="true" accessibilityRole="button" accessibilityLabel="Open remote">
-                                <Image col="0" src="res://ic_lens_remote" class="lens-icon" verticalAlignment="center" />
-                                <Label col="1" text="REMOTE" class="lens-remote-text" verticalAlignment="center" />
-                            </GridLayout>
+                    <GridLayout row="3" columns="*,56,auto" rows="auto" class="lens-input-bar">
+                        <GridLayout col="0" columns="auto,*" rows="*" class="lens-input-button" marginRight="8" tap="{{ onKeyboardTap }}"
+                            accessible="true" accessibilityRole="button" accessibilityLabel="Keyboard input">
+                            <Image col="0" src="res://ic_tab_keyboard" class="lens-icon-dim" verticalAlignment="center" />
+                            <Label col="1" text="Type a message" class="lens-input-text" verticalAlignment="center" textWrap="false" />
                         </GridLayout>
-                    </StackLayout>
+                        <GridLayout col="1" class="lens-mic" marginRight="8" tap="{{ onSyntheticMicTap }}"
+                            accessible="true" accessibilityRole="button" accessibilityLabel="Voice input">
+                            <Image src="res://ic_tab_mic" class="lens-icon-white" horizontalAlignment="center" verticalAlignment="center" />
+                        </GridLayout>
+                        <GridLayout col="2" columns="auto,auto" rows="*" class="lens-remote-button" tap="{{ onRemoteOpenTap }}"
+                            accessible="true" accessibilityRole="button" accessibilityLabel="Open remote">
+                            <Image col="0" src="res://ic_lens_remote" class="lens-icon" verticalAlignment="center" />
+                            <Label col="1" text="Remote" class="lens-remote-text" verticalAlignment="center" />
+                        </GridLayout>
+                    </GridLayout>
 
                     <!-- Bottom nav -->
-                    <StackLayout row="4">
-                        <GridLayout class="lens-hairline" />
-                        <GridLayout columns="*,*,*" rows="auto" class="lens-nav">
-                            <GridLayout col="0" rows="2,*,auto" class="{{ glassesNavClass }}" tap="{{ onGlassesNavTap }}"
-                                accessible="true" accessibilityRole="button" accessibilityLabel="Glasses">
-                                <GridLayout row="0" class="lens-nav-bar" />
-                                <Image row="1" src="res://ic_lens_glasses" class="lens-nav-icon" horizontalAlignment="center" verticalAlignment="center" />
-                                <Label row="2" text="Glasses" class="lens-nav-label" horizontalAlignment="center" />
+                    <GridLayout row="4" columns="*,*,*" rows="auto" class="lens-nav">
+                        <GridLayout col="0" rows="32,auto" class="{{ glassesNavClass }}" tap="{{ onGlassesNavTap }}"
+                            accessible="true" accessibilityRole="button" accessibilityLabel="Glasses">
+                            <GridLayout row="0" class="lens-nav-pill" horizontalAlignment="center" verticalAlignment="center">
+                                <Image src="res://ic_lens_glasses" class="lens-nav-icon" horizontalAlignment="center" verticalAlignment="center" />
                             </GridLayout>
-                            <GridLayout col="1" rows="2,*,auto" class="{{ devicesNavClass }}" tap="{{ onDevicesNavTap }}"
-                                accessible="true" accessibilityRole="button" accessibilityLabel="Devices">
-                                <GridLayout row="0" class="lens-nav-bar" />
-                                <Image row="1" src="res://ic_lens_devices" class="lens-nav-icon" horizontalAlignment="center" verticalAlignment="center" />
-                                <Label row="2" text="Devices" class="lens-nav-label" horizontalAlignment="center" />
-                            </GridLayout>
-                            <GridLayout col="2" rows="2,*,auto" class="{{ moreNavClass }}" tap="{{ onMoreNavTap }}"
-                                accessible="true" accessibilityRole="button" accessibilityLabel="More">
-                                <GridLayout row="0" class="lens-nav-bar" />
-                                <Image row="1" src="res://ic_lens_more" class="lens-nav-icon" horizontalAlignment="center" verticalAlignment="center" />
-                                <Label row="2" text="More" class="lens-nav-label" horizontalAlignment="center" />
-                            </GridLayout>
+                            <Label row="1" text="Glasses" class="lens-nav-label" horizontalAlignment="center" />
                         </GridLayout>
-                    </StackLayout>
+                        <GridLayout col="1" rows="32,auto" class="{{ devicesNavClass }}" tap="{{ onDevicesNavTap }}"
+                            accessible="true" accessibilityRole="button" accessibilityLabel="Devices">
+                            <GridLayout row="0" class="lens-nav-pill" horizontalAlignment="center" verticalAlignment="center">
+                                <Image src="res://ic_lens_devices" class="lens-nav-icon" horizontalAlignment="center" verticalAlignment="center" />
+                            </GridLayout>
+                            <Label row="1" text="Devices" class="lens-nav-label" horizontalAlignment="center" />
+                        </GridLayout>
+                        <GridLayout col="2" rows="32,auto" class="{{ moreNavClass }}" tap="{{ onMoreNavTap }}"
+                            accessible="true" accessibilityRole="button" accessibilityLabel="More">
+                            <GridLayout row="0" class="lens-nav-pill" horizontalAlignment="center" verticalAlignment="center">
+                                <Image src="res://ic_lens_more" class="lens-nav-icon" horizontalAlignment="center" verticalAlignment="center" />
+                            </GridLayout>
+                            <Label row="1" text="More" class="lens-nav-label" horizontalAlignment="center" />
+                        </GridLayout>
+                    </GridLayout>
                 </GridLayout>
             </GridLayout>
         </GridLayout>
