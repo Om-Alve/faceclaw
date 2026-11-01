@@ -29,6 +29,18 @@ export type HeadsetBatteryState = {
   ringChargingStatus?: number;
 };
 
+/**
+ * The charging case as the glasses relay it (sid 0x81). battery is 0..100, or
+ * -1 when the reading carried no usable level; the other fields are the
+ * firmware's raw chargeStatus / lidStatus / inCaseStatus values.
+ */
+export type CaseBatteryState = {
+  battery: number;
+  chargingStatus: number;
+  lidStatus: number;
+  inCaseStatus: number;
+};
+
 export type FrameMetrics = {
   paintMs: number;
   transmitMs: number;
@@ -151,6 +163,7 @@ export class FaceclawCommunicatorBridge {
   private readonly stateListeners = new Set<(state: CommunicatorState) => void>();
   private readonly ringListeners = new Set<(event: RawInputEvent) => void>();
   private readonly batteryListeners = new Set<(state: HeadsetBatteryState) => void>();
+  private readonly caseListeners = new Set<(state: CaseBatteryState) => void>();
   private readonly silentModeListeners = new Set<(silent: boolean) => void>();
   private readonly wearStateListeners = new Set<(wearing: boolean) => void>();
   private readonly phoneLockStateListeners = new Set<(locked: boolean) => void>();
@@ -211,6 +224,14 @@ export class FaceclawCommunicatorBridge {
           ringChargingStatus: Number(ringCharging),
         };
         this.emitAsync(this.batteryListeners, state);
+      },
+      onCaseState: (caseBattery: number, caseCharging: number, lidStatus: number, inCaseStatus: number) => {
+        this.emitAsync(this.caseListeners, {
+          battery: Number(caseBattery),
+          chargingStatus: Number(caseCharging),
+          lidStatus: Number(lidStatus),
+          inCaseStatus: Number(inCaseStatus),
+        });
       },
       onSilentMode: (silent: boolean) => {
         this.emitAsync(this.silentModeListeners, Boolean(silent));
@@ -330,6 +351,12 @@ export class FaceclawCommunicatorBridge {
   onBatteryState(listener: (state: HeadsetBatteryState) => void): () => void {
     this.batteryListeners.add(listener);
     return () => this.batteryListeners.delete(listener);
+  }
+
+  /** Charging-case readings: polled while the link is idle and pushed by the glasses on change. */
+  onCaseState(listener: (state: CaseBatteryState) => void): () => void {
+    this.caseListeners.add(listener);
+    return () => this.caseListeners.delete(listener);
   }
 
   /**

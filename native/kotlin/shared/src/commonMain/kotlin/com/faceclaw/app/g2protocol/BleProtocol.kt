@@ -52,6 +52,16 @@ class BleProtocol {
 
         const val SID_ONBOARDING: Int = 0x10
 
+        /**
+         * Charging case (UX_GLASSES_CASE_APP_ID). The payload is a GlassesCaseDataPackage
+         * {commandId=1, magicRandom=2, caseInfo=3}; the Even app reads it with commandId
+         * CASE_INFO and an empty caseInfo, and the glasses also push it unprompted.
+         */
+        const val SID_GLASSES_CASE: Int = 0x81
+
+        /** eGlassesCaseCommandId.CASE_INFO. */
+        const val GLASSES_CASE_CMD_CASE_INFO: Int = 1
+
         /** G2SettingPackage.commandId for device-initiated pushes (vs. 2 = app read). */
         const val SETTINGS_CMD_DEVICE_SEND_TO_APP: Int = 3
 
@@ -762,6 +772,47 @@ class BleProtocol {
             return BatterySnapshot(battery, charging, silentMode)
         }
 
+        /** GlassesCaseDataPackage{commandId=CASE_INFO, magicRandom, caseInfo={}}, as the Even app sends it. */
+        @JvmStatic
+        fun buildCaseInfoQuery(magic: Int): ByteArray {
+            return concat(
+                CollectionUtils.listOf(
+                    encodeVarintField(1, GLASSES_CASE_CMD_CASE_INFO),
+                    encodeVarintField(2, magic),
+                    encodeMessageField(3, ByteArray(0)),
+                )
+            )
+        }
+
+        /**
+         * GlassesCaseInfo {soc=1, chargeStatus=2, lidStatus=3, inCaseStatus=4, errorCode=5} from a
+         * sid-0x81 reply or push. Returns null unless the frame is a CASE_INFO package that carries
+         * a non-empty caseInfo; proto3 omits zero fields, so an empty one is indistinguishable
+         * from "no data" and is not reported as 0%.
+         */
+        @JvmStatic
+        fun parseCaseInfo(pb: ByteArray?): CaseInfoSnapshot? {
+            if (pb == null) {
+                return null
+            }
+            val root: ByteArray = stripTrailingCrc(pb)
+            if (readVarintFieldValue(root, 1, -1) != GLASSES_CASE_CMD_CASE_INFO) {
+                return null
+            }
+            val info: ByteArray = readFieldBytes(root, 3) ?: return null
+            if (info.isEmpty()) {
+                return null
+            }
+            val soc = readVarintFieldValue(info, 1, 0)
+            return CaseInfoSnapshot(
+                soc,
+                readVarintFieldValue(info, 2, 0),
+                readVarintFieldValue(info, 3, 0),
+                readVarintFieldValue(info, 4, 0),
+                readVarintFieldValue(info, 5, 0),
+            )
+        }
+
         /**
          * Silent mode from an unsolicited settings push. The wearer toggles silent mode by
          * long-pressing both touchpads at once; the firmware then sends
@@ -1451,6 +1502,27 @@ class BleProtocol {
             this.charging = charging
             this.silentMode = silentMode
         }
+    }
+
+    /** The charging case's GlassesCaseInfo, field for field (raw firmware values). */
+    class CaseInfoSnapshot(
+        /** State of charge, 0..100. */
+        @JvmField val soc: Int,
+        @JvmField val chargeStatus: Int,
+        @JvmField val lidStatus: Int,
+        @JvmField val inCaseStatus: Int,
+        /** g2.common.eErrorCode; 0 = SUCCESS. */
+        @JvmField val errorCode: Int,
+    ) {
+        /** A usable percentage: the firmware reported success and the level is in range. */
+        fun hasLevel(): Boolean = errorCode == 0 && soc in 0..100
+
+        fun sameAs(other: CaseInfoSnapshot?): Boolean = other != null && soc == other.soc
+            && chargeStatus == other.chargeStatus && lidStatus == other.lidStatus
+            && inCaseStatus == other.inCaseStatus && errorCode == other.errorCode
+
+        override fun toString(): String =
+            "soc=$soc charge=$chargeStatus lid=$lidStatus inCase=$inCaseStatus err=$errorCode"
     }
 
     class FirmwareInfo {

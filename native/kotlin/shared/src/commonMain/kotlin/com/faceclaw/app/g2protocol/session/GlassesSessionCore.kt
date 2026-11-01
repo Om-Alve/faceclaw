@@ -230,6 +230,13 @@ class GlassesSessionCore(
     internal var headsetCharging = -1
     internal var ringBattery = -1
     internal var ringCharging = -1
+    // Charging case (sid 0x81): the last reading the glasses relayed, polled
+    // alongside the battery (see shouldPollCaseLocked) and also pushed by them.
+    internal var caseInfo: BleProtocol.CaseInfoSnapshot? = null
+    internal var lastCaseRefreshAtMs = 0L
+    // Unanswered case queries in a row; at CASE_QUERY_MAX_TIMEOUTS the session
+    // stops asking (firmware without the service), until the next session.
+    internal var caseQueryTimeouts = 0
     // Silent mode: 1 = on, 0 = off, -1 = not yet known. See updateSilentModeLocked.
     internal var silentMode = -1
     internal var wearState = -1
@@ -1547,6 +1554,24 @@ class GlassesSessionCore(
                     return
                 }
             }
+            if (decodedWearState < 0
+                    && frame.ok
+                    && frame.sid == BleProtocol.SID_GLASSES_CASE) {
+                val reply = inFlightMessages.any { it.sid == frame.sid && it.magic == frame.msgSeq }
+                logLine("case frame " + (if (address.equals(rightAddress, ignoreCase = true)) "R" else "L")
+                    + " flag=" + frame.flag + " magic=" + frame.msgSeq
+                    + (if (reply) " reply" else " push") + " pb=" + hex(frame.pb))
+                if (!reply) {
+                    // Device-initiated (or a reply that arrived after its query
+                    // timed out): the magic matches nothing in flight, so take the
+                    // reading here instead of logging an unexpected ack.
+                    val pushed = BleProtocol.parseCaseInfo(frame.pb)
+                    if (pushed != null) {
+                        updateCaseInfoLocked(pushed)
+                    }
+                    return
+                }
+            }
             if (!faceclawWakeNotification
                     && decodedWearState < 0
                     && frame.ok
@@ -1796,6 +1821,8 @@ class GlassesSessionCore(
                 lastConnectionOrInputAtMs = lastAckAtMs
                 lastSessionReadyAtMs = lastAckAtMs
                 lastBatteryRefreshAtMs = 0
+                lastCaseRefreshAtMs = 0
+                caseQueryTimeouts = 0
                 imageRetryAfterMs = 0
                 lastHeartbeatSentAtMs = 0
                 lastHeartbeatAckedAtMs = 0

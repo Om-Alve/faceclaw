@@ -23,6 +23,18 @@ interface FaceclawBleCommunicatorListener {
         ringCharging: Int,
     ): Unit
 
+    /**
+     * The charging case, as the glasses relay it (sid 0x81 GlassesCaseInfo). caseBattery is
+     * 0..100, or -1 when the reading carried no usable level; the other three are the
+     * firmware's raw chargeStatus / lidStatus / inCaseStatus values.
+     */
+    fun onCaseState(
+        caseBattery: Int,
+        caseCharging: Int,
+        lidStatus: Int,
+        inCaseStatus: Int,
+    ): Unit
+
     fun onSilentMode(silent: Boolean): Unit
 
     fun onWearState(wearing: Boolean): Unit

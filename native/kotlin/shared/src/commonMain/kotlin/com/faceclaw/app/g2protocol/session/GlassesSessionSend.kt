@@ -143,6 +143,14 @@ internal fun GlassesSessionCore.driveSession(): Long {
                     logLine("Writing charging-mode battery poll")
                     messageToWrite = createBatteryQueryMessageLocked()
                     lastBatteryRefreshAtMs = now
+                } else if (sessionReady && pendingMessages.isEmpty() && inFlightMessages.isEmpty()
+                        && caseQueryTimeouts < ConnectionOptions.CASE_QUERY_MAX_TIMEOUTS
+                        && now - lastCaseRefreshAtMs >= ConnectionOptions.CHARGING_BATTERY_POLL_MS) {
+                    // Docked is when the case reading is fresh, so poll it on the
+                    // battery's charging cadence.
+                    logLine("Writing charging-mode case poll")
+                    messageToWrite = createCaseInfoQueryMessageLocked()
+                    lastCaseRefreshAtMs = now
                 } else {
                     return 1_000
                 }
@@ -233,6 +241,10 @@ internal fun GlassesSessionCore.driveSession(): Long {
                     logLine("Writing battery query")
                     messageToWrite = createBatteryQueryMessageLocked()
                     lastBatteryRefreshAtMs = now
+                } else if (messageToPrewrite == null && shouldPollCaseLocked(now)) {
+                    logLine("Writing case info query")
+                    messageToWrite = createCaseInfoQueryMessageLocked()
+                    lastCaseRefreshAtMs = now
                 } else if (messageToPrewrite == null && (!pendingMessages.isEmpty() || !inFlightMessages.isEmpty())) {
                     return ConnectionOptions.IDLE_SLEEP_MS.toLong()
                 } else if (messageToPrewrite == null) {
@@ -1062,6 +1074,36 @@ internal fun GlassesSessionCore.createBatteryQueryMessageLocked(): OutboundMessa
     }
     message.onTimeout = MessageCallback {
         logLine("Battery query timed out")
+    }
+    return message
+}
+
+/** Same quiet-link gate and cadence as the battery poll, on its own clock. */
+internal fun GlassesSessionCore.shouldPollCaseLocked(now: Long): Boolean {
+    return !shutdownRequested
+            && sessionReady
+            && caseQueryTimeouts < ConnectionOptions.CASE_QUERY_MAX_TIMEOUTS
+            && pendingMessages.isEmpty()
+            && inFlightMessages.isEmpty()
+            && now - lastConnectionOrInputAtMs >= ConnectionOptions.BATTERY_INPUT_QUIET_MS
+            && (lastCaseRefreshAtMs == 0L || now - lastCaseRefreshAtMs >= ConnectionOptions.BATTERY_REFRESH_INTERVAL_MS)
+}
+
+internal fun GlassesSessionCore.createCaseInfoQueryMessageLocked(): OutboundMessage {
+    val message = messageBuilder.caseInfoQuery()
+    message.onAck = MessageCallback {
+        caseQueryTimeouts = 0
+        val info = BleProtocol.parseCaseInfo(message.ackPayload)
+        if (info != null) {
+            updateCaseInfoLocked(info)
+        } else {
+            logLine("Case info reply without case data: " + GlassesSessionCore.hex(message.ackPayload))
+        }
+    }
+    message.onTimeout = MessageCallback {
+        caseQueryTimeouts += 1
+        logLine("Case info query timed out (" + caseQueryTimeouts + "/" +
+            ConnectionOptions.CASE_QUERY_MAX_TIMEOUTS + ")")
     }
     return message
 }

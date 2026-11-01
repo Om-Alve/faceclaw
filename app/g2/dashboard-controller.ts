@@ -147,6 +147,12 @@ export type DashboardSnapshot = {
   headsetBattery: number | null;
   /** Whether that last report said the glasses are charging. */
   headsetCharging: boolean;
+  /** Last charging-case level the glasses relayed; null until one arrives. */
+  caseBattery: number | null;
+  /** Whether that case reading said the case itself is charging. */
+  caseCharging: boolean;
+  /** Date.now() when that case reading arrived; null with caseBattery. */
+  caseReadingAtMs: number | null;
   /** Whether the glasses are worn; null when nothing has reported wear yet. */
   glassesWorn: boolean | null;
   /**
@@ -295,6 +301,11 @@ class DashboardController {
   // Charging flag from the last battery report, so the phone can label a
   // last-known level the same way the top bar does.
   private lastHeadsetCharging = false;
+  // Last charging-case reading the glasses relayed (sid 0x81). The case only
+  // reports while the glasses are docked, so the level is kept as last-known.
+  private lastCaseBattery: number | null = null;
+  private lastCaseCharging = false;
+  private lastCaseReadingAtMs: number | null = null;
   private readonly listeners = new Set<DashboardListener>();
 
   private communicator: FaceclawCommunicatorBridge | null = null;
@@ -342,6 +353,7 @@ class DashboardController {
   private offState: (() => void) | null = null;
   private offRing: (() => void) | null = null;
   private offBattery: (() => void) | null = null;
+  private offCaseBattery: (() => void) | null = null;
   private offSilentMode: (() => void) | null = null;
   private offWearState: (() => void) | null = null;
   private offPhoneLockState: (() => void) | null = null;
@@ -1140,6 +1152,9 @@ class DashboardController {
       previewMode: this.isPreviewDisplayActive(),
       headsetBattery: this.lastHeadsetBattery,
       headsetCharging: this.lastHeadsetCharging,
+      caseBattery: this.lastCaseBattery,
+      caseCharging: this.lastCaseCharging,
+      caseReadingAtMs: this.lastCaseReadingAtMs,
       glassesWorn: this.glassesWorn,
       evenHubPhoneUi: phoneUiButton(),
     };
@@ -1597,6 +1612,15 @@ class DashboardController {
         // the watch state, so refresh both consumers on every report.
         this.emit();
       });
+      this.offCaseBattery = communicator.onCaseState((state) => {
+        const hasLevel = Number.isInteger(state.battery) && state.battery >= 0 && state.battery <= 100;
+        // A reading without a level (a failed case read) keeps the last-known one.
+        if (!hasLevel) return;
+        this.lastCaseBattery = state.battery;
+        this.lastCaseCharging = state.chargingStatus > 0;
+        this.lastCaseReadingAtMs = Date.now();
+        this.emit();
+      });
       this.offEvenAppConflict = communicator.onEvenAppConflict((message) => {
         this.refreshEvenAppStatus();
         if (!this.evenNotificationActive) {
@@ -1717,6 +1741,8 @@ class DashboardController {
       this.offRing = null;
       this.offBattery?.();
       this.offBattery = null;
+      this.offCaseBattery?.();
+      this.offCaseBattery = null;
       this.offSilentMode?.();
       this.offSilentMode = null;
       this.offWearState?.();
@@ -1829,6 +1855,8 @@ class DashboardController {
     this.offRing = null;
     this.offBattery?.();
     this.offBattery = null;
+    this.offCaseBattery?.();
+    this.offCaseBattery = null;
     this.offSilentMode?.();
     this.offSilentMode = null;
     this.offWearState?.();

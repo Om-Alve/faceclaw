@@ -721,6 +721,25 @@ internal fun GlassesSessionCore.emitBatteryState(headsetBattery: Int, headsetCha
     }
 }
 
+/** Record a charging-case reading (poll reply or push) and report it when it changed. */
+internal fun GlassesSessionCore.updateCaseInfoLocked(info: BleProtocol.CaseInfoSnapshot) {
+    caseQueryTimeouts = 0
+    if (info.sameAs(caseInfo)) {
+        return
+    }
+    caseInfo = info
+    logLine("charging case: $info")
+    val current = listener ?: return
+    val battery = if (info.hasLevel()) info.soc else -1
+    host.postToMain {
+        try {
+            current.onCaseState(battery, info.chargeStatus, info.lidStatus, info.inCaseStatus)
+        } catch (t: Throwable) {
+            logWarn("listener onCaseState failed", t)
+        }
+    }
+}
+
 internal fun GlassesSessionCore.emitFirmwareInfo(info: BleProtocol.FirmwareInfo) {
     val current = listener ?: return
     host.postToMain {
