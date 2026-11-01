@@ -299,10 +299,6 @@ class DashboardController {
   // Charging flag from the last battery report, so the phone can label a
   // last-known level the same way the top bar does.
   private lastHeadsetCharging = false;
-  // Last charging-case reading. The case only reports while the glasses are
-  // docked and only drains while charging them, so the last level stays true.
-  private lastCaseBattery: number | null = null;
-  private lastCaseCharging = false;
   private readonly listeners = new Set<DashboardListener>();
 
   private communicator: FaceclawCommunicatorBridge | null = null;
@@ -1149,8 +1145,8 @@ class DashboardController {
       previewMode: this.isPreviewDisplayActive(),
       headsetBattery: this.lastHeadsetBattery,
       headsetCharging: this.lastHeadsetCharging,
-      caseBattery: this.lastCaseBattery,
-      caseCharging: this.lastCaseCharging,
+      caseBattery: shell.getBatteryLevels().case,
+      caseCharging: shell.getBatteryLevels().caseCharging ?? false,
       glassesWorn: this.glassesWorn,
       evenHubPhoneUi: phoneUiButton(),
     };
@@ -1609,8 +1605,12 @@ class DashboardController {
         this.emit();
       });
       this.offCaseBattery = communicator.onCaseState((state) => {
-        this.lastCaseBattery = state.battery;
-        this.lastCaseCharging = state.charging;
+        // Kept across disconnects: the case only reports while the glasses are
+        // docked and only drains while charging them, so the last level holds.
+        shell.setBatteryLevels({ case: state.battery, caseCharging: state.charging });
+        if ((this.phase === "connected" || this.phase === "charging") && this.communicator) {
+          this.requestShellRender();
+        }
         this.emit();
       });
       this.offEvenAppConflict = communicator.onEvenAppConflict((message) => {

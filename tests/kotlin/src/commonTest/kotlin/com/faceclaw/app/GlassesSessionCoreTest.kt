@@ -739,18 +739,20 @@ class GlassesSessionCoreTest {
     }
 
     @Test
-    fun dockingReadsTheCaseOnceAndPushesCarryItAfterwards() {
+    fun theCaseIsReadAtSessionStartAndOnDockingThenPushesCarryIt() {
         val s = Session()
-        s.link.caseInfo = caseInfoBody(64, charge = 1, inCase = 1)
         try {
+            // Out of the case the session-start read answers without a caseInfo.
             s.startAndAwaitLayout()
             fun queries() = s.link.writes.filter { it.kind == "case-info" }
-            assertEquals(0, queries().size, "no read while worn")
+            assertTrue(waitUntil(5_000) { queries().size == 1 })
+            assertEquals(listOf<String>(), s.listener.cases)
+            s.link.caseInfo = caseInfoBody(64, charge = 1, inCase = 1)
             s.core.monitor.withLock { s.core.updateChargingModeLocked(true, 80) }
             s.core.interruptibleSleep.interrupt()
             assertTrue(waitUntil(5_000) { s.listener.cases.isNotEmpty() }, s.host.logs().takeLast(10).toString())
             assertEquals(listOf("64/1"), s.listener.cases)
-            assertEquals(RIGHT, queries().single().address)
+            assertEquals(listOf(RIGHT, RIGHT), queries().map { it.address })
             // Pushes (flag 0x01, the glasses' own magic) update it without being taken for acks.
             fun push(info: ByteArray) = s.core.onNotification(RIGHT, BleProtocol.NOTIFY_CHAR_UUID,
                 BleProtocol.framePb(casePackage(200, info), BleProtocol.SID_GLASSES_CASE, BleProtocol.FLAG_NOTIFY, 99)[0])
@@ -766,7 +768,7 @@ class GlassesSessionCoreTest {
             s.platform.offsetMs += 2L * ConnectionOptions.CHARGING_BATTERY_POLL_MS
             s.core.interruptibleSleep.interrupt()
             sleepMs(300)
-            assertEquals(1, queries().size)
+            assertEquals(2, queries().size)
         } finally {
             s.core.close()
         }

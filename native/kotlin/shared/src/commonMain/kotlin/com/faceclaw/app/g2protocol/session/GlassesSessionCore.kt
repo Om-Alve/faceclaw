@@ -1842,6 +1842,10 @@ class GlassesSessionCore(
                 lastBatteryRefreshAtMs = now()
                 pendingMessages.addLast(createBatteryQueryMessageLocked())
                 logLine("queue settings query for firmware info")
+                // The case reports only while the glasses are docked, possibly
+                // fully charged and so not in charging mode; out of the case
+                // this read comes back empty. Later changes are pushed.
+                pendingMessages.addLast(messageBuilder.caseInfoQuery())
             }
             tryConnectRing("initial")
         } catch (t: Throwable) {
