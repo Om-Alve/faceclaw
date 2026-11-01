@@ -122,6 +122,21 @@ function scrollToIssues(page: Page, model: MainViewModel): void {
   scrollView.scrollToVerticalOffset(Math.max(0, scrollView.verticalOffset + offset), false)
 }
 
+/**
+ * The Remote sheet's height is derived from page and header sizes cached by
+ * their layoutChanged handlers, and those can miss a resize: typing (keyboard
+ * up, page shrunk) and then leaving the app left the cache at the shrunk
+ * height, pinning the sheet at its floor with the pad squashed. Re-read the
+ * live sizes when the page comes back and whenever the sheet shows; unchanged
+ * sizes are a no-op in the handlers.
+ */
+function remeasureSheetBounds(page: Page, model: MainViewModel): void {
+  const root = page.getViewById<View>('portraitRoot')
+  const header = page.getViewById<View>('pageHeader')
+  if (root) model.onPortraitRootLayoutChanged({ object: root })
+  if (header) model.onPageHeaderLayoutChanged({ object: header })
+}
+
 export function loaded(args: EventData) {
   const page = args.object as Page
   cleanupPage(page)
@@ -168,6 +183,10 @@ export function loaded(args: EventData) {
         } else {
           dismissKeyboardInputKeyboard(page)
         }
+      } else if (propertyArgs.propertyName === 'remoteSheetVisibility') {
+        if (model.remoteSheetVisibility === 'visible') {
+          remeasureSheetBounds(page, model)
+        }
       } else if (propertyArgs.propertyName === 'scrollToIssues') {
         // Let the Glasses tab lay out first (the button may have switched to it).
         setTimeout(() => scrollToIssues(page, model), 0)
@@ -187,6 +206,7 @@ export function loaded(args: EventData) {
   model.on(Observable.propertyChangeEvent, state.propertyChangeHandler)
   Application.on(Application.orientationChangedEvent, state.orientationHandler)
   setPageState(page, state)
+  remeasureSheetBounds(page, model)
   if (model.isTextSettingEditorActive) {
     focusTextEditor(page)
   }
