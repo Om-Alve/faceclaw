@@ -1,4 +1,4 @@
-import { Application, Color, EventData, isAndroid, Observable, Page, TextField, TextView } from '@nativescript/core'
+import { Application, Color, EventData, isAndroid, Observable, Page, ScrollView, TextField, TextView, View } from '@nativescript/core'
 import { MainViewModel } from './main-view-model'
 import { dashboardController } from '../g2/dashboard-controller'
 
@@ -16,6 +16,7 @@ type MainPageState = {
   propertyChangeHandler: (args: EventData & { propertyName?: string }) => void
   orientationHandler: () => void
   detachPreview: () => void
+  backHandler?: (args: { cancel: boolean }) => void
 }
 
 function getPageState(page: Page): MainPageState | undefined {
@@ -35,6 +36,9 @@ function cleanupPage(page: Page): void {
   state.model.off(Observable.propertyChangeEvent, state.propertyChangeHandler)
   state.detachPreview()
   Application.off(Application.orientationChangedEvent, state.orientationHandler)
+  if (state.backHandler) {
+    Application.android?.off("activityBackPressed", state.backHandler)
+  }
   // navigatingTo builds a fresh model each visit; drop the old one's
   // controller/settings subscriptions or every navigation leaks a listener.
   state.model.dispose()
@@ -106,6 +110,18 @@ function focusKeyboardInput(page: Page): void {
   }, 0)
 }
 
+/** The header's issue button: bring the rows into view on the active layout. */
+function scrollToIssues(page: Page, model: MainViewModel): void {
+  const landscape = model.landscapeLayoutVisibility === "visible"
+  const scrollView = page.getViewById<ScrollView>(landscape ? "homeScrollLandscape" : "homeScroll")
+  const block = page.getViewById<View>(landscape ? "issuesBlockLandscape" : "issuesBlock")
+  if (!scrollView || !block) return
+  // Both positions are window-relative, so their difference is the block's
+  // offset inside the scroll content; add the current offset to land on it.
+  const offset = block.getLocationInWindow().y - scrollView.getLocationInWindow().y
+  scrollView.scrollToVerticalOffset(Math.max(0, scrollView.verticalOffset + offset), false)
+}
+
 export function loaded(args: EventData) {
   const page = args.object as Page
   cleanupPage(page)
@@ -133,7 +149,7 @@ export function loaded(args: EventData) {
   const state: MainPageState = {
     model,
     detachPreview: dashboardController.attachPhonePreview(() =>
-      page.isLoaded && !model.displayPreviewMessage && (!isAndroid || !!page.android?.isShown())),
+      page.isLoaded && !model.displayPreviewMessage && !model.mirrorMinimized && (!isAndroid || !!page.android?.isShown())),
     orientationHandler: () => {
       setTimeout(() => {
         model.refreshLayoutMetrics()
@@ -152,9 +168,21 @@ export function loaded(args: EventData) {
         } else {
           dismissKeyboardInputKeyboard(page)
         }
+      } else if (propertyArgs.propertyName === 'scrollToIssues') {
+        // Let the Glasses tab lay out first (the button may have switched to it).
+        setTimeout(() => scrollToIssues(page, model), 0)
       }
     },
   }
+
+  // Hardware Back closes the Remote sheet, then returns to the Glasses tab;
+  // otherwise it behaves as it always has (leaving the page).
+  state.backHandler = (backArgs: { cancel: boolean }) => {
+    if (model.closeTransientUi()) {
+      backArgs.cancel = true
+    }
+  }
+  Application.android?.on("activityBackPressed", state.backHandler)
 
   model.on(Observable.propertyChangeEvent, state.propertyChangeHandler)
   Application.on(Application.orientationChangedEvent, state.orientationHandler)

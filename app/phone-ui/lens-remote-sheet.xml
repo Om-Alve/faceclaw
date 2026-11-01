@@ -8,9 +8,15 @@
       exactly as in remote-controls.xml (iOS feeds raw touches itself and never
       loads this file).
     -->
-    <GridLayout rows="*" class="lens-scrim" tap="{{ onRemoteCloseTap }}" />
+    <!--
+      Two visibilities by design: the root is the sheet's open state, and the
+      inner layer is the shared controlsVisibility, so the sheet still
+      collapses while the text editor or keyboard panel is up.
+    -->
+    <GridLayout rows="*" visibility="{{ controlsVisibility }}">
+        <GridLayout rows="*" class="lens-scrim" tap="{{ onRemoteCloseTap }}" />
 
-    <GridLayout rows="auto,auto,auto,*,auto,auto" height="{{ remoteSheetHeight }}" class="lens-sheet" verticalAlignment="bottom">
+        <GridLayout rows="auto,auto,auto,*,auto,auto" height="{{ remoteSheetHeight }}" class="lens-sheet" verticalAlignment="bottom">
         <!-- Drag handle -->
         <GridLayout row="0" rows="auto" height="16">
             <GridLayout class="lens-sheet-handle" horizontalAlignment="center" verticalAlignment="center" />
@@ -105,5 +111,6 @@
             <GridLayout class="lens-hairline" />
             <Label text="Tap, then hold, on either pad opens the G2 system menu." textWrap="true" class="lens-secondary lens-sheet-footer" />
         </StackLayout>
+        </GridLayout>
     </GridLayout>
 </GridLayout>
