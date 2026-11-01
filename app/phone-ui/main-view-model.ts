@@ -130,7 +130,8 @@ export class MainViewModel extends RemoteControlsViewModel {
       this.phase = snapshot.phase;
       this.glassesCard.update(snapshot.headsetBattery,
         glassesBatteryStatus(snapshot.headsetBattery, snapshot.headsetCharging, snapshot.phase));
-      this.caseCard.update(snapshot.caseBattery, caseBatteryStatus(snapshot.caseBattery, snapshot.caseCharging));
+      const { case: caseBattery, caseCharging } = snapshot.batteries;
+      this.caseCard.update(caseBattery, caseBatteryStatus(caseBattery, caseCharging ?? false));
       this.activeTextSettingId = snapshot.activeTextSettingId;
       this.activeTextEditorTitle = snapshot.activeTextEditorTitle;
       this.activeTextSettingTitle = snapshot.activeTextSettingTitle;

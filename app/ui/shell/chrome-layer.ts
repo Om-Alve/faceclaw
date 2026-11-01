@@ -15,7 +15,6 @@ import {
   batteryDisplayModeSetting,
   batteryIndicatorVisible,
   glassesBatteryVisibilitySetting,
-  caseBatteryVisibilitySetting,
   phoneBatteryVisibilitySetting,
   ringBatteryVisibilitySetting,
   watchBatteryVisibilitySetting,
@@ -487,7 +486,10 @@ export type ShellChromeState = {
     /** The Wear OS watch (app/g2/wear-remote.ts); null when no watch is reachable. */
     watch: number | null;
     watchCharging: boolean | null;
-    /** The glasses' charging case, last known; null until the glasses report it. */
+    /**
+     * The glasses' charging case, last known (it only reports while the
+     * glasses are docked); null until it does. Shown on the phone, not here.
+     */
     case: number | null;
     caseCharging: boolean | null;
   };
@@ -1063,7 +1065,7 @@ export class ShellChromeLayer implements Layer {
 type BatteryItem = { label: string; device: BatteryDevice; percent: number; charging: boolean };
 
 /**
- * Labelled battery indicators for the phone, Wear OS watch, G2, its case, and R1. The
+ * Labelled battery indicators for the phone, Wear OS watch, G2, and R1. The
  * watch one exists only while a watch running the Faceclaw watch app is
  * reachable (no placeholder otherwise). The Settings > Customization >
  * Battery indicators submenu picks, per device, whether the indicator shows
@@ -1082,10 +1084,6 @@ function batteryItems(state: ShellChromeState): BatteryItem[] {
   if (state.battery.headset !== null && Number.isFinite(state.battery.headset)) {
     pushBatteryItem(items, glassesBatteryVisibilitySetting.get(), "G2", "glasses", state.battery.headset,
       Boolean(state.battery.headsetCharging));
-  }
-  if (state.battery.case !== null && Number.isFinite(state.battery.case)) {
-    pushBatteryItem(items, caseBatteryVisibilitySetting.get(), "Case", "case", state.battery.case,
-      Boolean(state.battery.caseCharging));
   }
   if (state.battery.ring !== null && Number.isInteger(state.battery.ring)
       && state.battery.ring >= 0 && state.battery.ring <= 100) {

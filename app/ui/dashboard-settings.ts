@@ -277,13 +277,12 @@ function batteryVisibilitySetting(
   id: string,
   device: string,
   storageKey: string,
-  defaultValue: BatteryIndicatorVisibility = "always",
 ): ConfigSettingEnum<BatteryIndicatorVisibility> {
   return new ConfigSettingEnum<BatteryIndicatorVisibility>({
     id,
     label: device,
     storageKey,
-    defaultValue,
+    defaultValue: "always",
     values: ["always", "low", "never"],
     formatValue: batteryIndicatorVisibilityLabel,
     description: `When the top bar shows the ${device} battery: always, only once it drops below ${BATTERY_LOW_VISIBILITY_THRESHOLD}%, or never.`,
@@ -295,13 +294,6 @@ export const phoneBatteryVisibilitySetting = batteryVisibilitySetting(
 );
 export const glassesBatteryVisibilitySetting = batteryVisibilitySetting(
   "glassesBatteryVisibility", "G2", "display.battery.glassesVisibility",
-);
-/**
- * The glasses' charging case, last known: it only reports while the glasses
- * are docked. Shown only when low by default, since it rarely changes.
- */
-export const caseBatteryVisibilitySetting = batteryVisibilitySetting(
-  "caseBatteryVisibility", "Case", "display.battery.caseVisibility", "low",
 );
 export const ringBatteryVisibilitySetting = batteryVisibilitySetting(
   "ringBatteryVisibility", "R1", "display.battery.ringVisibility",
@@ -327,7 +319,6 @@ export function batteryIndicatorSettingsKey(): string {
     batteryDisplayModeSetting.get(),
     phoneBatteryVisibilitySetting.get(),
     glassesBatteryVisibilitySetting.get(),
-    caseBatteryVisibilitySetting.get(),
     ringBatteryVisibilitySetting.get(),
     watchBatteryVisibilitySetting.get(),
   ].join("|");

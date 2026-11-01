@@ -55,7 +55,6 @@ import {
   dataCollectionSetting,
   distanceUnitSetting,
   glassesBatteryVisibilitySetting,
-  caseBatteryVisibilitySetting,
   phoneBatteryVisibilitySetting,
   ringBatteryVisibilitySetting,
   watchBatteryVisibilitySetting,
@@ -361,14 +360,13 @@ function batteryIndicatorsMenuItem(): MenuItem {
   return {
     label: "Battery indicators",
     description:
-      "Top-bar battery indicators for the phone, Wear OS watch, glasses, charging case, and ring: their style, and whether each shows always, only when low, or never.",
+      "Top-bar battery indicators for the phone, Wear OS watch, glasses, and ring: their style, and whether each shows always, only when low, or never.",
     onSelect: (ctx) => {
       openSettingsSubMenu(ctx, "Battery indicators", [
         enumSettingMenuItem(batteryDisplayModeSetting),
         enumSettingMenuItem(phoneBatteryVisibilitySetting),
         enumSettingMenuItem(watchBatteryVisibilitySetting),
         enumSettingMenuItem(glassesBatteryVisibilitySetting),
-        enumSettingMenuItem(caseBatteryVisibilitySetting),
         enumSettingMenuItem(ringBatteryVisibilitySetting),
       ]);
     },

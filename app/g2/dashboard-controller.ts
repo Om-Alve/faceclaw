@@ -103,6 +103,8 @@ type ConnectionPhase = "disconnected" | "connecting" | "connected" | "charging" 
 
 export type DashboardSnapshot = {
   phase: ConnectionPhase;
+  /** Last-known battery levels: the glasses, their charging case, the R1 ring and a Wear OS watch. */
+  batteries: ReturnType<typeof shell.getBatteryLevels>;
   status: string;
   displayPreview: ImageSource | null;
   /**
@@ -147,10 +149,6 @@ export type DashboardSnapshot = {
   headsetBattery: number | null;
   /** Whether that last report said the glasses are charging. */
   headsetCharging: boolean;
-  /** Last charging-case level the glasses relayed; null until one arrives. */
-  caseBattery: number | null;
-  /** Whether that case reading said the case itself is charging. */
-  caseCharging: boolean;
   /** Whether the glasses are worn; null when nothing has reported wear yet. */
   glassesWorn: boolean | null;
   /**
@@ -1145,10 +1143,9 @@ class DashboardController {
       previewMode: this.isPreviewDisplayActive(),
       headsetBattery: this.lastHeadsetBattery,
       headsetCharging: this.lastHeadsetCharging,
-      caseBattery: shell.getBatteryLevels().case,
-      caseCharging: shell.getBatteryLevels().caseCharging ?? false,
       glassesWorn: this.glassesWorn,
       evenHubPhoneUi: phoneUiButton(),
+      batteries: shell.getBatteryLevels(),
     };
   }
 
@@ -1608,9 +1605,6 @@ class DashboardController {
         // Kept across disconnects: the case only reports while the glasses are
         // docked and only drains while charging them, so the last level holds.
         shell.setBatteryLevels({ case: state.battery, caseCharging: state.charging });
-        if ((this.phase === "connected" || this.phase === "charging") && this.communicator) {
-          this.requestShellRender();
-        }
         this.emit();
       });
       this.offEvenAppConflict = communicator.onEvenAppConflict((message) => {

@@ -125,34 +125,13 @@ const RING_ICON = imageFromAsciiArt(
   },
 );
 
-// The glasses' charging case: a clamshell with its lid seam.
-const CASE_ICON = imageFromAsciiArt(
-  [
-    "           ",
-    "  #######  ",
-    " #       # ",
-    "#         #",
-    "#/////////#",
-    "#         #",
-    "#         #",
-    " #       # ",
-    "  #######  ",
-    "           ",
-  ], {
-    "#": 255,
-    "/": 128,
-    " ": 0,
-  },
-);
-
 /** A device with a battery indicator, for the dense style's icon labels. */
-export type BatteryDevice = "phone" | "watch" | "glasses" | "case" | "ring";
+export type BatteryDevice = "phone" | "watch" | "glasses" | "ring";
 
 const DEVICE_ICONS: Readonly<Record<BatteryDevice, GrayImage>> = {
   phone: PHONE_ICON,
   watch: WATCH_ICON,
   glasses: GLASSES_ICON,
-  case: CASE_ICON,
   ring: RING_ICON,
 };
 
