@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lens stop icon. Phosphor Icons "stop" (regular weight), MIT.
+     Phosphor draws on a 256-unit grid; it is scaled by 3/32 onto the 24dp
+     viewport here. Black fill only so tint-color can recolor it in app.css. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <group
+        android:scaleX="0.09375"
+        android:scaleY="0.09375">
+        <path
+            android:fillColor="#000000"
+            android:pathData="M200,40H56A16,16,0,0,0,40,56V200a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V56A16,16,0,0,0,200,40Zm0,160H56V56H200V200Z" />
+    </group>
+</vector>

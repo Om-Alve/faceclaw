@@ -28,3 +28,17 @@ https://github.com/adobe-fonts/source-han-sans. It is distributed under the SIL
 Open Font License, Version 1.1; see app/fonts/source-han-sans/LICENSE.txt.
 Faceclaw includes the G2's serialized 20 px LVGL build of the font so
 phone-side rendering matches the glasses.
+
+The Doto font is by the Doto project: https://github.com/oliverlalan/Doto,
+distributed through Google Fonts (https://fonts.google.com/specimen/Doto).
+Faceclaw includes a static Black instance (weight 900, roundness 0) built from
+the upstream variable font, under app/fonts/Doto-Black.ttf. It is distributed
+under the SIL Open Font License, Version 1.1; see app/fonts/OFL-Doto.txt.
+
+The Geist and Geist Mono fonts are by Vercel, in collaboration with
+basement.studio: https://github.com/vercel/geist-font. They are distributed
+under the SIL Open Font License, Version 1.1; see app/fonts/OFL-Geist.txt.
+
+The Phosphor icon set is by Phosphor Icons:
+https://github.com/phosphor-icons/core. It is distributed under the MIT
+License.

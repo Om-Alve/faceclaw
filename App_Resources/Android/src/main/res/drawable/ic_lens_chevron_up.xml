@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lens chevron up icon. Phosphor Icons "caret-up" (regular weight), MIT.
+     Phosphor draws on a 256-unit grid; it is scaled by 3/32 onto the 24dp
+     viewport here. Black fill only so tint-color can recolor it in app.css. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <group
+        android:scaleX="0.09375"
+        android:scaleY="0.09375">
+        <path
+            android:fillColor="#000000"
+            android:pathData="M213.66,165.66a8,8,0,0,1-11.32,0L128,91.31,53.66,165.66a8,8,0,0,1-11.32-11.32l80-80a8,8,0,0,1,11.32,0l80,80A8,8,0,0,1,213.66,165.66Z" />
+    </group>
+</vector>

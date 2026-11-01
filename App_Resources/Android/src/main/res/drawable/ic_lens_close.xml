@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lens close icon. Phosphor Icons "x" (regular weight), MIT.
+     Phosphor draws on a 256-unit grid; it is scaled by 3/32 onto the 24dp
+     viewport here. Black fill only so tint-color can recolor it in app.css. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <group
+        android:scaleX="0.09375"
+        android:scaleY="0.09375">
+        <path
+            android:fillColor="#000000"
+            android:pathData="M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z" />
+    </group>
+</vector>

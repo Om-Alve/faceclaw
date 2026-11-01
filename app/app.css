@@ -2,6 +2,8 @@
 @import '@nativescript/theme/css/default.css';
 @import './phone-ui/remote-controls.css';
 @import './phone-ui/pairing.css';
+/* Lens design system (Android only): imported last so its rules win. */
+@import './phone-ui/lens.css';
 
 Page {
   background-color: #ffffff;

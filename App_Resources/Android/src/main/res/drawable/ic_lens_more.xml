@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lens more icon. Phosphor Icons "dots-three" (regular weight), MIT.
+     Phosphor draws on a 256-unit grid; it is scaled by 3/32 onto the 24dp
+     viewport here. Black fill only so tint-color can recolor it in app.css. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <group
+        android:scaleX="0.09375"
+        android:scaleY="0.09375">
+        <path
+            android:fillColor="#000000"
+            android:pathData="M140,128a12,12,0,1,1-12-12A12,12,0,0,1,140,128Zm56-12a12,12,0,1,0,12,12A12,12,0,0,0,196,116ZM60,116a12,12,0,1,0,12,12A12,12,0,0,0,60,116Z" />
+    </group>
+</vector>
