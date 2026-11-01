@@ -787,8 +787,10 @@ class BleProtocol {
         /**
          * GlassesCaseInfo {soc=1, chargeStatus=2, lidStatus=3, inCaseStatus=4, errorCode=5} from a
          * sid-0x81 reply or push. Returns null unless the frame is a CASE_INFO package that carries
-         * a non-empty caseInfo; proto3 omits zero fields, so an empty one is indistinguishable
-         * from "no data" and is not reported as 0%.
+         * a non-empty caseInfo (out of the case, the glasses answer with an empty one).
+         *
+         * proto3 omits zero fields, so a missing soc reads as -1, not 0%: on 2.3.0.24/Faceclaw-38
+         * docking pushes {inCaseStatus=1} first and {soc, inCaseStatus=1} about 0.7 s later.
          */
         @JvmStatic
         fun parseCaseInfo(pb: ByteArray?): CaseInfoSnapshot? {
@@ -803,9 +805,8 @@ class BleProtocol {
             if (info.isEmpty()) {
                 return null
             }
-            val soc = readVarintFieldValue(info, 1, 0)
             return CaseInfoSnapshot(
-                soc,
+                readVarintFieldValue(info, 1, -1),
                 readVarintFieldValue(info, 2, 0),
                 readVarintFieldValue(info, 3, 0),
                 readVarintFieldValue(info, 4, 0),
@@ -1504,12 +1505,19 @@ class BleProtocol {
         }
     }
 
-    /** The charging case's GlassesCaseInfo, field for field (raw firmware values). */
+    /**
+     * The charging case's GlassesCaseInfo, field for field. Values as observed on G2 2.3.0.24 /
+     * Faceclaw/38: the right temple pushes one on every change (docking, lid, USB, level) with
+     * its own incrementing magic, and answers CASE_INFO reads with an empty one out of the case.
+     */
     class CaseInfoSnapshot(
-        /** State of charge, 0..100. */
+        /** State of charge, 1..100; -1 when the message left it out. */
         @JvmField val soc: Int,
+        /** 1 = the case itself is charging (on USB), 0 = not. */
         @JvmField val chargeStatus: Int,
+        /** 1 = lid closed, 0 = open. */
         @JvmField val lidStatus: Int,
+        /** 1 = glasses docked in the case. */
         @JvmField val inCaseStatus: Int,
         /** g2.common.eErrorCode; 0 = SUCCESS. */
         @JvmField val errorCode: Int,

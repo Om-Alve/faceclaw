@@ -31,8 +31,8 @@ export type HeadsetBatteryState = {
 
 /**
  * The charging case as the glasses relay it (sid 0x81). battery is 0..100, or
- * -1 when the reading carried no usable level; the other fields are the
- * firmware's raw chargeStatus / lidStatus / inCaseStatus values.
+ * -1 when the reading carried no usable level. chargingStatus 1 = the case is
+ * on USB power; lidStatus 1 = closed, 0 = open; inCaseStatus 1 = docked.
  */
 export type CaseBatteryState = {
   battery: number;

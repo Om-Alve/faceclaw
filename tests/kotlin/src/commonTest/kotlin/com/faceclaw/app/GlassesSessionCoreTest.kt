@@ -156,6 +156,8 @@ private class FakeLink(private val platform: ProtocolPlatform) : SessionLink {
     override fun recordDisplayFrameSent() {}
 }
 
+private fun hexBytes(value: String): ByteArray = ByteArray(value.length / 2) { value.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+
 /** GlassesCaseDataPackage{commandId=CASE_INFO, magicRandom, caseInfo}; caseInfo omitted when null. */
 private fun casePackage(magic: Int, caseInfo: ByteArray?): ByteArray =
     BleProtocol.encodeVarintField(1, BleProtocol.GLASSES_CASE_CMD_CASE_INFO) + BleProtocol.encodeVarintField(2, magic) +
@@ -724,9 +726,15 @@ class GlassesSessionCoreTest {
         assertNotNull(full)
         assertEquals("soc=64 charge=1 lid=1 inCase=1 err=0", full.toString())
         assertTrue(full.hasLevel())
-        // proto3 drops zeros: a flat case that still reports docking is a real 0%.
-        assertEquals(0, parse(casePackage(7, caseInfoBody(0, inCase = 1)))!!.soc)
         assertFalse(parse(casePackage(7, caseInfoBody(80, error = 7)))!!.hasLevel())
+        // Captured from G2 2.3.0.24 / Faceclaw/38 (CRC stripped). Out of the case the reply is empty:
+        assertEquals(null, parse(hexBytes("08011086011a00")))
+        // Docking pushes inCase alone first; proto3 dropped soc, which is "no level", not 0%.
+        val docked = parse(hexBytes("08011a022001"))!!
+        assertEquals("soc=-1 charge=0 lid=0 inCase=1 err=0", docked.toString())
+        assertFalse(docked.hasLevel())
+        // ...then the level, 0.7 s later.
+        assertEquals("soc=88 charge=0 lid=0 inCase=1 err=0", parse(hexBytes("080110011a0408582001")).toString())
         // No data, an all-default body, or another command is not a reading.
         assertEquals(null, parse(casePackage(7, null)))
         assertEquals(null, parse(casePackage(7, ByteArray(0))))
