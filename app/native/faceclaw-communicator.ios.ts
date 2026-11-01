@@ -43,12 +43,7 @@ export type HeadsetBatteryState = {
 };
 
 /** See the Android communicator's CaseBatteryState. */
-export type CaseBatteryState = {
-  battery: number;
-  chargingStatus: number;
-  lidStatus: number;
-  inCaseStatus: number;
-};
+export type CaseBatteryState = { battery: number; charging: boolean };
 
 export type FrameMetrics = {
   paintMs: number;
@@ -128,8 +123,8 @@ class SessionListener extends NSObject {
   onBatteryStateHeadsetBatteryHeadsetChargingRingBatteryRingCharging(headsetBattery: number, headsetCharging: number, ringBattery: number, ringCharging: number): void {
     this.bridge.handleBatteryState(Number(headsetBattery), Number(headsetCharging), Number(ringBattery), Number(ringCharging));
   }
-  onCaseStateCaseBatteryCaseChargingLidStatusInCaseStatus(caseBattery: number, caseCharging: number, lidStatus: number, inCaseStatus: number): void {
-    this.bridge.handleCaseState(Number(caseBattery), Number(caseCharging), Number(lidStatus), Number(inCaseStatus));
+  onCaseStateCaseBatteryCaseCharging(caseBattery: number, caseCharging: number): void {
+    this.bridge.handleCaseState(Number(caseBattery), Number(caseCharging) === 1);
   }
   onSilentModeSilent(silent: boolean): void { this.bridge.handleSilentMode(Boolean(silent)); }
   onWearStateWearing(wearing: boolean): void { this.bridge.handleWearState(Boolean(wearing)); }
@@ -293,8 +288,8 @@ export class FaceclawCommunicatorBridge {
   }
 
   /** @internal */
-  handleCaseState(battery: number, chargingStatus: number, lidStatus: number, inCaseStatus: number): void {
-    this.emitAsync(this.caseListeners, { battery, chargingStatus, lidStatus, inCaseStatus });
+  handleCaseState(battery: number, charging: boolean): void {
+    this.emitAsync(this.caseListeners, { battery, charging });
   }
 
   /** @internal */

@@ -1,6 +1,7 @@
 import { RemoteControlsViewModel } from './remote-controls-view-model';
 import { KeyboardInputViewModel } from './keyboard-input-view-model';
 import { BleBandwidthMeter } from "./ble-bandwidth-meter";
+import { BatteryCardModel } from "./battery-card-model";
 import {
   Application,
   ApplicationSettings,
@@ -42,10 +43,24 @@ let lastMainTab: MainTab = "glasses";
 // Deliberately not in ui/dashboard-settings, which drives the glasses' menus.
 const MIRROR_MINIMIZED_KEY = "phoneUi.mirrorMinimized";
 
-/** A battery dot's class: each lit dot is 10%, rounded (72 -> seven). */
-function batteryDotClassFor(battery: number | null, index: number): string {
-  const lit = battery === null ? 0 : Math.round(battery / 10);
-  return index < lit ? "lens-dot lens-dot-lit" : "lens-dot";
+/**
+ * The glasses card's status line. Charging state is only meaningful on a live
+ * link: while connecting or disconnecting the last report may already be
+ * stale, so the card stays quiet instead of flashing a wrong "Not charging".
+ */
+function glassesBatteryStatus(battery: number | null, charging: boolean, phase: string): string {
+  if (battery === null || (phase !== "connected" && phase !== "charging")) return "";
+  return charging ? "Charging" : "Not charging";
+}
+
+/**
+ * The case card's status line. The glasses only hear from the case while
+ * docked, and it only drains while charging them, so the last reading stays
+ * true after they are taken out; until one arrives, say how to get it.
+ */
+function caseBatteryStatus(battery: number | null, charging: boolean): string {
+  if (battery === null) return "Read when docked";
+  return charging ? "Charging" : "Not charging";
 }
 
 export class MainViewModel extends RemoteControlsViewModel {
@@ -81,10 +96,8 @@ export class MainViewModel extends RemoteControlsViewModel {
   private _previewMode = false;
   private _evenHubPhoneUi: PhoneUiButton | null = null;
   private _phase: "disconnected" | "connecting" | "connected" | "charging" | "disconnecting" = "disconnected";
-  private _headsetBattery: number | null = null;
-  private _headsetCharging = false;
-  private _caseBattery: number | null = null;
-  private _caseCharging = false;
+  readonly glassesCard = new BatteryCardModel("Glasses battery", null, "");
+  readonly caseCard = new BatteryCardModel("Case battery", null, caseBatteryStatus(null, false));
   private _mainTab: MainTab = lastMainTab;
   private _remoteSheetVisible = false;
   private _mirrorMinimized = ApplicationSettings.getBoolean(MIRROR_MINIMIZED_KEY, false);
@@ -115,37 +128,9 @@ export class MainViewModel extends RemoteControlsViewModel {
       this.displayPreview = snapshot.displayPreview;
       this.displayPreviewMessage = snapshot.displayPreviewMessage;
       this.phase = snapshot.phase;
-      const previousBattery = this._headsetBattery;
-      const previousCharging = this._headsetCharging;
-      this._headsetBattery = snapshot.headsetBattery;
-      this._headsetCharging = snapshot.headsetCharging;
-      if (previousBattery !== this._headsetBattery || previousCharging !== this._headsetCharging) {
-        // The snapshot re-emits for unrelated reasons; only touch these
-        // bindings when the battery report itself moved.
-        this.notifyPropertyChange("glassesBatteryText", this.glassesBatteryText);
-        this.notifyPropertyChange("glassesBatteryPercentVisibility", this.glassesBatteryPercentVisibility);
-        this.notifyPropertyChange("batteryDots", this.batteryDots);
-        const dotClasses = [
-          this.batteryDot1Class, this.batteryDot2Class, this.batteryDot3Class, this.batteryDot4Class,
-          this.batteryDot5Class, this.batteryDot6Class, this.batteryDot7Class, this.batteryDot8Class,
-          this.batteryDot9Class, this.batteryDot10Class,
-        ];
-        dotClasses.forEach((dotClass, index) => this.notifyPropertyChange(`batteryDot${index + 1}Class`, dotClass));
-        this.notifyPropertyChange("glassesChargingLabel", this.glassesChargingLabel);
-      }
-      if (snapshot.caseBattery !== this._caseBattery || snapshot.caseCharging !== this._caseCharging) {
-        this._caseBattery = snapshot.caseBattery;
-        this._caseCharging = snapshot.caseCharging;
-        this.notifyPropertyChange("caseBatteryText", this.caseBatteryText);
-        this.notifyPropertyChange("caseBatteryPercentVisibility", this.caseBatteryPercentVisibility);
-        this.notifyPropertyChange("caseStatusLabel", this.caseStatusLabel);
-        const caseDotClasses = [
-          this.caseDot1Class, this.caseDot2Class, this.caseDot3Class, this.caseDot4Class,
-          this.caseDot5Class, this.caseDot6Class, this.caseDot7Class, this.caseDot8Class,
-          this.caseDot9Class, this.caseDot10Class,
-        ];
-        caseDotClasses.forEach((dotClass, index) => this.notifyPropertyChange(`caseDot${index + 1}Class`, dotClass));
-      }
+      this.glassesCard.update(snapshot.headsetBattery,
+        glassesBatteryStatus(snapshot.headsetBattery, snapshot.headsetCharging, snapshot.phase));
+      this.caseCard.update(snapshot.caseBattery, caseBatteryStatus(snapshot.caseBattery, snapshot.caseCharging));
       this.activeTextSettingId = snapshot.activeTextSettingId;
       this.activeTextEditorTitle = snapshot.activeTextEditorTitle;
       this.activeTextSettingTitle = snapshot.activeTextSettingTitle;
@@ -240,95 +225,6 @@ export class MainViewModel extends RemoteControlsViewModel {
   onConnectionStatusTap(): void {
     void Dialogs.alert({ title: "Connection status", message: this._status, okButtonText: "OK" });
   }
-
-  // ---- the glasses' battery, on the header status strip ----
-  //
-  // The controller keeps the last report; null means no level has arrived yet,
-  // so the strip shows a placeholder rather than a misleading zero.
-
-  get glassesBatteryText(): string {
-    return this._headsetBattery === null ? "--" : String(this._headsetBattery);
-  }
-
-  get glassesBatteryPercentVisibility(): "visible" | "collapse" {
-    return this._headsetBattery === null ? "collapse" : "visible";
-  }
-
-  /** Ten cells for a Repeater; each lit cell is 10%, rounded (72 -> seven). */
-  get batteryDots(): Array<{ lit: boolean }> {
-    const battery = this._headsetBattery;
-    const lit = battery === null ? 0 : Math.round(battery / 10);
-    return Array.from({ length: 10 }, (_, index) => ({ lit: index < lit }));
-  }
-
-  /**
-   * One class getter per dot. A Repeater cannot be used here: on Android it
-   * lays its generated items out vertically inside the horizontal dots row.
-   */
-  private batteryDotClass(index: number): string {
-    return batteryDotClassFor(this._headsetBattery, index);
-  }
-
-  get batteryDot1Class(): string { return this.batteryDotClass(0); }
-  get batteryDot2Class(): string { return this.batteryDotClass(1); }
-  get batteryDot3Class(): string { return this.batteryDotClass(2); }
-  get batteryDot4Class(): string { return this.batteryDotClass(3); }
-  get batteryDot5Class(): string { return this.batteryDotClass(4); }
-  get batteryDot6Class(): string { return this.batteryDotClass(5); }
-  get batteryDot7Class(): string { return this.batteryDotClass(6); }
-  get batteryDot8Class(): string { return this.batteryDotClass(7); }
-  get batteryDot9Class(): string { return this.batteryDotClass(8); }
-  get batteryDot10Class(): string { return this.batteryDotClass(9); }
-
-  /**
-   * Charging state is only meaningful on a live link: while connecting or
-   * disconnecting the last report may already be stale, so the strip stays
-   * quiet instead of flashing a wrong "NOT CHARGING".
-   */
-  get glassesChargingLabel(): string {
-    if (this._headsetBattery === null) return "";
-    switch (this._phase) {
-      case "connected":
-      case "charging":
-        return this._headsetCharging ? "Charging" : "Not charging";
-      default:
-        return "";
-    }
-  }
-
-  /**
-   * The charging case's card mirrors the glasses card: numerals, ten dots and
-   * a status line. The glasses only hear from the case while docked, and it
-   * only drains while charging them, so the last reading stays accurate after
-   * they are taken out; until one arrives the card says how to get it.
-   */
-  get caseBatteryText(): string {
-    return this._caseBattery === null ? "--" : String(this._caseBattery);
-  }
-
-  get caseBatteryPercentVisibility(): "visible" | "collapse" {
-    return this._caseBattery === null ? "collapse" : "visible";
-  }
-
-  get caseStatusLabel(): string {
-    if (this._caseBattery === null) return "Read when docked";
-    return this._caseCharging ? "Charging" : "Not charging";
-  }
-
-  private caseDotClass(index: number): string {
-    return batteryDotClassFor(this._caseBattery, index);
-  }
-
-  get caseDot1Class(): string { return this.caseDotClass(0); }
-  get caseDot2Class(): string { return this.caseDotClass(1); }
-  get caseDot3Class(): string { return this.caseDotClass(2); }
-  get caseDot4Class(): string { return this.caseDotClass(3); }
-  get caseDot5Class(): string { return this.caseDotClass(4); }
-  get caseDot6Class(): string { return this.caseDotClass(5); }
-  get caseDot7Class(): string { return this.caseDotClass(6); }
-  get caseDot8Class(): string { return this.caseDotClass(7); }
-  get caseDot9Class(): string { return this.caseDotClass(8); }
-  get caseDot10Class(): string { return this.caseDotClass(9); }
 
   get displayPreview(): ImageSource | null {
     return this._displayPreview;
@@ -1013,7 +909,6 @@ export class MainViewModel extends RemoteControlsViewModel {
       this.notifyPropertyChange("canRun", this.canRun);
       this.notifyPropertyChange("connectItemEnabled", this.connectItemEnabled);
       this.notifyPropertyChange("connectionStatusLabel", this.connectionStatusLabel);
-      this.notifyPropertyChange("glassesChargingLabel", this.glassesChargingLabel);
     }
   }
 

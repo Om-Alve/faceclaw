@@ -156,7 +156,7 @@ private class FakeLink(private val platform: ProtocolPlatform) : SessionLink {
     override fun recordDisplayFrameSent() {}
 }
 
-private fun hexBytes(value: String): ByteArray = ByteArray(value.length / 2) { value.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
+private fun hex(value: String): ByteArray = value.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
 /** GlassesCaseDataPackage{commandId=CASE_INFO, magicRandom, caseInfo}; caseInfo omitted when null. */
 private fun casePackage(magic: Int, caseInfo: ByteArray?): ByteArray =
@@ -256,8 +256,8 @@ private class FakeListener : FaceclawBleCommunicatorListener {
 
     val cases = ArrayList<String>()
 
-    override fun onCaseState(caseBattery: Int, caseCharging: Int, lidStatus: Int, inCaseStatus: Int) {
-        cases.add("$caseBattery/$caseCharging/$lidStatus/$inCaseStatus")
+    override fun onCaseState(caseBattery: Int, caseCharging: Int) {
+        cases.add("$caseBattery/$caseCharging")
     }
 
     override fun onSilentMode(silent: Boolean) {}
@@ -718,85 +718,55 @@ class GlassesSessionCoreTest {
     @Test
     fun caseInfoQueryMatchesTheEvenAppAndRepliesParse() {
         // commandId=CASE_INFO, magicRandom=42, empty caseInfo.
-        assertContentEquals(byteArrayOf(0x08, 0x01, 0x10, 0x2a, 0x1a, 0x00), BleProtocol.buildCaseInfoQuery(42))
+        assertContentEquals(hex("0801102a1a00"), BleProtocol.buildCaseInfoQuery(42))
         // Through a real frame, so the trailing CRC is present as it is on the wire.
         fun parse(pb: ByteArray) = BleProtocol.parseCaseInfo(
             BleProtocol.parseFrame(BleProtocol.framePb(pb, BleProtocol.SID_GLASSES_CASE, 0x00, 3)[0]).pb)
-        val full = parse(casePackage(7, caseInfoBody(64, charge = 1, lid = 1, inCase = 1)))
-        assertNotNull(full)
-        assertEquals("soc=64 charge=1 lid=1 inCase=1 err=0", full.toString())
-        assertTrue(full.hasLevel())
+        assertEquals(BleProtocol.CaseInfoSnapshot(64, 1, 1, 1, 0), parse(casePackage(7, caseInfoBody(64, charge = 1, lid = 1, inCase = 1))))
         assertFalse(parse(casePackage(7, caseInfoBody(80, error = 7)))!!.hasLevel())
-        // Captured from G2 2.3.0.24 / Faceclaw/38 (CRC stripped). Out of the case the reply is empty:
-        assertEquals(null, parse(hexBytes("08011086011a00")))
-        // Docking pushes inCase alone first; proto3 dropped soc, which is "no level", not 0%.
-        val docked = parse(hexBytes("08011a022001"))!!
-        assertEquals("soc=-1 charge=0 lid=0 inCase=1 err=0", docked.toString())
-        assertFalse(docked.hasLevel())
-        // ...then the level, 0.7 s later.
-        assertEquals("soc=88 charge=0 lid=0 inCase=1 err=0", parse(hexBytes("080110011a0408582001")).toString())
         // No data, an all-default body, or another command is not a reading.
         assertEquals(null, parse(casePackage(7, null)))
         assertEquals(null, parse(casePackage(7, ByteArray(0))))
         assertEquals(null, parse(BleProtocol.encodeVarintField(2, 7) + BleProtocol.encodeBytesField(3, caseInfoBody(50))))
         assertEquals(null, BleProtocol.parseCaseInfo(null))
+        // Captured from G2 2.3.0.24 / Faceclaw/38 (CRC stripped). Out of the case the reply is empty;
+        // docking pushes inCase alone (proto3 dropped soc: no level, not 0%), then the level.
+        assertEquals(null, parse(hex("08011086011a00")))
+        val docked = parse(hex("08011a022001"))!!
+        assertEquals(BleProtocol.CaseInfoSnapshot(-1, 0, 0, 1, 0), docked)
+        assertFalse(docked.hasLevel())
+        assertEquals(BleProtocol.CaseInfoSnapshot(88, 0, 0, 1, 0), parse(hex("080110011a0408582001")))
     }
 
     @Test
-    fun caseInfoIsPolledOnceTheLinkIsQuietAndPushesUpdateIt() {
+    fun dockingReadsTheCaseOnceAndPushesCarryItAfterwards() {
         val s = Session()
         s.link.caseInfo = caseInfoBody(64, charge = 1, inCase = 1)
         try {
             s.startAndAwaitLayout()
-            s.platform.offsetMs += ConnectionOptions.BATTERY_INPUT_QUIET_MS + 1_000L
+            fun queries() = s.link.writes.filter { it.kind == "case-info" }
+            assertEquals(0, queries().size, "no read while worn")
+            s.core.monitor.withLock { s.core.updateChargingModeLocked(true, 80) }
             s.core.interruptibleSleep.interrupt()
             assertTrue(waitUntil(5_000) { s.listener.cases.isNotEmpty() }, s.host.logs().takeLast(10).toString())
-            assertEquals("64/1/0/1", s.listener.cases[0])
-            val query = s.link.writes.first { it.kind == "case-info" }
-            assertEquals(RIGHT, query.address)
-            assertEquals(BleProtocol.SID_GLASSES_CASE, query.sid)
-            // A device push carries the glasses' own magic: it is a reading, not a stray ack.
+            assertEquals(listOf("64/1"), s.listener.cases)
+            assertEquals(RIGHT, queries().single().address)
+            // Pushes (flag 0x01, the glasses' own magic) update it without being taken for acks.
             fun push(info: ByteArray) = s.core.onNotification(RIGHT, BleProtocol.NOTIFY_CHAR_UUID,
-                BleProtocol.framePb(casePackage(200, info), BleProtocol.SID_GLASSES_CASE, 0x00, 99)[0])
+                BleProtocol.framePb(casePackage(200, info), BleProtocol.SID_GLASSES_CASE, BleProtocol.FLAG_NOTIFY, 99)[0])
             push(caseInfoBody(63, lid = 1, inCase = 1))
-            assertEquals("63/0/1/1", s.listener.cases.last())
-            // An unchanged reading is not reported again.
-            push(caseInfoBody(63, lid = 1, inCase = 1))
+            assertEquals("63/0", s.listener.cases.last())
+            // Unchanged level and charge, no level yet, or a failed read: nothing to report.
+            push(caseInfoBody(63, inCase = 1))
+            push(caseInfoBody(0, inCase = 1))
+            push(caseInfoBody(70, inCase = 1, error = 3))
             assertEquals(2, s.listener.cases.size)
             assertFalse(s.host.hasLog("unexpected"), s.host.logs().filter { it.contains("unexpected") }.toString())
-            // A failed read is passed on without a level.
-            push(caseInfoBody(63, lid = 1, inCase = 1, error = 3))
-            assertEquals("-1/0/1/1", s.listener.cases.last())
-        } finally {
-            s.core.close()
-        }
-    }
-
-    @Test
-    fun unansweredCaseQueriesStopForTheRestOfTheSession() {
-        val s = Session()
-        s.link.muted.add("case-info")
-        try {
-            s.startAndAwaitLayout()
-            fun queries() = s.link.writes.count { it.kind == "case-info" }
-            fun timeouts() = s.core.monitor.withLock { s.core.caseQueryTimeouts }
-            for (n in 1..ConnectionOptions.CASE_QUERY_MAX_TIMEOUTS) {
-                s.platform.offsetMs += ConnectionOptions.BATTERY_REFRESH_INTERVAL_MS + 1_000L
-                s.core.interruptibleSleep.interrupt()
-                assertTrue(waitUntil(5_000) { queries() == n }, "query $n; " + s.host.logs().takeLast(10))
-                s.platform.offsetMs += ConnectionOptions.ACK_TIMEOUT_MS + 1_000L
-                s.core.interruptibleSleep.interrupt()
-                assertTrue(waitUntil(5_000) { timeouts() == n }, "timeout $n; " + s.host.logs().takeLast(10))
-            }
-            // The battery poll still runs; the case poll that used to follow it does not.
-            fun batteryPolls() = s.link.writes.count { it.kind == "battery" }
-            val before = batteryPolls()
-            s.platform.offsetMs += ConnectionOptions.BATTERY_REFRESH_INTERVAL_MS + 1_000L
+            // Later charging-mode battery polls do not read the case again.
+            s.platform.offsetMs += 2L * ConnectionOptions.CHARGING_BATTERY_POLL_MS
             s.core.interruptibleSleep.interrupt()
-            assertTrue(waitUntil(5_000) { batteryPolls() > before })
             sleepMs(300)
-            assertEquals(ConnectionOptions.CASE_QUERY_MAX_TIMEOUTS, queries())
-            assertTrue(s.core.isSessionReady())
+            assertEquals(1, queries().size)
         } finally {
             s.core.close()
         }

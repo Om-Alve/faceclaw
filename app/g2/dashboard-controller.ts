@@ -151,8 +151,6 @@ export type DashboardSnapshot = {
   caseBattery: number | null;
   /** Whether that case reading said the case itself is charging. */
   caseCharging: boolean;
-  /** Date.now() when that case reading arrived; null with caseBattery. */
-  caseReadingAtMs: number | null;
   /** Whether the glasses are worn; null when nothing has reported wear yet. */
   glassesWorn: boolean | null;
   /**
@@ -301,11 +299,10 @@ class DashboardController {
   // Charging flag from the last battery report, so the phone can label a
   // last-known level the same way the top bar does.
   private lastHeadsetCharging = false;
-  // Last charging-case reading the glasses relayed (sid 0x81). The case only
-  // reports while the glasses are docked, so the level is kept as last-known.
+  // Last charging-case reading. The case only reports while the glasses are
+  // docked and only drains while charging them, so the last level stays true.
   private lastCaseBattery: number | null = null;
   private lastCaseCharging = false;
-  private lastCaseReadingAtMs: number | null = null;
   private readonly listeners = new Set<DashboardListener>();
 
   private communicator: FaceclawCommunicatorBridge | null = null;
@@ -1154,7 +1151,6 @@ class DashboardController {
       headsetCharging: this.lastHeadsetCharging,
       caseBattery: this.lastCaseBattery,
       caseCharging: this.lastCaseCharging,
-      caseReadingAtMs: this.lastCaseReadingAtMs,
       glassesWorn: this.glassesWorn,
       evenHubPhoneUi: phoneUiButton(),
     };
@@ -1613,12 +1609,8 @@ class DashboardController {
         this.emit();
       });
       this.offCaseBattery = communicator.onCaseState((state) => {
-        const hasLevel = Number.isInteger(state.battery) && state.battery >= 0 && state.battery <= 100;
-        // A reading without a level (a failed case read) keeps the last-known one.
-        if (!hasLevel) return;
         this.lastCaseBattery = state.battery;
-        this.lastCaseCharging = state.chargingStatus > 0;
-        this.lastCaseReadingAtMs = Date.now();
+        this.lastCaseCharging = state.charging;
         this.emit();
       });
       this.offEvenAppConflict = communicator.onEvenAppConflict((message) => {

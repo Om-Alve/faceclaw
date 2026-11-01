@@ -1,0 +1,21 @@
+<StackLayout xmlns="http://schemas.nativescript.org/tns.xsd" class="lens-card lens-card-battery">
+    <!-- One battery card, bound to a BatteryCardModel (battery-card-model.ts). -->
+    <Label text="{{ label }}" class="lens-label" />
+    <GridLayout columns="auto,auto" rows="auto" horizontalAlignment="left" marginTop="4">
+        <Label col="0" text="{{ valueText }}" class="lens-battery-value" />
+        <Label col="1" text="%" class="lens-battery-percent" visibility="{{ percentVisibility }}" />
+    </GridLayout>
+    <StackLayout orientation="horizontal" class="lens-dots">
+        <Label class="{{ dot1Class }}" />
+        <Label class="{{ dot2Class }}" />
+        <Label class="{{ dot3Class }}" />
+        <Label class="{{ dot4Class }}" />
+        <Label class="{{ dot5Class }}" />
+        <Label class="{{ dot6Class }}" />
+        <Label class="{{ dot7Class }}" />
+        <Label class="{{ dot8Class }}" />
+        <Label class="{{ dot9Class }}" />
+        <Label class="{{ dot10Class }}" />
+    </StackLayout>
+    <Label text="{{ statusText }}" class="lens-label lens-charging" textWrap="true" />
+</StackLayout>

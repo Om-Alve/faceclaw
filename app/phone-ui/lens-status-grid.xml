@@ -1,0 +1,25 @@
+<GridLayout xmlns="http://schemas.nativescript.org/tns.xsd" xmlns:lens="phone-ui" columns="*,*" rows="auto,auto" class="lens-status-grid">
+    <!--
+      The Glasses tab's status cards, shared by the portrait and landscape
+      layouts and bound to the page's MainViewModel: glasses | case batteries,
+      then display mode | auto brightness. Each row's cards stretch to the
+      taller one.
+    -->
+    <lens:lens-battery-card col="0" row="0" marginRight="5" bindingContext="{{ glassesCard }}" />
+    <lens:lens-battery-card col="1" row="0" marginLeft="5" bindingContext="{{ caseCard }}" />
+    <StackLayout col="0" row="1" class="lens-card lens-card-display" marginRight="5" tap="{{ onDisplayModeTap }}"
+        accessible="true" accessibilityRole="button" accessibilityLabel="Display mode. Change">
+        <Label text="Display mode" class="lens-label" />
+        <GridLayout columns="*,auto" rows="auto" marginTop="4">
+            <Label col="0" text="{{ displayModeValue }}" class="lens-display-value" verticalAlignment="center" textWrap="false" />
+            <Image col="1" src="res://ic_lens_chevron_down" class="lens-icon-dim" verticalAlignment="center" />
+        </GridLayout>
+    </StackLayout>
+    <GridLayout col="1" row="1" columns="*,auto" rows="auto" class="lens-card lens-card-auto" marginLeft="5">
+        <StackLayout col="0" verticalAlignment="top">
+            <Label text="Auto brightness" textWrap="true" class="lens-label" />
+            <Label text="{{ brightnessAutoLabel }}" class="lens-auto-value" />
+        </StackLayout>
+        <Switch col="1" checked="{{ brightnessAuto }}" checkedChange="{{ onBrightnessAutoChange }}" class="{{ brightnessAutoSwitchClass }}" verticalAlignment="center" horizontalAlignment="right" />
+    </GridLayout>
+</GridLayout>

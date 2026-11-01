@@ -35,8 +35,6 @@ class ConnectionOptions {
         // Poll cadence while in charging mode; also bounds how quickly we notice
         // the glasses coming back out of the case.
         const val CHARGING_BATTERY_POLL_MS = 30_000
-        // Consecutive unanswered charging-case queries before a session gives up on them.
-        const val CASE_QUERY_MAX_TIMEOUTS = 3
         const val IMAGE_FRAGMENT_SIZE = 3800
         const val IMAGE_RETRY_DELAY_MS = 2_000
         const val MAX_CONSECUTIVE_ACK_TIMEOUTS = 8

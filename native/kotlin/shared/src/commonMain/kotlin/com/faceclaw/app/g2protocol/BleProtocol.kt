@@ -52,11 +52,7 @@ class BleProtocol {
 
         const val SID_ONBOARDING: Int = 0x10
 
-        /**
-         * Charging case (UX_GLASSES_CASE_APP_ID). The payload is a GlassesCaseDataPackage
-         * {commandId=1, magicRandom=2, caseInfo=3}; the Even app reads it with commandId
-         * CASE_INFO and an empty caseInfo, and the glasses also push it unprompted.
-         */
+        /** Charging case (UX_GLASSES_CASE_APP_ID): GlassesCaseDataPackage, see [CaseInfoSnapshot]. */
         const val SID_GLASSES_CASE: Int = 0x81
 
         /** eGlassesCaseCommandId.CASE_INFO. */
@@ -785,12 +781,8 @@ class BleProtocol {
         }
 
         /**
-         * GlassesCaseInfo {soc=1, chargeStatus=2, lidStatus=3, inCaseStatus=4, errorCode=5} from a
-         * sid-0x81 reply or push. Returns null unless the frame is a CASE_INFO package that carries
-         * a non-empty caseInfo (out of the case, the glasses answer with an empty one).
-         *
-         * proto3 omits zero fields, so a missing soc reads as -1, not 0%: on 2.3.0.24/Faceclaw-38
-         * docking pushes {inCaseStatus=1} first and {soc, inCaseStatus=1} about 0.7 s later.
+         * The GlassesCaseInfo (field 3) of a sid-0x81 CASE_INFO reply or push, or null when there
+         * is none or it is empty.
          */
         @JvmStatic
         fun parseCaseInfo(pb: ByteArray?): CaseInfoSnapshot? {
@@ -1506,31 +1498,26 @@ class BleProtocol {
     }
 
     /**
-     * The charging case's GlassesCaseInfo, field for field. Values as observed on G2 2.3.0.24 /
-     * Faceclaw/38: the right temple pushes one on every change (docking, lid, USB, level) with
-     * its own incrementing magic, and answers CASE_INFO reads with an empty one out of the case.
+     * GlassesCaseInfo {soc=1, chargeStatus=2, lidStatus=3, inCaseStatus=4, errorCode=5}. As seen
+     * on G2 2.3.0.24 / Faceclaw/38: docked, the right temple pushes one (flag 0x01, its own
+     * magic) on every change -- docking, lid, USB, each 1% -- and answers a CASE_INFO read with
+     * full data; out of the case it answers with an empty caseInfo. Docking pushes
+     * {inCaseStatus=1} first and the level about 0.7 s later; proto3 drops zero fields, so a
+     * missing soc reads as -1 ("no level"), never 0%.
      */
-    class CaseInfoSnapshot(
+    data class CaseInfoSnapshot(
         /** State of charge, 1..100; -1 when the message left it out. */
         @JvmField val soc: Int,
-        /** 1 = the case itself is charging (on USB), 0 = not. */
+        /** 1 = the case itself is charging (on USB). */
         @JvmField val chargeStatus: Int,
         /** 1 = lid closed, 0 = open. */
         @JvmField val lidStatus: Int,
-        /** 1 = glasses docked in the case. */
+        /** 1 = glasses docked. */
         @JvmField val inCaseStatus: Int,
         /** g2.common.eErrorCode; 0 = SUCCESS. */
         @JvmField val errorCode: Int,
     ) {
-        /** A usable percentage: the firmware reported success and the level is in range. */
         fun hasLevel(): Boolean = errorCode == 0 && soc in 0..100
-
-        fun sameAs(other: CaseInfoSnapshot?): Boolean = other != null && soc == other.soc
-            && chargeStatus == other.chargeStatus && lidStatus == other.lidStatus
-            && inCaseStatus == other.inCaseStatus && errorCode == other.errorCode
-
-        override fun toString(): String =
-            "soc=$soc charge=$chargeStatus lid=$lidStatus inCase=$inCaseStatus err=$errorCode"
     }
 
     class FirmwareInfo {

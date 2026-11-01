@@ -29,17 +29,8 @@ export type HeadsetBatteryState = {
   ringChargingStatus?: number;
 };
 
-/**
- * The charging case as the glasses relay it (sid 0x81). battery is 0..100, or
- * -1 when the reading carried no usable level. chargingStatus 1 = the case is
- * on USB power; lidStatus 1 = closed, 0 = open; inCaseStatus 1 = docked.
- */
-export type CaseBatteryState = {
-  battery: number;
-  chargingStatus: number;
-  lidStatus: number;
-  inCaseStatus: number;
-};
+/** The charging case's level (0..100) and whether it is itself charging, as the glasses relay it. */
+export type CaseBatteryState = { battery: number; charging: boolean };
 
 export type FrameMetrics = {
   paintMs: number;
@@ -225,13 +216,8 @@ export class FaceclawCommunicatorBridge {
         };
         this.emitAsync(this.batteryListeners, state);
       },
-      onCaseState: (caseBattery: number, caseCharging: number, lidStatus: number, inCaseStatus: number) => {
-        this.emitAsync(this.caseListeners, {
-          battery: Number(caseBattery),
-          chargingStatus: Number(caseCharging),
-          lidStatus: Number(lidStatus),
-          inCaseStatus: Number(inCaseStatus),
-        });
+      onCaseState: (caseBattery: number, caseCharging: number) => {
+        this.emitAsync(this.caseListeners, { battery: Number(caseBattery), charging: Number(caseCharging) === 1 });
       },
       onSilentMode: (silent: boolean) => {
         this.emitAsync(this.silentModeListeners, Boolean(silent));
@@ -353,7 +339,7 @@ export class FaceclawCommunicatorBridge {
     return () => this.batteryListeners.delete(listener);
   }
 
-  /** Charging-case readings: polled while the link is idle and pushed by the glasses on change. */
+  /** Charging-case readings: read on docking, then pushed by the glasses on every change. */
   onCaseState(listener: (state: CaseBatteryState) => void): () => void {
     this.caseListeners.add(listener);
     return () => this.caseListeners.delete(listener);
