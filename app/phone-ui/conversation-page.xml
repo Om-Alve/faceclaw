@@ -1,4 +1,4 @@
-<Page xmlns="http://schemas.nativescript.org/tns.xsd" navigatingTo="navigatingTo" unloaded="unloaded">
+<Page xmlns="http://schemas.nativescript.org/tns.xsd" navigatingTo="navigatingTo" unloaded="unloaded" class="lens-secondary-page">
     <ActionBar title="{{ pageTitle }}">
         <ActionItem text="Re-diarize" tap="{{ onRediarizeTap }}" android.position="popup" />
         <ActionItem text="Split speaker..." tap="{{ onSplitSpeakerTap }}" android.position="popup" />
@@ -25,7 +25,7 @@
                     <Repeater.itemTemplate>
                         <StackLayout class="{{ rowClass }}" tap="{{ onRowTap }}" longPress="{{ onRowLongPress }}">
                             <GridLayout columns="*,auto">
-                                <Label col="0" textWrap="true">
+                                <Label col="0" textWrap="true" class="lens-body">
                                     <Label.formattedText>
                                         <FormattedString>
                                             <Span text="{{ speakerPrefix }}" color="{{ speakerColor }}" fontWeight="bold" />

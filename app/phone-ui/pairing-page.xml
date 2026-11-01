@@ -1,4 +1,4 @@
-<Page xmlns="http://schemas.nativescript.org/tns.xsd" navigatingTo="navigatingTo" navigatingFrom="navigatingFrom" actionBarHidden="{{ actionBarHidden }}">
+<Page xmlns="http://schemas.nativescript.org/tns.xsd" navigatingTo="navigatingTo" navigatingFrom="navigatingFrom" actionBarHidden="{{ actionBarHidden }}" class="lens-secondary-page">
     <ActionBar title="Pair Glasses" />
 
     <GridLayout rows="auto,auto,*,auto" class="p-16">
@@ -71,7 +71,7 @@
 
                 <StackLayout class="pairing-selection m-t-16" visibility="{{ selectionVisibility }}">
                     <Label text="Selected" class="h2 pairing-section" />
-                    <Label text="{{ selectionSummary }}" textWrap="true" />
+                    <Label text="{{ selectionSummary }}" textWrap="true" class="lens-body" />
                 </StackLayout>
             </StackLayout>
         </ScrollView>

@@ -388,6 +388,7 @@
 /* While recording the record icon is replaced by this: a filled red STOP. */
 .lens-stop {
   height: 44;
+  min-height: 44;
   background-color: #D71921;
   color: #FFFFFF;
   border-radius: 0;
@@ -429,6 +430,7 @@
 
 .lens-fix {
   height: 44;
+  min-height: 44;
   background-color: #D71921;
   color: #FFFFFF;
   border-radius: 0;
@@ -731,6 +733,7 @@
 
 .lens-row-button {
   height: 44;
+  min-height: 44;
   min-width: 44;
   border-width: 1;
   border-color: #111111;
@@ -815,6 +818,7 @@
  */
 .lens-segment .tab-button {
   height: 44;
+  min-height: 44;
   margin: 0;
   border-width: 0;
   border-radius: 0;
@@ -1091,4 +1095,696 @@
 
 .ns-dark .lens-ble-label {
   color: #A3A3A3;
+}
+
+/* =====================================================================
+ * 5.8 Secondary pages
+ *
+ * Conversations, conversation, ask, speakers, permissions, pairing,
+ * config, document and the onboarding pages. Android-only: iOS never
+ * imports this file. The pages carry `lens-secondary-page` on their Page
+ * element; everything else here is either a global control style or an
+ * override of a legacy class that lives in app.css / pairing.css.
+ *
+ * Speaker and emotion chip background colours come from bindings
+ * (`chipBackground`, `emotionColor`) and are data, so those classes only
+ * change shape/border here. Never add a background-color to them.
+ * ===================================================================== */
+
+/* ---------- page shell ---------- */
+
+/*
+ * Global page ground. The secondary pages also carry `lens-secondary-page`
+ * (used below to scope fields), but the flash and firmware-check pages must
+ * inherit the page look without any XML edit, so the palette is set on Page
+ * itself as well.
+ */
+Page {
+  background-color: #F4F4F2;
+  color: #111111;
+  font-family: "Geist-Regular";
+  font-size: 15;
+}
+
+.ns-dark Page {
+  background-color: #000000;
+  color: #F2F2F2;
+}
+
+.lens-secondary-page {
+  background-color: #F4F4F2;
+  color: #111111;
+  font-family: "Geist-Regular";
+  font-size: 15;
+}
+
+.ns-dark .lens-secondary-page {
+  background-color: #000000;
+  color: #F2F2F2;
+}
+
+/* ---------- secondary-page type ---------- */
+
+/* In-page headline (welcome, pair, permissions), not the ActionBar title. */
+.h1 {
+  font-family: "Doto-Black";
+  font-size: 24;
+  letter-spacing: 0.02;
+  color: #111111;
+}
+
+.ns-dark .h1 {
+  color: #F2F2F2;
+}
+
+/* Section heading: Glasses / Ring / Selected. */
+.h2 {
+  font-family: "GeistMono-SemiBold";
+  font-size: 13;
+  letter-spacing: 0.08;
+  text-transform: uppercase;
+  color: #111111;
+}
+
+.ns-dark .h2 {
+  color: #F2F2F2;
+}
+
+.body-text {
+  font-family: "Geist-Regular";
+  font-size: 15;
+  color: #111111;
+}
+
+.ns-dark .body-text {
+  color: #F2F2F2;
+}
+
+.document-text {
+  font-family: "Geist-Regular";
+  font-size: 13;
+  color: #111111;
+}
+
+.ns-dark .document-text {
+  color: #F2F2F2;
+}
+
+.footer-link {
+  color: #111111;
+  font-family: "GeistMono-Regular";
+  font-size: 11;
+  letter-spacing: 0.08;
+  text-transform: uppercase;
+  text-decoration: underline;
+  padding: 4 8;
+}
+
+.ns-dark .footer-link {
+  color: #F2F2F2;
+}
+
+.footer-link-separator {
+  color: #555555;
+  font-size: 11;
+  padding: 4 0;
+}
+
+.ns-dark .footer-link-separator {
+  color: #A3A3A3;
+}
+
+.ns-dark .onboarding-logo {
+  tint-color: #F2F2F2;
+}
+
+/* ---------- ActionBar ---------- */
+
+ActionBar {
+  background-color: #F4F4F2;
+  color: #111111;
+  font-family: "GeistMono-SemiBold";
+  font-size: 13;
+  letter-spacing: 0.08;
+  text-transform: uppercase;
+  android-elevation: 0;
+  android-dynamic-elevation-offset: 0;
+}
+
+.ns-dark ActionBar {
+  background-color: #000000;
+  color: #F2F2F2;
+}
+
+ActionItem,
+NavigationButton {
+  color: #111111;
+  background-color: transparent;
+  font-family: "GeistMono-SemiBold";
+  font-size: 12;
+  letter-spacing: 0.08;
+  text-transform: uppercase;
+  android-elevation: 0;
+  android-dynamic-elevation-offset: 0;
+}
+
+.ns-dark ActionItem,
+.ns-dark NavigationButton {
+  color: #F2F2F2;
+}
+
+/* ---------- global buttons ---------- */
+
+Button {
+  min-height: 48;
+  border-width: 1;
+  border-color: #D2D2CE;
+  border-radius: 0;
+  background-color: transparent;
+  color: #111111;
+  font-family: "GeistMono-SemiBold";
+  font-size: 12;
+  letter-spacing: 0.08;
+  text-transform: uppercase;
+  padding: 0 16;
+  android-elevation: 0;
+  android-dynamic-elevation-offset: 0;
+}
+
+.ns-dark Button {
+  border-color: #2A2A2A;
+  background-color: transparent;
+  color: #F2F2F2;
+}
+
+.lens-secondary-page Button:active {
+  background-color: #ECECE9;
+  border-color: #D2D2CE;
+  color: #111111;
+}
+
+.ns-dark .lens-secondary-page Button:active {
+  background-color: #161616;
+  border-color: #2A2A2A;
+  color: #F2F2F2;
+}
+
+Button.-primary,
+.ns-dark Button.-primary {
+  background-color: #D71921;
+  border-color: #D71921;
+  color: #FFFFFF;
+}
+
+Button.-primary:active,
+Button.-primary.-active,
+.ns-dark Button.-primary:active,
+.ns-dark Button.-primary.-active {
+  background-color: #D71921;
+  border-color: #D71921;
+  color: #FFFFFF;
+}
+
+/* The two pairing footer actions are still buttons: same outline, dim text. */
+Button.pairing-link {
+  border-width: 1;
+  border-color: #D2D2CE;
+  border-radius: 0;
+  background-color: transparent;
+  color: #555555;
+  font-family: "GeistMono-Regular";
+  font-size: 11;
+  letter-spacing: 0.08;
+  text-transform: uppercase;
+  padding: 0 8;
+  android-elevation: 0;
+  android-dynamic-elevation-offset: 0;
+}
+
+.ns-dark Button.pairing-link {
+  border-color: #2A2A2A;
+  color: #A3A3A3;
+}
+
+/* ---------- text fields and search ---------- */
+
+.lens-secondary-page TextField {
+  background-color: #FFFFFF;
+  color: #111111;
+  placeholder-color: #555555;
+  border-width: 1;
+  border-color: #D2D2CE;
+  border-radius: 0;
+  min-height: 48;
+  padding: 0 12;
+  font-family: "Geist-Regular";
+  font-size: 15;
+}
+
+.ns-dark .lens-secondary-page TextField {
+  background-color: #0E0E0E;
+  color: #F2F2F2;
+  placeholder-color: #A3A3A3;
+  border-color: #2A2A2A;
+}
+
+.lens-secondary-page SearchBar {
+  background-color: #FFFFFF;
+  color: #111111;
+  text-field-background-color: transparent;
+  text-field-hint-color: #555555;
+  border-width: 1;
+  border-color: #D2D2CE;
+  border-radius: 0;
+  min-height: 48;
+  padding: 0 8;
+  font-family: "Geist-Regular";
+  font-size: 15;
+}
+
+.ns-dark .lens-secondary-page SearchBar {
+  background-color: #0E0E0E;
+  color: #F2F2F2;
+  text-field-hint-color: #A3A3A3;
+  border-color: #2A2A2A;
+}
+
+/* ---------- rows (conversations, speakers, pairing, permissions, config) ---------- */
+
+/*
+ * Rows are separated by a hairline, not by a card: no fill, no radius, no
+ * shadow. `pairing-row-selected` uses an fg left rule instead of a fill, and
+ * `pairing-row-incomplete` dims the row instead of greying a card.
+ */
+.conversation-row,
+.pairing-row {
+  background-color: transparent;
+  border-width: 0;
+  border-bottom-width: 1;
+  border-color: #D2D2CE;
+  border-radius: 0;
+  padding: 14 0;
+  margin-bottom: 0;
+  android-elevation: 0;
+  android-dynamic-elevation-offset: 0;
+}
+
+.ns-dark .conversation-row,
+.ns-dark .pairing-row {
+  background-color: transparent;
+  border-color: #2A2A2A;
+}
+
+.pairing-row-selected {
+  background-color: transparent;
+  border-left-width: 3;
+  border-left-color: #111111;
+  border-bottom-color: #D2D2CE;
+}
+
+.ns-dark .pairing-row-selected {
+  background-color: transparent;
+  border-left-color: #F2F2F2;
+  border-bottom-color: #2A2A2A;
+}
+
+.pairing-row-incomplete {
+  background-color: transparent;
+  border-color: #D2D2CE;
+  opacity: 0.55;
+}
+
+.ns-dark .pairing-row-incomplete {
+  background-color: transparent;
+  border-color: #2A2A2A;
+}
+
+/* ---------- chips (shape only; background stays bound) ---------- */
+
+.speaker-chip {
+  border-width: 1;
+  border-color: #D2D2CE;
+  border-radius: 0;
+  padding: 2 8;
+  color: #111111;
+  font-family: "GeistMono-Medium";
+  font-size: 11;
+}
+
+/* The chip fill is a pastel speaker colour in both themes, so its text
+ * stays dark in both themes. */
+.ns-dark .speaker-chip {
+  border-color: #2A2A2A;
+  color: #111111;
+}
+
+.speaker-chip-selected {
+  border-width: 1;
+  border-color: #111111;
+  font-family: "GeistMono-SemiBold";
+}
+
+.ns-dark .speaker-chip-selected {
+  border-color: #111111;
+}
+
+.speaker-tag,
+.speaker-wearer-badge,
+.pairing-badge {
+  background-color: transparent;
+  border-width: 1;
+  border-color: #D2D2CE;
+  border-radius: 0;
+  color: #555555;
+  font-family: "GeistMono-Regular";
+  font-size: 10;
+  letter-spacing: 0.08;
+  text-transform: uppercase;
+  padding: 1 6;
+}
+
+.ns-dark .speaker-tag,
+.ns-dark .speaker-wearer-badge,
+.ns-dark .pairing-badge {
+  background-color: transparent;
+  border-color: #2A2A2A;
+  color: #A3A3A3;
+}
+
+/* "my voice" is the one badge that should read at fg strength. */
+.speaker-wearer-badge {
+  border-color: #111111;
+  color: #111111;
+}
+
+.ns-dark .speaker-wearer-badge {
+  border-color: #F2F2F2;
+  color: #F2F2F2;
+}
+
+/* ---------- conversations and transcripts ---------- */
+
+.conversation-title {
+  font-family: "Geist-Medium";
+  font-size: 16;
+  color: #111111;
+}
+
+.ns-dark .conversation-title {
+  color: #F2F2F2;
+}
+
+.conversation-meta {
+  font-family: "GeistMono-Regular";
+  font-size: 11;
+  color: #555555;
+}
+
+.ns-dark .conversation-meta {
+  color: #A3A3A3;
+}
+
+.conversation-empty {
+  font-family: "Geist-Regular";
+  font-size: 13;
+  color: #555555;
+  padding: 8 0;
+}
+
+.ns-dark .conversation-empty {
+  color: #A3A3A3;
+}
+
+.conversation-status {
+  font-family: "Geist-Regular";
+  font-size: 13;
+  color: #555555;
+}
+
+.ns-dark .conversation-status {
+  color: #A3A3A3;
+}
+
+.ask-answer {
+  font-family: "Geist-Medium";
+  font-size: 15;
+  color: #111111;
+  padding: 4 0;
+}
+
+.ns-dark .ask-answer {
+  color: #F2F2F2;
+}
+
+.transcript-row {
+  border-width: 0;
+  border-bottom-width: 1;
+  border-color: #D2D2CE;
+  border-radius: 0;
+  padding: 10 0;
+  margin-bottom: 0;
+}
+
+.ns-dark .transcript-row {
+  border-color: #2A2A2A;
+}
+
+.transcript-row-playing {
+  background-color: #ECECE9;
+}
+
+.ns-dark .transcript-row-playing {
+  background-color: #161616;
+}
+
+.transcript-translation {
+  font-family: "Geist-Regular";
+  font-size: 13;
+  font-style: italic;
+  color: #555555;
+}
+
+.ns-dark .transcript-translation {
+  color: #A3A3A3;
+}
+
+.transcript-time {
+  font-family: "GeistMono-Regular";
+  font-size: 11;
+  color: #555555;
+}
+
+.ns-dark .transcript-time {
+  color: #A3A3A3;
+}
+
+.transcript-play {
+  font-family: "GeistMono-Regular";
+  font-size: 16;
+  color: #111111;
+}
+
+.ns-dark .transcript-play {
+  color: #F2F2F2;
+}
+
+.transcript-emotion {
+  border-width: 1;
+  border-color: #D2D2CE;
+  border-radius: 0;
+  color: #111111;
+  font-family: "GeistMono-Regular";
+  font-size: 11;
+  padding: 1 6;
+}
+
+/* Emotion fill is bound data too, so keep the dark text. */
+.ns-dark .transcript-emotion {
+  border-color: #2A2A2A;
+  color: #111111;
+}
+
+/* ---------- pairing / permissions ---------- */
+
+.pairing-instructions {
+  font-family: "Geist-Regular";
+  font-size: 13;
+  color: #555555;
+}
+
+.ns-dark .pairing-instructions {
+  color: #A3A3A3;
+}
+
+.pairing-status {
+  font-family: "Geist-Regular";
+  font-size: 13;
+  color: #111111;
+}
+
+.ns-dark .pairing-status {
+  color: #F2F2F2;
+}
+
+.pairing-section {
+  margin-bottom: 4;
+}
+
+.pairing-empty {
+  font-family: "Geist-Regular";
+  font-size: 13;
+  color: #555555;
+  padding: 8 0;
+}
+
+.ns-dark .pairing-empty {
+  color: #A3A3A3;
+}
+
+.pairing-title {
+  font-family: "Geist-Medium";
+  font-size: 16;
+  color: #111111;
+}
+
+.ns-dark .pairing-title {
+  color: #F2F2F2;
+}
+
+.pairing-variant {
+  font-family: "Geist-Regular";
+  font-size: 13;
+  color: #555555;
+}
+
+.ns-dark .pairing-variant {
+  color: #A3A3A3;
+}
+
+.pairing-serial {
+  font-family: "GeistMono-Regular";
+  font-size: 12;
+  color: #555555;
+}
+
+.ns-dark .pairing-serial {
+  color: #A3A3A3;
+}
+
+.pairing-arms {
+  font-family: "Geist-Regular";
+  font-size: 12;
+  color: #555555;
+}
+
+.ns-dark .pairing-arms {
+  color: #A3A3A3;
+}
+
+.pairing-warning {
+  font-family: "Geist-Regular";
+  font-size: 12;
+  color: #C4161D;
+  margin-top: 4;
+}
+
+.ns-dark .pairing-warning {
+  color: #FF5A4F;
+}
+
+.pairing-swatch-label {
+  font-family: "GeistMono-Regular";
+  font-size: 11;
+  color: #555555;
+}
+
+.ns-dark .pairing-swatch-label {
+  color: #A3A3A3;
+}
+
+.pairing-proximity {
+  font-family: "GeistMono-Regular";
+  font-size: 11;
+  color: #555555;
+}
+
+.ns-dark .pairing-proximity {
+  color: #A3A3A3;
+}
+
+.pairing-proximity-immediate {
+  font-family: "GeistMono-SemiBold";
+  color: #111111;
+}
+
+.ns-dark .pairing-proximity-immediate {
+  color: #F2F2F2;
+}
+
+.pairing-chevron {
+  font-family: "Geist-Regular";
+  font-size: 18;
+  color: #555555;
+  margin-left: 6;
+}
+
+.ns-dark .pairing-chevron {
+  color: #A3A3A3;
+}
+
+.pairing-selection {
+  background-color: transparent;
+  border-width: 0;
+  border-top-width: 1;
+  border-bottom-width: 1;
+  border-color: #D2D2CE;
+  border-radius: 0;
+  padding: 14 0;
+}
+
+.ns-dark .pairing-selection {
+  background-color: transparent;
+  border-color: #2A2A2A;
+}
+
+.permissions-description {
+  font-family: "Geist-Regular";
+  font-size: 13;
+  color: #555555;
+  margin-top: 2;
+}
+
+.ns-dark .permissions-description {
+  color: #A3A3A3;
+}
+
+.permissions-check {
+  font-family: "GeistMono-SemiBold";
+  font-size: 20;
+  color: #111111;
+  margin-left: 10;
+}
+
+.ns-dark .permissions-check {
+  color: #F2F2F2;
+}
+
+/* ---------- progress / activity (flash and firmware inherit these) ---------- */
+
+ActivityIndicator {
+  color: #111111;
+}
+
+.ns-dark ActivityIndicator {
+  color: #F2F2F2;
+}
+
+Progress {
+  color: #111111;
+  background-color: #D2D2CE;
+}
+
+.ns-dark Progress {
+  color: #F2F2F2;
+  background-color: #2A2A2A;
 }

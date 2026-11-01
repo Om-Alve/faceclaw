@@ -1,4 +1,4 @@
-<Page xmlns="http://schemas.nativescript.org/tns.xsd" navigatingTo="navigatingTo">
+<Page xmlns="http://schemas.nativescript.org/tns.xsd" navigatingTo="navigatingTo" class="lens-secondary-page">
     <ActionBar title="Conversations">
         <ActionItem text="Ask AI" tap="{{ onAskTap }}" android.position="actionBar" />
         <ActionItem text="Speakers" tap="{{ onSpeakersTap }}" android.position="actionBar" />

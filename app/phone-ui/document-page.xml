@@ -1,4 +1,4 @@
-<Page xmlns="http://schemas.nativescript.org/tns.xsd" navigatingTo="navigatingTo">
+<Page xmlns="http://schemas.nativescript.org/tns.xsd" navigatingTo="navigatingTo" class="lens-secondary-page">
     <ActionBar title="{{ title }}">
         <NavigationButton android.systemIcon="ic_menu_back" tap="{{ onBackTap }}" />
     </ActionBar>

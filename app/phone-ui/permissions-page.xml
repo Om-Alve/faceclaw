@@ -1,4 +1,4 @@
-<Page xmlns="http://schemas.nativescript.org/tns.xsd" navigatingTo="navigatingTo" loaded="loaded" unloaded="unloaded" actionBarHidden="{{ actionBarHidden }}">
+<Page xmlns="http://schemas.nativescript.org/tns.xsd" navigatingTo="navigatingTo" loaded="loaded" unloaded="unloaded" actionBarHidden="{{ actionBarHidden }}" class="lens-secondary-page">
     <ActionBar title="Permissions" />
 
     <GridLayout rows="auto,*,auto" class="p-16">

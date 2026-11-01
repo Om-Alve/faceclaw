@@ -1,4 +1,4 @@
-<Page xmlns="http://schemas.nativescript.org/tns.xsd" navigatingTo="navigatingTo" actionBarHidden="true">
+<Page xmlns="http://schemas.nativescript.org/tns.xsd" navigatingTo="navigatingTo" actionBarHidden="true" class="lens-secondary-page">
     <GridLayout rows="*,auto,auto" class="p-20">
         <StackLayout row="0" verticalAlignment="middle" visibility="{{ splashVisibility }}">
             <Label text="{{ headline }}" class="h1 text-center" textWrap="true" />

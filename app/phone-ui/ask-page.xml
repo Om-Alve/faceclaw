@@ -1,4 +1,4 @@
-<Page xmlns="http://schemas.nativescript.org/tns.xsd" navigatingTo="navigatingTo" unloaded="unloaded">
+<Page xmlns="http://schemas.nativescript.org/tns.xsd" navigatingTo="navigatingTo" unloaded="unloaded" class="lens-secondary-page">
     <ActionBar title="Ask about conversations" />
 
     <GridLayout rows="auto,auto,auto,*" class="p-8">
