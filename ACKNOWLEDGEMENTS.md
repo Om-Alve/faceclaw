@@ -39,6 +39,16 @@ The Geist and Geist Mono fonts are by Vercel, in collaboration with
 basement.studio: https://github.com/vercel/geist-font. They are distributed
 under the SIL Open Font License, Version 1.1; see app/fonts/OFL-Geist.txt.
 
+The Space Grotesk font is by Florian Karsten:
+https://github.com/floriankarsten/space-grotesk, distributed through Google
+Fonts (https://fonts.google.com/specimen/Space+Grotesk). Faceclaw includes
+static Regular, Medium, SemiBold and Bold instances (weights 400, 500, 600 and
+700) built from the upstream variable font, under
+app/fonts/SpaceGrotesk-Regular.ttf, app/fonts/SpaceGrotesk-Medium.ttf,
+app/fonts/SpaceGrotesk-SemiBold.ttf and app/fonts/SpaceGrotesk-Bold.ttf. It is
+distributed under the SIL Open Font License, Version 1.1; see
+app/fonts/OFL-SpaceGrotesk.txt.
+
 The Phosphor icon set is by Phosphor Icons:
 https://github.com/phosphor-icons/core. It is distributed under the MIT
 License.
