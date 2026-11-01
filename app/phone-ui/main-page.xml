@@ -13,10 +13,10 @@
     <GridLayout rows="*" class="lens-page">
 
         <!-- ================= portrait ================= -->
-        <GridLayout rows="auto,*,auto,auto" visibility="{{ portraitLayoutVisibility }}" layoutChanged="{{ onPortraitRootLayoutChanged }}">
+        <GridLayout id="portraitRoot" rows="auto,*,auto,auto" visibility="{{ portraitLayoutVisibility }}" layoutChanged="{{ onPortraitRootLayoutChanged }}">
 
             <!-- Header: wordmark left; app button, connection and issue right. -->
-            <GridLayout row="0" columns="*,auto" rows="auto" class="lens-header" layoutChanged="{{ onPageHeaderLayoutChanged }}">
+            <GridLayout id="pageHeader" row="0" columns="*,auto" rows="auto" class="lens-header" layoutChanged="{{ onPageHeaderLayoutChanged }}">
                 <Label col="0" text="Faceclaw" class="lens-wordmark" verticalAlignment="center" />
                 <GridLayout col="1" columns="auto,auto,auto" rows="auto" verticalAlignment="center">
                     <GridLayout col="0" class="lens-circle" marginRight="8" visibility="{{ evenHubPhoneUiVisibility }}" tap="{{ onEvenHubPhoneUiTap }}"
