@@ -1169,6 +1169,40 @@ NavigationButton {
   color: #F1F1F0;
 }
 
+/*
+ * On Android the bar's title, back arrow and action items are native
+ * Buttons/Labels, and @nativescript/theme paints them with element selectors
+ * that are more specific than ActionItem. Match that shape so ASK AI /
+ * SPEAKERS stay readable in both themes.
+ */
+ActionBar Label,
+ActionBar Button {
+  color: #151515;
+  background-color: transparent;
+}
+
+.ns-dark ActionBar Label,
+.ns-dark ActionBar Button {
+  color: #F1F1F0;
+  background-color: transparent;
+}
+
+.ns-android ActionBar Label,
+.ns-android ActionBar Button {
+  background-color: transparent;
+}
+
+.ns-dark.ns-android ActionBar Label,
+.ns-dark.ns-android ActionBar Button {
+  color: #F1F1F0;
+  background-color: transparent;
+}
+
+SearchBar {
+  border-radius: 16;
+  text-field-background-color: transparent;
+}
+
 .h1 {
   font-family: "SpaceGrotesk-Bold";
   font-size: 26;
