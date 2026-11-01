@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tonal: glasses home</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Doto:wght@600..900&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width:390px;height:844px;position:relative;overflow:hidden;display:flex;flex-direction:column;background:{{c.bg}};color:{{c.fg}};font-family:'Space Grotesk',system-ui,sans-serif">
+
+  <header style="display:flex;align-items:center;justify-content:space-between;padding:18px 16px 10px 20px;flex-shrink:0">
+    <div style="font-size:26px;font-weight:700;letter-spacing:-0.02em;line-height:1">Faceclaw</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button aria-label="Connection: connected. Tap for details" style="height:44px;padding:0 16px 0 12px;border-radius:22px;display:flex;align-items:center;gap:8px;background:{{c.container}};border:0;color:{{c.fg}};font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:500;cursor:pointer">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round" aria-hidden="true"><circle cx="6.5" cy="14" r="3.5"></circle><circle cx="17.5" cy="14" r="3.5"></circle><path d="M10 14c1.2-1 2.8-1 4 0M3 14l1.5-6h2M21 14l-1.5-6h-2"></path></svg>
+        Connected
+      </button>
+      <button aria-label="1 issue needs attention" style="height:44px;min-width:56px;padding:0 12px;border-radius:22px;display:flex;align-items:center;justify-content:center;gap:6px;background:{{c.redContainer}};border:0;color:{{c.onRedContainer}};font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:700;cursor:pointer">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round" aria-hidden="true"><path d="M12 3.5l9.5 16.5h-19z"></path><path d="M12 10v4M12 17.4v.1"></path></svg>1
+      </button>
+    </div>
+  </header>
+
+  <sc-if value="{{mirrorOpen}}" hint-placeholder-val="{{true}}">
+  <div style="margin:6px 16px 0;height:201px;border-radius:24px;overflow:hidden;background:#000000;position:relative;flex-shrink:0">
+    <button onClick="{{toggleMirror}}" aria-expanded="true" aria-label="Minimize live mirror" style="position:absolute;left:10px;top:10px;width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;background:rgba(24,24,24,0.78);border:1px solid rgba(255,255,255,0.16);color:#FFFFFF;cursor:pointer;z-index:1">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round" aria-hidden="true"><path d="M6 15l6-6 6 6"></path></svg>
+    </button>
+    <sc-if value="{{notRemote}}" hint-placeholder-val="{{true}}">
+      <img src="/_blob/3546422621e8d637d9ddf12fcc000b98" alt="Live mirror of the glasses display showing the app launcher" style="display:block;width:358px;height:201px;object-fit:cover">
+    </sc-if>
+    <sc-if value="{{remoteOpen}}" hint-placeholder-val="{{false}}">
+      <img src="/_blob/af47bde8fe1ce32a5ff652a3c79d2c7d" alt="Live mirror of the glasses display showing the music player" style="display:block;width:358px;height:201px;object-fit:cover">
+    </sc-if>
+    <div style="position:absolute;right:10px;top:10px;display:flex;gap:8px">
+      <button aria-label="Take screenshot" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;background:rgba(24,24,24,0.78);border:1px solid rgba(255,255,255,0.16);color:#FFFFFF;cursor:pointer">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:1.9;stroke-linejoin:round;stroke-linecap:round" aria-hidden="true"><path d="M3 8h4l1.5-3h7L17 8h4v12H3z"></path><circle cx="12" cy="13.5" r="3.5"></circle></svg>
+      </button>
+      <button aria-label="Record screen" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;background:rgba(24,24,24,0.78);border:1px solid rgba(255,255,255,0.16);color:#FFFFFF;cursor:pointer">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:1.9" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><circle cx="12" cy="12" r="3.5" fill="currentColor"></circle></svg>
+      </button>
+    </div>
+  </div>
+  </sc-if>
+  <sc-if value="{{mirrorClosed}}" hint-placeholder-val="{{false}}">
+  <div style="margin:6px 16px 0;height:64px;box-sizing:border-box;border-radius:24px;background:{{c.surface}};display:flex;align-items:center;gap:4px;padding:0 10px 0 4px;flex-shrink:0">
+    <button onClick="{{toggleMirror}}" aria-expanded="false" aria-label="Show live mirror" style="flex:1;min-width:0;height:56px;display:flex;align-items:center;gap:12px;padding:0 8px 0 8px;background:transparent;border:0;border-radius:20px;color:{{c.fg}};font-family:'Space Grotesk',sans-serif;text-align:left;cursor:pointer">
+      <span style="width:40px;height:40px;border-radius:20px;background:#000000;color:#FFFFFF;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+      </span>
+      <span style="display:flex;flex-direction:column;gap:2px;min-width:0">
+        <span style="font-size:12px;font-weight:500;color:{{c.dim}}">Live mirror minimized</span>
+        <span style="font-size:15px;font-weight:600">{{focusApp}} · {{focusLine}}</span>
+      </span>
+    </button>
+    <button aria-label="Take screenshot" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;background:{{c.container}};border:0;color:{{c.fg}};cursor:pointer;flex-shrink:0">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:1.9;stroke-linejoin:round;stroke-linecap:round" aria-hidden="true"><path d="M3 8h4l1.5-3h7L17 8h4v12H3z"></path><circle cx="12" cy="13.5" r="3.5"></circle></svg>
+    </button>
+    <button aria-label="Record screen" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;background:{{c.container}};border:0;color:{{c.fg}};cursor:pointer;flex-shrink:0">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:1.9" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><circle cx="12" cy="12" r="3.5" fill="currentColor"></circle></svg>
+    </button>
+  </div>
+  </sc-if>
+
+  <div style="margin:12px 16px 0;padding:12px 12px 12px 16px;border-radius:24px;background:{{c.redContainer}};color:{{c.onRedContainer}};display:flex;align-items:center;gap:12px;flex-shrink:0">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:2;stroke-linejoin:round;stroke-linecap:round;flex-shrink:0" aria-hidden="true"><path d="M12 3.5l9.5 16.5h-19z"></path><path d="M12 10v4M12 17.4v.1"></path></svg>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:15px;font-weight:600;line-height:1.3">Background use is restricted</div>
+      <div style="font-size:13px;line-height:1.35;margin-top:2px">Android will slow Faceclaw while the screen is off.</div>
+    </div>
+    <button style="height:44px;padding:0 18px;border-radius:22px;background:{{c.redFill}};color:#FFFFFF;border:0;font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;cursor:pointer;flex-shrink:0">Fix</button>
+  </div>
+
+  <section aria-label="Glasses status" style="margin:12px 16px 0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;flex-shrink:0">
+    <div style="grid-row:span 2;border-radius:24px;background:{{c.surface}};padding:16px 16px 14px;display:flex;flex-direction:column;justify-content:space-between;gap:8px">
+      <div style="font-size:13px;font-weight:500;color:{{c.dim}}">Glasses battery</div>
+      <div style="display:flex;align-items:flex-end;gap:2px">
+        <span style="font-family:'Doto',monospace;font-weight:900;font-size:64px;line-height:0.85">72</span>
+        <span style="font-family:'Doto',monospace;font-weight:900;font-size:24px;line-height:1">%</span>
+      </div>
+      <div style="display:flex;gap:4px">
+        <sc-for list="{{dots}}" as="d" hint-placeholder-count="10">
+          <span style="width:9px;height:9px;border-radius:5px;background:{{d.color}}"></span>
+        </sc-for>
+      </div>
+      <div style="font-size:13px;color:{{c.dim}}">Not charging</div>
+    </div>
+    <button aria-label="Display mode: Band, middle. Change" style="border-radius:24px;background:{{c.surface}};border:0;padding:14px 14px 14px 16px;display:flex;flex-direction:column;align-items:stretch;gap:4px;text-align:left;color:{{c.fg}};font-family:'Space Grotesk',sans-serif;cursor:pointer">
+      <span style="font-size:13px;font-weight:500;color:{{c.dim}}">Display mode</span>
+      <span style="display:flex;align-items:center;justify-content:space-between;font-size:16px;font-weight:600">Band, middle
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>
+      </span>
+    </button>
+    <div style="border-radius:24px;background:{{c.surface}};padding:10px 8px 10px 16px;display:flex;align-items:center;justify-content:space-between;gap:6px">
+      <div>
+        <div style="font-size:13px;font-weight:500;color:{{c.dim}}">Auto brightness</div>
+        <div style="font-size:16px;font-weight:600;margin-top:4px">Off</div>
+      </div>
+      <button role="switch" aria-checked="false" aria-label="Auto brightness" style="width:56px;height:44px;padding:0;background:transparent;border:0;display:flex;align-items:center;justify-content:center;cursor:pointer">
+        <span style="width:52px;height:32px;box-sizing:border-box;border-radius:16px;border:2px solid {{c.mute}};background:{{c.container}};display:flex;align-items:center;padding:0 6px">
+          <span style="width:16px;height:16px;border-radius:8px;background:{{c.dim}}"></span>
+        </span>
+      </button>
+    </div>
+  </section>
+
+  <div style="margin:10px 16px 0;border-radius:24px;background:{{c.surface}};padding:4px 18px 4px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:1.9;stroke-linecap:round;color:{{c.dim}};flex-shrink:0" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"></path></svg>
+    <input type="range" min="2" max="100" value="{{bright}}" onChange="{{onBright}}" aria-label="Brightness" style="flex:1;min-width:0;height:44px;margin:0;accent-color:{{c.redFill}};cursor:pointer">
+    <span style="font-size:14px;font-weight:600;width:30px;text-align:right">{{bright}}%</span>
+  </div>
+
+  <div style="flex:1"></div>
+
+  <div style="display:flex;gap:8px;padding:12px 16px;flex-shrink:0">
+    <button aria-label="Keyboard input" style="flex:1;min-width:0;height:56px;border-radius:28px;display:flex;align-items:center;gap:8px;padding:0 14px;background:{{c.surface}};border:0;color:{{c.dim}};font-family:'Space Grotesk',sans-serif;font-size:15px;white-space:nowrap;overflow:hidden;cursor:pointer;text-align:left">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2.5"></rect><path d="M6.5 10h.01M10.5 10h.01M14.5 10h.01M18 10h.01M7.5 14h9"></path></svg>
+      Type a message
+    </button>
+    <button aria-label="Voice input" style="width:56px;height:56px;border-radius:28px;display:flex;align-items:center;justify-content:center;background:{{c.redFill}};border:0;color:#FFFFFF;cursor:pointer;flex-shrink:0">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:2;stroke-linecap:round;stroke-linejoin:round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"></path></svg>
+    </button>
+    <button onClick="{{openRemote}}" style="height:56px;padding:0 16px 0 12px;border-radius:28px;display:flex;align-items:center;gap:8px;background:{{c.container}};border:0;color:{{c.fg}};font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:600;cursor:pointer;flex-shrink:0">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="3.5"></rect><circle cx="12" cy="8" r="2"></circle><path d="M10 14h4M10 17h4"></path></svg>
+      Remote
+    </button>
+  </div>
+
+  <nav aria-label="Main" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));background:{{c.surface}};padding:10px 0 16px;flex-shrink:0">
+    <button aria-current="page" style="height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:transparent;border:0;color:{{c.fg}};font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:700;cursor:pointer">
+      <span style="width:64px;height:32px;border-radius:16px;background:{{c.redContainer}};color:{{c.onRedContainer}};display:flex;align-items:center;justify-content:center">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round" aria-hidden="true"><circle cx="6.5" cy="14" r="3.5"></circle><circle cx="17.5" cy="14" r="3.5"></circle><path d="M10 14c1.2-1 2.8-1 4 0M3 14l1.5-6h2M21 14l-1.5-6h-2"></path></svg>
+      </span>
+      Glasses
+    </button>
+    <button style="height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:transparent;border:0;color:{{c.dim}};font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:500;cursor:pointer">
+      <span style="width:64px;height:32px;border-radius:16px;display:flex;align-items:center;justify-content:center">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round" aria-hidden="true"><path d="M7 7l10 10-5 4.5v-19L17 7 7 17"></path></svg>
+      </span>
+      Devices
+    </button>
+    <button style="height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:transparent;border:0;color:{{c.dim}};font-family:'Space Grotesk',sans-serif;font-size:12px;font-weight:500;cursor:pointer">
+      <span style="width:64px;height:32px;border-radius:16px;display:flex;align-items:center;justify-content:center">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg>
+      </span>
+      More
+    </button>
+  </nav>
+
+  <sc-if value="{{remoteOpen}}" hint-placeholder-val="{{false}}">
+    <div style="position:absolute;left:0;top:0;width:390px;height:844px;background:{{c.scrim}}">
+      <section aria-label="Remote" style="position:absolute;left:0;right:0;bottom:0;height:556px;border-radius:28px 28px 0 0;background:{{c.surface}};display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:center;padding:12px 0 4px"><span style="width:32px;height:4px;border-radius:2px;background:{{c.mute}}"></span></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 16px 0 24px">
+          <div style="font-size:22px;font-weight:700;letter-spacing:-0.01em">Remote</div>
+          <button aria-label="Close remote" onClick="{{closeRemote}}" style="width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;background:{{c.container}};border:0;color:{{c.fg}};cursor:pointer">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="stroke-width:2;stroke-linecap:round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+          </button>
+        </div>
+        <div role="tablist" aria-label="Touchpad" style="margin:12px 20px 0;height:44px;box-sizing:border-box;border:1px solid {{c.line}};border-radius:22px;overflow:hidden;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))">
+          <button role="tab" aria-selected="{{isWatch}}" onClick="{{pickWatch}}" style="border:0;background:{{segW.bg}};color:{{segW.fg}};font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;cursor:pointer">Watch</button>
+          <button role="tab" aria-selected="{{isRing}}" onClick="{{pickRing}}" style="border:0;border-left:1px solid {{c.line}};background:{{segR.bg}};color:{{segR.fg}};font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;cursor:pointer">Ring</button>
+        </div>
+
+        <sc-if value="{{isWatch}}" hint-placeholder-val="{{true}}">
+          <div style="margin:16px 20px 0;height:233px;border-radius:24px;background:{{c.container}};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px">
+            <div style="font-size:13px;font-weight:500;color:{{c.dim}}">Focused</div>
+            <div style="font-size:28px;font-weight:600">Pause</div>
+          </div>
+          <div style="margin:14px 20px 0;display:flex;flex-wrap:wrap;gap:8px">
+            <span style="height:34px;padding:0 12px;border-radius:17px;border:1px solid {{c.line}};display:inline-flex;align-items:center;gap:6px;font-size:13px"><b style="font-weight:700">Tap</b><span style="color:{{c.dim}}">select</span></span>
+            <span style="height:34px;padding:0 12px;border-radius:17px;border:1px solid {{c.line}};display:inline-flex;align-items:center;gap:6px;font-size:13px"><b style="font-weight:700">Double-tap</b><span style="color:{{c.dim}}">back</span></span>
+            <span style="height:34px;padding:0 12px;border-radius:17px;border:1px solid {{c.line}};display:inline-flex;align-items:center;gap:6px;font-size:13px"><b style="font-weight:700">Hold</b><span style="color:{{c.dim}}">menu</span></span>
+            <span style="height:34px;padding:0 12px;border-radius:17px;border:1px solid {{c.line}};display:inline-flex;align-items:center;gap:6px;font-size:13px"><b style="font-weight:700">Swipe</b><span style="color:{{c.dim}}">navigate</span></span>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{isRing}}" hint-placeholder-val="{{false}}">
+          <div style="margin:16px 20px 0;height:233px;display:flex;justify-content:center">
+            <div style="width:96px;height:233px;border-radius:48px;background:{{c.container}};display:flex;flex-direction:column;justify-content:space-evenly;align-items:center">
+              <sc-for list="{{marks}}" as="m" hint-placeholder-count="6">
+                <span style="width:28px;height:3px;border-radius:2px;background:{{c.mute}}"></span>
+              </sc-for>
+            </div>
+          </div>
+          <div style="margin:14px 20px 0;display:flex;flex-wrap:wrap;gap:8px">
+            <span style="height:34px;padding:0 12px;border-radius:17px;border:1px solid {{c.line}};display:inline-flex;align-items:center;gap:6px;font-size:13px"><b style="font-weight:700">Swipe up/down</b><span style="color:{{c.dim}}">scroll</span></span>
+            <span style="height:34px;padding:0 12px;border-radius:17px;border:1px solid {{c.line}};display:inline-flex;align-items:center;gap:6px;font-size:13px"><b style="font-weight:700">Tap</b><span style="color:{{c.dim}}">click</span></span>
+            <span style="height:34px;padding:0 12px;border-radius:17px;border:1px solid {{c.line}};display:inline-flex;align-items:center;gap:6px;font-size:13px"><b style="font-weight:700">Double-tap</b><span style="color:{{c.dim}}">double-click</span></span>
+            <span style="height:34px;padding:0 12px;border-radius:17px;border:1px solid {{c.line}};display:inline-flex;align-items:center;gap:6px;font-size:13px"><b style="font-weight:700">Hold</b><span style="color:{{c.dim}}">long-press</span></span>
+          </div>
+        </sc-if>
+
+        <div style="margin-top:auto;padding:12px 24px 24px;font-size:13px;line-height:1.4;color:{{c.dim}}">Tap, then hold, on either pad opens the G2 system menu.</div>
+      </section>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"remote":{"editor":"enum","options":["closed","open"],"default":"closed"},"mirror":{"editor":"enum","options":["expanded","collapsed"],"default":"expanded"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    var P = {
+      dark: { bg: '#0F0F0F', surface: '#1B1B1B', container: '#272727', line: '#363636', fg: '#F1F1F0', dim: '#A8A8A5', mute: '#4C4C4A', redFill: '#D71921', redContainer: '#3D1614', onRedContainer: '#FFB4AB', scrim: 'rgba(0,0,0,0.6)' },
+      light: { bg: '#F2F2F0', surface: '#FFFFFF', container: '#E6E6E3', line: '#D4D4D0', fg: '#151515', dim: '#585856', mute: '#BBBBB7', redFill: '#D71921', redContainer: '#FDE2DF', onRedContainer: '#7A0E12', scrim: 'rgba(20,20,20,0.4)' }
+    };
+    var c = this.props.theme === 'light' ? P.light : P.dark;
+    var s = this.state || {};
+    var remoteOpen = s.remote !== undefined ? s.remote : this.props.remote === 'open';
+    var isWatch = (s.pad || 'watch') === 'watch';
+    var bright = s.bright !== undefined ? s.bright : 64;
+    var mirrorOpen = s.mirror !== undefined ? s.mirror : this.props.mirror !== 'collapsed';
+    var on = { bg: c.redContainer, fg: c.onRedContainer };
+    var off = { bg: 'transparent', fg: c.fg };
+    var dots = [];
+    for (var i = 0; i < 10; i++) dots.push({ color: i < 7 ? c.fg : c.mute });
+    var self = this;
+    return {
+      c: c, remoteOpen: remoteOpen, notRemote: !remoteOpen,
+      isWatch: isWatch, isRing: !isWatch,
+      segW: isWatch ? on : off, segR: isWatch ? off : on,
+      dots: dots, marks: [1, 2, 3, 4, 5, 6], bright: bright,
+      mirrorOpen: mirrorOpen, mirrorClosed: !mirrorOpen,
+      focusApp: remoteOpen ? 'Music' : 'Launcher', focusLine: remoteOpen ? 'Pause' : 'Settings',
+      toggleMirror: function () { self.setState({ mirror: !mirrorOpen }); },
+      openRemote: function () { self.setState({ remote: true }); },
+      closeRemote: function () { self.setState({ remote: false }); },
+      pickWatch: function () { self.setState({ pad: 'watch' }); },
+      pickRing: function () { self.setState({ pad: 'ring' }); },
+      onBright: function (e) { self.setState({ bright: Number(e.target.value) }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

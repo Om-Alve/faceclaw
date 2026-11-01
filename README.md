@@ -21,6 +21,23 @@ User-facing documentation lives at https://faceclaw.org/.
 ![Compass](website/screenshots/compass.png)
 ![Blocks](website/screenshots/blocks.png)
 
+### Tonal phone UI (Android)
+
+The Android phone UI follows the "Tonal" design (rounded tonal cards, pill
+controls, Space Grotesk + Doto). Device captures from this branch:
+
+| Dark | Light |
+|---|---|
+| ![Main, dark](design/lens-redesign/screens/tonal/impl/main-dark.png) | ![Main, light](design/lens-redesign/screens/tonal/impl/main-light.png) |
+| ![Remote Watch, dark](design/lens-redesign/screens/tonal/impl/remote-watch-dark.png) | ![Remote Watch, light](design/lens-redesign/screens/tonal/impl/remote-watch-light.png) |
+| ![Mirror minimized, dark](design/lens-redesign/screens/tonal/impl/mirror-minimized-dark.png) | ![Mirror minimized, light](design/lens-redesign/screens/tonal/impl/mirror-minimized-light.png) |
+
+More: [Remote Ring](design/lens-redesign/screens/tonal/impl/remote-ring-dark.png),
+[Devices](design/lens-redesign/screens/tonal/impl/devices-dark.png),
+[More](design/lens-redesign/screens/tonal/impl/more-dark.png),
+[landscape](design/lens-redesign/screens/tonal/impl/landscape-dark.png).
+Design notes and the mockups live in `design/lens-redesign/`.
+
 ## Installation
 
 Download faceclaw-<version>.apk from the GitHub releases section on the phone
