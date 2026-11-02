@@ -27,3 +27,11 @@ export function isSystemCardWidgetInUse(): boolean {
 export function isT3CodeWidgetInUse(): boolean {
   return getBooleanSetting("glanceboard.enabled", false) && isGlanceWidgetConfigured("t3code");
 }
+
+/**
+ * Whether the Herdr widget can show: it is in a slot and the Glanceboard is
+ * enabled (the Herdr worker holds its bridge connections open only then).
+ */
+export function isHerdrWidgetInUse(): boolean {
+  return getBooleanSetting("glanceboard.enabled", false) && isGlanceWidgetConfigured("herdr");
+}
