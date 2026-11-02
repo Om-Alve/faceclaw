@@ -41,3 +41,10 @@ Bridge-side changes are specified in `design/herdr/BRIDGE_PROTOCOL_3.md`.
 `/health`, the WebSocket upgrade, `hello`, the pane list, disconnect and
 reconnect from a tailnet machine. It prints the expected 403 text when the
 caller's Tailscale identity is not the bridge owner.
+
+`node scripts/herdr-mock-bridge.mjs --port 8791 --protocol 3` serves a
+deterministic bridge on localhost with a blocked Claude pane, a working Codex
+pane with a queued message, a done pane, a shell, and a screen-only pane, so
+the hub, reader, answer, queue and outcome paths can be exercised without a
+tailnet or a real Herdr. Add `http://<laptop-ip>:8791` as a machine (cleartext
+HTTP is accepted for local development).
