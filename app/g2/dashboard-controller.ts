@@ -3236,8 +3236,11 @@ class DashboardController {
     publishHomeWidget({
       paired: isValidMacAddress(addresses.left) && isValidMacAddress(addresses.right),
       connected,
-      // Same test as updateGlassesPresence: "charging" is a live link from the case.
-      docked: this.phase === "charging" || levels.headsetCharging === true,
+      // The case's own report says whether the glasses are docked (caseCharging
+      // is null otherwise), which also covers a full pair that never enters
+      // charging mode. Else the same test as updateGlassesPresence: "charging"
+      // is a live link from the case.
+      docked: levels.caseCharging !== null || this.phase === "charging" || levels.headsetCharging === true,
       glasses: levels.headset,
       glassesCharging: levels.headsetCharging,
       caseBattery: levels.case,
