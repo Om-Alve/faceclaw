@@ -11,6 +11,8 @@
 * iOS: Notifications are selectable via the task switcher
 * Android: Optionally sign in to Spotify's Web API for library browsing and other features
 * Mark stock firmware 2.4.0 as validated for installing custom firmware over
+* Navigate: Optionally look up destinations with Google Places (Settings > API Keys), which finds local businesses Mapbox misses; routes and maps still use Mapbox
+* Navigate: When a search matches several places, pick from the top three (with distances) on the glasses, whether you asked by voice input or the assistant
 
 ## 0.8.5 - 2026-10-25
 

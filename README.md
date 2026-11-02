@@ -101,7 +101,8 @@ import it into the new version (see [config transfer](scripts/config-transfer.md
    the glasses, and send them inputs with the voice assistant.
  * **Media player controls** including playlist and media library navigation,
    compatible with most Android media players.
- * **Turn-by-turn directions** (requires a Mapbox API token).
+ * **Turn-by-turn directions** (requires a Mapbox API token; an optional Google
+   Places API key finds more local destinations).
  * **Nightscout**, an app for viewing blood-glucose data (requires a cloud
    server and API token).
  * **Power management**: the glasses go to sleep properly when the screen is

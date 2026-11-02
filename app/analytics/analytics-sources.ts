@@ -27,6 +27,7 @@ const API_KEY_SETTINGS: Record<string, string> = {
   soniox: "voice.sonioxApiKey",
   "whisper-server": "voice.whisperServerApiKey",
   mapbox: "maps.mapboxApiKey",
+  "google-places": "maps.googlePlacesApiKey",
   roam: "integrations.roam.apiToken",
   nightscout: "integrations.nightscout.apiToken",
   "agent-bridge": "assistant.bridgeToken",

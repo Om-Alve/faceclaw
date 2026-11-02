@@ -1174,6 +1174,18 @@ export const mapboxApiKeySetting = new ConfigSettingString({
   description: "Mapbox public token (pk. prefix), used by the Navigate app for maps, geocoding, and directions.",
 });
 
+export const googlePlacesApiKeySetting = new ConfigSettingString({
+  id: "google-places-api-key",
+  label: "Google Places key",
+  storageKey: "maps.googlePlacesApiKey",
+  defaultValue: "",
+  editorTitle: "Google Maps Platform API key (AIza…) with Places API (New) enabled",
+  glassesEditTitle: "Edit Google Places key",
+  normalize: (value) => (value ?? "").trim(),
+  formatValue: (value) => (value ? `${value.slice(0, 6)}...` : "(not set)"),
+  description: "Optional. When set, the Navigate app looks up destinations with Google Places, which knows more local businesses than Mapbox. Routes and maps still come from Mapbox.",
+});
+
 /** Edited from the Music app's Spotify menu; a sign-in is tied to the client ID it was made with. */
 export const spotifyClientIdSetting = new ConfigSettingString({
   id: "spotify-client-id",
