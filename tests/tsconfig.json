@@ -29,6 +29,7 @@
     "../app/phone-ui/phone-gestures.ts",
     "../app/native/java-direct-buffer.ts",
     "../app/native/notification-types.ts",
+    "../app/native/home-widget-model.ts",
     "../app/g2/firmware-compat.ts",
     "../app/g2/glasses-hardware-identity.ts",
     "../app/g2/ble-proximity.ts",

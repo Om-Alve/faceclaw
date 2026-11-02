@@ -2,7 +2,7 @@ import { startRemoteInput } from "../remote/service";
 import { acceptInput, resetRingInputFilter } from "../ui/input-monitor";
 import { Application, Dialogs, ImageSource } from "@nativescript/core";
 import { EvenAIStatus, EvenAIStatusName, EventSourceType, EventSourceTypeName, OsEventTypeList, OsEventTypeName, WatchGestureType, WatchGestureTypeName } from "./events";
-import { isValidMacAddress, loadDeviceAddresses } from "./device-addresses";
+import { isValidMacAddress, loadDeviceAddresses, loadPairedGlassesIdentityForAddresses } from "./device-addresses";
 import {
   ensureBlePermissions,
   ensureVoicePermissions,
@@ -47,6 +47,8 @@ const MIRROR_TOUCH_GESTURES: Record<Exclude<MirrorTouchKind, "tap">, WearRemoteI
   "swipe-right": "swipe-right",
 };
 import { GlanceHost } from "./glance-host";
+import { GlassesHardwareIdentity } from "./glasses-hardware-identity";
+import { publishHomeWidget } from "../native/home-widget";
 import { mirrorToPanelFraction, phonePreviewCrop } from "./phone-preview-crop";
 import { type GlanceEvent } from "./glance-state";
 import { isPreviewOnlyMode } from "../phone-ui/onboarding-state";
@@ -294,6 +296,10 @@ class DashboardController {
   // Last battery level the glasses reported, kept across disconnects so a
   // drop-off right after a low reading can be explained as a flat battery.
   private lastHeadsetBattery: number | null = null;
+  // Home widget: the paired serial's frame shape, decoded once per serial
+  // (emit() runs on every state change).
+  private homeWidgetSerial: string | null = null;
+  private homeWidgetFrame: string | null = null;
   // Charging flag from the last battery report, so the phone can label a
   // last-known level the same way the top bar does.
   private lastHeadsetCharging = false;
@@ -1723,6 +1729,9 @@ class DashboardController {
         this.requestShellRender();
         this.updateCompositePreview();
         this.updateConnectedForegroundNotification();
+        // Keeps the home widget's report time fresh while the link is up; the
+        // bridge republishes unchanged data only every few minutes.
+        this.publishHomeWidgetState();
       }, SHELL_REFRESH_INTERVAL_MS);
       this.previewTimer = setInterval(() => this.updateCompositePreview(), PREVIEW_INTERVAL_MS);
       this.screenTimeoutTimer = setInterval(() => {
@@ -3212,6 +3221,39 @@ class DashboardController {
       listener(snapshot);
     }
     this.wearRemote?.schedulePublish();
+    this.publishHomeWidgetState();
+  }
+
+  /**
+   * Mirror the tile-relevant state into the Android 2x2 home widget. emit() is
+   * the single funnel for battery, case and phase changes; the bridge drops
+   * publishes that would not change the tile.
+   */
+  private publishHomeWidgetState(): void {
+    const levels = shell.getBatteryLevels();
+    const addresses = loadDeviceAddresses();
+    const connected = this.phase === "connected" || this.phase === "charging";
+    publishHomeWidget({
+      paired: isValidMacAddress(addresses.left) && isValidMacAddress(addresses.right),
+      connected,
+      // Same test as updateGlassesPresence: "charging" is a live link from the case.
+      docked: this.phase === "charging" || levels.headsetCharging === true,
+      glasses: levels.headset,
+      glassesCharging: levels.headsetCharging,
+      caseBattery: levels.case,
+      caseCharging: levels.caseCharging,
+      frame: this.homeWidgetFrameFor(addresses),
+    });
+  }
+
+  /** Frame A/B/C of the paired glasses, decoded once per paired serial. */
+  private homeWidgetFrameFor(addresses: ReturnType<typeof loadDeviceAddresses>): string | null {
+    const serial = loadPairedGlassesIdentityForAddresses(addresses)?.serial ?? "";
+    if (serial !== this.homeWidgetSerial) {
+      this.homeWidgetSerial = serial;
+      this.homeWidgetFrame = GlassesHardwareIdentity.decode(serial)?.frame ?? null;
+    }
+    return this.homeWidgetFrame;
   }
 }
 

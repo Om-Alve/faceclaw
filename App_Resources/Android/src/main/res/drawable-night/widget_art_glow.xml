@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Dark theme: a soft spotlight behind the black glasses, which otherwise sink
+  into the tile. The vector stretches to the art area, so the circle becomes a
+  wide ellipse, and it fades out completely before the edges.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="100dp"
+    android:height="100dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <path android:pathData="M0,0h100v100h-100z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:centerX="50"
+                android:centerY="50"
+                android:gradientRadius="50"
+                android:type="radial">
+                <item android:color="#FF3A3A3A" android:offset="0" />
+                <item android:color="#803A3A3A" android:offset="0.55" />
+                <item android:color="#003A3A3A" android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
