@@ -55,12 +55,14 @@ class FaceclawSettingsPortReceiver : BroadcastReceiver() {
 
         /**
          * Keys the app reads through NativeScript's ApplicationSettings rather than FaceclawSettings,
-         * and the getter it uses (device-addresses.ts, onboarding-state.ts, evenhub/session.ts;
-         * tests/settings-transfer.test.cjs keeps this list in step with them). prefs.db also holds
+         * and the getter it uses (device-addresses.ts, onboarding-state.ts,
+         * main-view-model.ts, evenhub/session.ts; tests/config-transfer-scripts.test.cjs
+         * keeps this list in step with them). prefs.db also holds
          * settings abandoned when FaceclawSettings took over, so nothing else is read from it.
          */
         private fun nativeScriptKey(key: String): StoredAs? = when {
             key == "onboarding.complete" || key == "onboarding.previewOnly" -> StoredAs.BOOLEAN
+            key == "phoneUi.mirrorMinimized" -> StoredAs.BOOLEAN
             key == "deviceIdentity.pairedAtMs" -> StoredAs.NUMBER
             key.startsWith("deviceAddress.") || key.startsWith("deviceIdentity.") || key.startsWith("evenhub:") -> StoredAs.STRING
             else -> null

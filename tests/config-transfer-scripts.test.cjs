@@ -51,6 +51,7 @@ test('settings stored outside FaceclawSettings are the ones the Android config p
   const known = new Map([
     ['app/g2/device-addresses.ts', ['deviceAddress.', 'deviceIdentity.']],
     ['app/phone-ui/onboarding-state.ts', ['onboarding.complete', 'onboarding.previewOnly']],
+    ['app/phone-ui/main-view-model.ts', ['phoneUi.mirrorMinimized']],
     ['app/apps/evenhub/session.ts', ['evenhub:']],
     // iOS-only: NSUserDefaults holds every setting there.
     ['app/native/ios-bluetooth.ts', null],
