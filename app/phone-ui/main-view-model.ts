@@ -55,11 +55,15 @@ function glassesBatteryStatus(battery: number | null, charging: boolean, phase: 
 
 /**
  * The case card's status line. The glasses only hear from the case while
- * docked, and it only drains while charging them, so the last reading stays
- * true after they are taken out; until one arrives, say how to get it.
+ * docked, and it only drains while charging them, so the last level stays
+ * true after they are taken out. Whether it is charging is only known while
+ * they are docked (caseCharging is null otherwise) and the link is live, so
+ * outside that the card says the level is from the last docking. Until a
+ * reading arrives, say how to get one.
  */
-function caseBatteryStatus(battery: number | null, charging: boolean): string {
+function caseBatteryStatus(battery: number | null, charging: boolean | null, phase: string): string {
   if (battery === null) return "Read when docked";
+  if (charging === null || (phase !== "connected" && phase !== "charging")) return "When last docked";
   return charging ? "Charging" : "Not charging";
 }
 
@@ -97,7 +101,7 @@ export class MainViewModel extends RemoteControlsViewModel {
   private _evenHubPhoneUi: PhoneUiButton | null = null;
   private _phase: "disconnected" | "connecting" | "connected" | "charging" | "disconnecting" = "disconnected";
   readonly glassesCard = new BatteryCardModel("Glasses battery", null, "");
-  readonly caseCard = new BatteryCardModel("Case battery", null, caseBatteryStatus(null, false));
+  readonly caseCard = new BatteryCardModel("Case battery", null, caseBatteryStatus(null, null, "disconnected"));
   private _mainTab: MainTab = lastMainTab;
   private _remoteSheetVisible = false;
   private _mirrorMinimized = ApplicationSettings.getBoolean(MIRROR_MINIMIZED_KEY, false);
@@ -131,7 +135,7 @@ export class MainViewModel extends RemoteControlsViewModel {
       this.glassesCard.update(snapshot.headsetBattery,
         glassesBatteryStatus(snapshot.headsetBattery, snapshot.headsetCharging, snapshot.phase));
       const { case: caseBattery, caseCharging } = snapshot.batteries;
-      this.caseCard.update(caseBattery, caseBatteryStatus(caseBattery, caseCharging ?? false));
+      this.caseCard.update(caseBattery, caseBatteryStatus(caseBattery, caseCharging, snapshot.phase));
       this.activeTextSettingId = snapshot.activeTextSettingId;
       this.activeTextEditorTitle = snapshot.activeTextEditorTitle;
       this.activeTextSettingTitle = snapshot.activeTextSettingTitle;
