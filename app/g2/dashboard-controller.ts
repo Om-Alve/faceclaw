@@ -2306,6 +2306,7 @@ class DashboardController {
       .catch((error) => {
         this.appendLog(`voice permission failed: ${this.formatError(error)}`);
         if (!hasMicrophonePermission()) voiceControlBridge.reportPermissionDenied();
+        else voiceControlBridge.reportStartFailed(this.formatError(error));
       });
   }
 
