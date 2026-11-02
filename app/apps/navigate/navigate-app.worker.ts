@@ -88,6 +88,7 @@ import {
   type RouteProfile,
   type StaticMapCamera,
 } from "../../native/mapbox";
+import { isGooglePlacesConfigured, searchGooglePlaces } from "../../native/google-places";
 import { calibrateHeading, normalizeHeading } from "../compass/calibration";
 import { bearingDegrees, haversineMeters, RouteFollower, type RouteProgress } from "./route-follower";
 import { drawManeuverGlyph } from "./maneuver-icons";
@@ -438,6 +439,27 @@ async function startMap(): Promise<void> {
   }
 }
 
+/**
+ * Look a destination up with Google Places when its key is set (it knows
+ * more local businesses), else with Mapbox. If Google fails or finds
+ * nothing, Mapbox gets a try before the lookup counts as failed.
+ */
+async function findPlaces(
+  query: string,
+  near: { longitude: number; latitude: number },
+): Promise<GeocodeCandidate[]> {
+  if (isGooglePlacesConfigured()) {
+    try {
+      const found = await searchGooglePlaces(query, near, 5);
+      if (found.length) return found;
+      console.log(`Google Places found nothing for "${query}"; trying Mapbox`);
+    } catch (error) {
+      console.warn(`Google Places lookup failed, trying Mapbox: ${(error as Error)?.message ?? error}`);
+    }
+  }
+  return geocodeForward(query, near, 5);
+}
+
 async function startNavigationTo(target: NavTarget, requestedProfile: RouteProfile): Promise<string> {
   const query = target.kind === "query" ? target.query : target.name;
   if (!isMapboxConfigured()) {
@@ -479,7 +501,7 @@ async function startNavigationTo(target: NavTarget, requestedProfile: RouteProfi
     } else {
       statusMessage = `Finding ${query}...`;
       render();
-      candidates = await geocodeForward(query, fix, 5);
+      candidates = await findPlaces(query, fix);
       checkCurrent();
       if (!candidates.length) {
         throw new Error(`No places found matching "${query}".`);

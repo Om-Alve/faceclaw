@@ -61,6 +61,7 @@ import {
   displayLayoutSetting,
   elevenLabsApiKeySetting,
   mapboxApiKeySetting,
+  googlePlacesApiKeySetting,
   mirrorTouchSetting,
   openAiApiKeySetting,
   previewColorSetting,
@@ -194,6 +195,7 @@ function settingsSections(): SettingsSection[] {
         textSettingMenuItem(sonioxApiKeySetting),
         textSettingMenuItem(anthropicApiKeySetting),
         textSettingMenuItem(mapboxApiKeySetting),
+        textSettingMenuItem(googlePlacesApiKeySetting),
       ],
     },
     {

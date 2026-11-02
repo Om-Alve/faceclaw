@@ -14,6 +14,7 @@ const fix = latitude => ({ latitude, longitude: -122.4, timestampMs: Date.now(),
 function fixture() {
   const messages = [], timers = new Set(), timeouts = new Set(), holds = [], maps = [], errors = [], requests = [];
   let callbacks, compass, delayRoute = null, delayMap = null, routeError = null, distanceUnit = 'miles', timeFormat = '24h';
+  let google = null; // null: no Google key; otherwise an async (query, near) => candidates
   const routeMath = loader()('app/apps/navigate/route-follower.ts');
   const tracker = { running: false, isRunning() { return this.running; }, start() { this.running = true; }, stop() { this.running = false; } };
   const sensor = { LocationTracker: function (value) { callbacks = value; return tracker; }, COMPASS_CHANGED: 15,
@@ -36,6 +37,10 @@ function fixture() {
     '../../ui/menu-core': require('../.test-build/app/ui/menu-core.js'),
     '../../ui/window-menu': { WindowMenu: class { paint() { return []; } isOpen() { return false; } resize() {} } },
     '../../graphics/plane': { planesFingerprint: () => 'frame' },
+    '../../native/google-places': {
+      isGooglePlacesConfigured: () => google !== null,
+      searchGooglePlaces: async (query, near) => { requests.push('google'); return google(query, near); },
+    },
     '../../native/mapbox': {
       isMapboxConfigured: () => true,
       geocodeForward: async () => { requests.push('geocode'); return [{ name: 'Test park', placeFormatted: 'San Francisco', latitude: 37.71, longitude: -122.4 }]; },
@@ -61,6 +66,7 @@ function fixture() {
     tick: () => { for (const callback of timers) callback(); },
     expireFix: () => { for (const callback of timeouts) callback(); timeouts.clear(); },
     failRoute: () => { routeError = new Error('Route unavailable'); },
+    setGoogle: value => { google = value; },
     setDistanceUnit: value => { distanceUnit = value; },
     setTimeFormat: value => { timeFormat = value; },
     fix: latitude => send({ type: 'navigation-sensors', event: { kind: 'location', location: fix(latitude), id: 1 } }),
@@ -215,5 +221,30 @@ for (const completion of ['resolve', 'reject']) {
     newMap.resolve(); await flush();
     assert.ok(h.state().mapImage);
     assert.equal(h.state().mapInFlight, false);
+  });
+}
+
+test('a Google Places key looks destinations up with Google and still routes with Mapbox', async () => {
+  const h = fixture(); let near = null;
+  h.setGoogle(async (query, location) => { near = location;
+    return [{ name: 'Corner cafe', placeFormatted: '5 Side St', latitude: 37.71, longitude: -122.4, distanceMeters: null }]; });
+  const starting = h.startNavigation('corner cafe', 'walking');
+  h.fix(37.7); assert.match(await starting, /Navigating to Corner cafe \(5 Side St\)/); await flush();
+  assert.deepEqual(h.requests, ['google', 'route']);
+  assert.equal(near.latitude, 37.7);
+  assert.equal(h.state().phase, 'navigating');
+});
+
+for (const [outcome, search] of [
+  ['finds nothing', async () => []],
+  ['fails', async () => { throw new Error('Google Places search failed (HTTP 403).'); }],
+]) {
+  test(`Mapbox gets a try when Google Places ${outcome}`, async () => {
+    const h = fixture(); h.setGoogle(search);
+    const starting = h.startNavigation('Test park', 'walking');
+    h.fix(37.7); assert.match(await starting, /Navigating to Test park/); await flush();
+    assert.deepEqual(h.requests, ['google', 'geocode', 'route']);
+    assert.equal(h.state().phase, 'navigating');
+    assert.deepEqual(h.errors, []);
   });
 }
