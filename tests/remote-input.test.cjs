@@ -64,6 +64,7 @@ test('locks block text and assistant; gestures still use lock-screen dispatch', 
   for (const action of ['text', 'assistant']) assert.equal((await f.request({ action, text: 'hello' })).error, 'locked');
   assert.equal((await f.request({ action: 'input', gesture: 'double-click' })).ok, true);
   assert.deepEqual(f.calls, [['double-click', 'watch']]);
+  assert.equal((await f.request({ action: 'input', gesture: 'voice-toggle' })).error, 'locked');
 });
 test('readiness and unavailable destinations fail; text whitespace is preserved', async () => {
   const f = fixture();

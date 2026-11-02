@@ -3,7 +3,8 @@ export const REMOTE_PORT = 8791;
 export const PERMISSIONS = ['input', 'text', 'assistant'] as const;
 export type Permission = typeof PERMISSIONS[number];
 export const GESTURES = ['click', 'double-click', 'long-press', 'short-then-long-press',
-  'scroll-up', 'scroll-down', 'swipe-up', 'swipe-down', 'swipe-left', 'swipe-right'] as const;
+  'scroll-up', 'scroll-down', 'swipe-up', 'swipe-down', 'swipe-left', 'swipe-right',
+  'voice-toggle'] as const;
 export type RemoteGesture = typeof GESTURES[number];
 export type TokenRecord = { id: string; name: string; hash: string; permissions: Permission[]; createdAt: number };
 export type RemoteHost = {
@@ -83,6 +84,9 @@ export async function handleRequest(body: string, tokens: TokenStore, host: Remo
     return error('bad_request', 'Text must contain 1–8000 characters without NUL.');
   }
   if (!host.ready()) return error('unavailable', 'Faceclaw is not ready for input.');
+  if (request.action === 'input' && request.gesture === 'voice-toggle' && host.locked()) {
+    return error('locked', 'The glasses are locked.');
+  }
   // Gestures follow the normal lock-screen path. Text must never bypass it.
   if (request.action !== 'input' && host.locked()) return error('locked', 'The glasses are locked.');
   try {

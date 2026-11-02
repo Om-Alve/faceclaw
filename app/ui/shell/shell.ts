@@ -1463,6 +1463,8 @@ class Shell {
   // True while a voice-dialog open waits on prepareVoiceCapture (e.g. the
   // preview-mode permission prompt); a second tap must not queue another open.
   private voiceDialogPending = false;
+  private heldVoiceInput = false;
+  private heldVoiceReleased = false;
 
   private openVoiceDialog(options: {
     finishOnClick?: boolean;
@@ -1482,7 +1484,10 @@ class Shell {
       }
       // Re-checked after the await: another path may have opened a dialog
       // (or torn down the base state) while a permission prompt was up.
-      if (!ready || this.activeVoiceLayer || this.activeKeyboardLayer) return;
+      if (!ready || this.activeVoiceLayer || this.activeKeyboardLayer) {
+        this.heldVoiceReleased = false;
+        return;
+      }
       this.openVoiceDialogNow(options);
       this.config.requestShellRender();
     })();
@@ -1527,6 +1532,10 @@ class Shell {
     voiceActivity.setActive(true);
     this.stack.push(layer);
     layer.startCapture();
+    if (this.heldVoiceReleased) {
+      this.heldVoiceReleased = false;
+      layer.endCapture();
+    }
   }
 
   /**
@@ -1584,6 +1593,40 @@ class Shell {
     this.openVoiceDialog({ finishOnClick: true, defaultTarget: "app" });
     this.config.requestShellRender();
     return true;
+  }
+
+  /** Start voice capture from the ring's camera tap, aimed at the open app. */
+  startHeldVoiceInput(): boolean {
+    if (this.heldVoiceInput) return true;
+    if (this.config.voiceInputEnabled === false || this.voiceDialogPending ||
+        this.activeVoiceLayer || this.activeKeyboardLayer ||
+        (!this.stack.isAtBase() && !this.assistantLayer)) return false;
+    this.heldVoiceInput = true;
+    this.heldVoiceReleased = false;
+    if (!this.screenOn) this.wake(this.userWakeFocus());
+    if (this.assistantLayer) {
+      this.startAssistantFollowUp(false);
+    } else {
+      this.openVoiceDialog({ defaultTarget: this.foregroundWindow()?.receiveTextInput ? "app" : "assistant" });
+    }
+    this.config.requestShellRender();
+    return true;
+  }
+
+  stopHeldVoiceInput(): void {
+    if (!this.heldVoiceInput) return;
+    this.heldVoiceInput = false;
+    this.heldVoiceReleased = this.voiceDialogPending;
+    this.activeVoiceLayer?.endCapture();
+    this.config.requestShellRender();
+  }
+
+  toggleHeldVoiceInput(): boolean {
+    if (this.heldVoiceInput) {
+      this.stopHeldVoiceInput();
+      return true;
+    }
+    return this.startHeldVoiceInput();
   }
 
   /**

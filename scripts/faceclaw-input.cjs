@@ -5,7 +5,7 @@ const readline = require('node:readline');
 const fs = require('node:fs');
 
 const GESTURES = new Set(['click', 'double-click', 'long-press', 'short-then-long-press', 'scroll-up', 'scroll-down',
-  'swipe-up', 'swipe-down', 'swipe-left', 'swipe-right']);
+  'swipe-up', 'swipe-down', 'swipe-left', 'swipe-right', 'voice-toggle']);
 const ALIASES = { tap: 'click', 'double-tap': 'double-click', up: 'swipe-up', down: 'swipe-down', left: 'swipe-left', right: 'swipe-right' };
 const HELP = `Usage: faceclaw-input [--host HOST] [--port PORT] [--token-file FILE] COMMAND
 
@@ -15,7 +15,7 @@ const HELP = `Usage: faceclaw-input [--host HOST] [--port PORT] [--token-file FI
   interactive                         Use this terminal as a watch input device
 
 Gestures: tap, double-tap, long-press, short-then-long-press,
-          up, down, left, right, scroll-up, scroll-down
+          up, down, left, right, scroll-up, scroll-down, voice-toggle
 Interactive: arrows = watch directions; Enter = tap; Esc = double-tap;
              Tab = long-press; i = compose text; a = compose assistant message;
              Enter sends a draft; Esc discards it; Ctrl-C quits in either mode.

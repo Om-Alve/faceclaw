@@ -266,6 +266,7 @@ function shellEnv({ wakeAction = 'voice-input', skipConfirmation = false } = {})
     handleInput(event, ctx) { if (event.type === 'double-click') ctx.stack.pop(); }
   }
   const voiceDialogs = [];
+  let voiceStops = 0;
   const settings = { wakeWordActionSetting: { get: () => wakeAction }, brightnessSetting: { get: () => 'auto' },
     assistantSkipConfirmationSetting: { get: () => skipConfirmation } };
   const { shell, rawInputEventToInputEvent } = load('app/ui/shell/shell.ts', {
@@ -276,6 +277,7 @@ function shellEnv({ wakeAction = 'voice-input', skipConfirmation = false } = {})
     './voice-input': { VoiceInputLayer: class {
       constructor(options) { this.options = options; voiceDialogs.push(options); }
       startCapture() {}
+      endCapture() { voiceStops++; }
       onRemoved() { this.options.onClosed(); }
     } }, './keyboard-input': {}, './voice-activity': { voiceActivity: { setActive() {} } }, './assistant': {},
     '../../assistant/conversations': {}, '../../assistant/models': {}, '../../native/settings-store': {},
@@ -313,8 +315,20 @@ function shellEnv({ wakeAction = 'voice-input', skipConfirmation = false } = {})
   });
   shell.registerWindow(app.window);
   shell.focusWindow('ai-chat');
-  return { shell, app, input, menus, voiceDialogs, rawInputEventToInputEvent, microphone: () => microphone, event: (type) => gestures.makeInputEvent({ type }) };
+  return { shell, app, input, menus, voiceDialogs, voiceStops: () => voiceStops, rawInputEventToInputEvent, microphone: () => microphone, event: (type) => gestures.makeInputEvent({ type }) };
 }
+
+test('camera voice toggle records into the foreground app and stops on the second tap', async () => {
+  const env = shellEnv();
+  env.shell.isAssistantAvailable = () => false;
+  env.app.window.receiveTextInput = () => {};
+  assert.equal(env.shell.toggleHeldVoiceInput(), true);
+  await new Promise(setImmediate);
+  assert.equal(env.voiceDialogs.length, 1);
+  assert.equal(env.voiceDialogs[0].sendTargets[env.voiceDialogs[0].defaultTargetIndex].id, 'app');
+  assert.equal(env.shell.toggleHeldVoiceInput(), true);
+  assert.equal(env.voiceStops(), 1);
+});
 
 test('wakeword wakes the shared shell, respects its action, and opens only one hands-free assistant dialog', async () => {
   for (const wakeAction of ['off', 'turn-screen-on', 'voice-input']) {

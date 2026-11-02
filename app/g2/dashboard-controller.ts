@@ -494,7 +494,14 @@ class DashboardController {
     startRemoteInput({
       ready: () => this.phase === "connected" || this.phase === "charging",
       locked: () => this.glassesLocked,
-      input: (gesture, source) => this.injectSyntheticRingInput(gesture, source),
+      input: (gesture, source) => {
+        if (gesture === "voice-toggle") {
+          return shell.toggleHeldVoiceInput()
+            ? Promise.resolve()
+            : Promise.reject(new Error("Voice input is unavailable"));
+        }
+        return this.injectSyntheticRingInput(gesture, source);
+      },
       acceptsText: () => !!shell.foregroundWindow()?.receiveTextInput,
       text: (text, submit) => { if (!shell.isScreenOn()) shell.wake("window"); shell.sendTextToForegroundWindow(text, { submit }); this.requestShellRender(); },
       assistantAvailable: () => shell.isAssistantAvailable(),
