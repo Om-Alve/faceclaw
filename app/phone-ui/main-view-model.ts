@@ -47,10 +47,13 @@ const MIRROR_MINIMIZED_KEY = "phoneUi.mirrorMinimized";
  * The glasses card's status line. Charging state is only meaningful on a live
  * link: while connecting or disconnecting the last report may already be
  * stale, so the card stays quiet instead of flashing a wrong "Not charging".
+ * Docked at 100%, the glasses stop charging and say so, so the card says
+ * "Full" rather than a "Not charging" that reads like a fault.
  */
-function glassesBatteryStatus(battery: number | null, charging: boolean, phase: string): string {
+function glassesBatteryStatus(battery: number | null, charging: boolean, phase: string, docked: boolean): string {
   if (battery === null || (phase !== "connected" && phase !== "charging")) return "";
-  return charging ? "Charging" : "Not charging";
+  if (charging) return "Charging";
+  return docked && battery >= 100 ? "Full" : "Not charging";
 }
 
 /**
@@ -132,9 +135,10 @@ export class MainViewModel extends RemoteControlsViewModel {
       this.displayPreview = snapshot.displayPreview;
       this.displayPreviewMessage = snapshot.displayPreviewMessage;
       this.phase = snapshot.phase;
-      this.glassesCard.update(snapshot.headsetBattery,
-        glassesBatteryStatus(snapshot.headsetBattery, snapshot.headsetCharging, snapshot.phase));
       const { case: caseBattery, caseCharging } = snapshot.batteries;
+      // caseCharging is null unless the case's last report had the glasses docked.
+      this.glassesCard.update(snapshot.headsetBattery,
+        glassesBatteryStatus(snapshot.headsetBattery, snapshot.headsetCharging, snapshot.phase, caseCharging !== null));
       this.caseCard.update(caseBattery, caseBatteryStatus(caseBattery, caseCharging, snapshot.phase));
       this.activeTextSettingId = snapshot.activeTextSettingId;
       this.activeTextEditorTitle = snapshot.activeTextEditorTitle;
