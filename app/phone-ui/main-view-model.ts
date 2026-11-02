@@ -47,19 +47,26 @@ const MIRROR_MINIMIZED_KEY = "phoneUi.mirrorMinimized";
  * The glasses card's status line. Charging state is only meaningful on a live
  * link: while connecting or disconnecting the last report may already be
  * stale, so the card stays quiet instead of flashing a wrong "Not charging".
+ * Docked at 100%, the glasses stop charging and say so, so the card says
+ * "Full" rather than a "Not charging" that reads like a fault.
  */
-function glassesBatteryStatus(battery: number | null, charging: boolean, phase: string): string {
+function glassesBatteryStatus(battery: number | null, charging: boolean, phase: string, docked: boolean): string {
   if (battery === null || (phase !== "connected" && phase !== "charging")) return "";
-  return charging ? "Charging" : "Not charging";
+  if (charging) return "Charging";
+  return docked && battery >= 100 ? "Full" : "Not charging";
 }
 
 /**
  * The case card's status line. The glasses only hear from the case while
- * docked, and it only drains while charging them, so the last reading stays
- * true after they are taken out; until one arrives, say how to get it.
+ * docked, and it only drains while charging them, so the last level stays
+ * true after they are taken out. Whether it is charging is only known while
+ * they are docked (caseCharging is null otherwise) and the link is live, so
+ * outside that the card says the level is from the last docking. Until a
+ * reading arrives, say how to get one.
  */
-function caseBatteryStatus(battery: number | null, charging: boolean): string {
+function caseBatteryStatus(battery: number | null, charging: boolean | null, phase: string): string {
   if (battery === null) return "Read when docked";
+  if (charging === null || (phase !== "connected" && phase !== "charging")) return "When last docked";
   return charging ? "Charging" : "Not charging";
 }
 
@@ -97,7 +104,7 @@ export class MainViewModel extends RemoteControlsViewModel {
   private _evenHubPhoneUi: PhoneUiButton | null = null;
   private _phase: "disconnected" | "connecting" | "connected" | "charging" | "disconnecting" = "disconnected";
   readonly glassesCard = new BatteryCardModel("Glasses battery", null, "");
-  readonly caseCard = new BatteryCardModel("Case battery", null, caseBatteryStatus(null, false));
+  readonly caseCard = new BatteryCardModel("Case battery", null, caseBatteryStatus(null, null, "disconnected"));
   private _mainTab: MainTab = lastMainTab;
   private _remoteSheetVisible = false;
   private _mirrorMinimized = ApplicationSettings.getBoolean(MIRROR_MINIMIZED_KEY, false);
@@ -128,10 +135,11 @@ export class MainViewModel extends RemoteControlsViewModel {
       this.displayPreview = snapshot.displayPreview;
       this.displayPreviewMessage = snapshot.displayPreviewMessage;
       this.phase = snapshot.phase;
-      this.glassesCard.update(snapshot.headsetBattery,
-        glassesBatteryStatus(snapshot.headsetBattery, snapshot.headsetCharging, snapshot.phase));
       const { case: caseBattery, caseCharging } = snapshot.batteries;
-      this.caseCard.update(caseBattery, caseBatteryStatus(caseBattery, caseCharging ?? false));
+      // caseCharging is null unless the case's last report had the glasses docked.
+      this.glassesCard.update(snapshot.headsetBattery,
+        glassesBatteryStatus(snapshot.headsetBattery, snapshot.headsetCharging, snapshot.phase, caseCharging !== null));
+      this.caseCard.update(caseBattery, caseBatteryStatus(caseBattery, caseCharging, snapshot.phase));
       this.activeTextSettingId = snapshot.activeTextSettingId;
       this.activeTextEditorTitle = snapshot.activeTextEditorTitle;
       this.activeTextSettingTitle = snapshot.activeTextSettingTitle;
