@@ -15,6 +15,7 @@ function fixture() {
   const messages = [], timers = new Set(), timeouts = new Set(), holds = [], maps = [], errors = [], requests = [];
   let callbacks, compass, delayRoute = null, delayMap = null, routeError = null, distanceUnit = 'miles', timeFormat = '24h';
   let google = null; // null: no Google key; otherwise an async (query, near) => candidates
+  let places = [{ name: 'Test park', placeFormatted: 'San Francisco', latitude: 37.71, longitude: -122.4 }];
   const routeMath = loader()('app/apps/navigate/route-follower.ts');
   const tracker = { running: false, isRunning() { return this.running; }, start() { this.running = true; }, stop() { this.running = false; } };
   const sensor = { LocationTracker: function (value) { callbacks = value; return tracker; }, COMPASS_CHANGED: 15,
@@ -43,14 +44,14 @@ function fixture() {
     },
     '../../native/mapbox': {
       isMapboxConfigured: () => true,
-      geocodeForward: async () => { requests.push('geocode'); return [{ name: 'Test park', placeFormatted: 'San Francisco', latitude: 37.71, longitude: -122.4 }]; },
+      geocodeForward: async () => { requests.push('geocode'); return places; },
       fetchRoute: async () => { requests.push('route'); if (routeError) throw routeError; return delayRoute ? await delayRoute : route; },
       fetchStaticMapGray: async options => { maps.push(options); return delayMap ? await delayMap : { pixels: new Uint8Array([0, 128, 255]) }; },
     },
   };
   const global = { postMessage: message => messages.push(message) };
   const source = fs.readFileSync(path.join(__dirname, '../app/apps/navigate/navigate-app.worker.ts'), 'utf8') +
-    '\nexports.probe = { startNavigation, startMap, stopNavigation, idleEntries, describeRouteStatus, state: () => ({ phase, headHeadingDeg, progress, mapImage, mapInFlight, mapLastError }) };';
+    '\nexports.probe = { startNavigation, startMap, stopNavigation, idleEntries, describeRouteStatus, state: () => ({ phase, headHeadingDeg, progress, mapImage, mapInFlight, mapLastError, choice, destinationName }) };';
   const exports = {};
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText, {
     exports, global, Uint8Array,
@@ -67,6 +68,7 @@ function fixture() {
     expireFix: () => { for (const callback of timeouts) callback(); timeouts.clear(); },
     failRoute: () => { routeError = new Error('Route unavailable'); },
     setGoogle: value => { google = value; },
+    setPlaces: value => { places = value; },
     setDistanceUnit: value => { distanceUnit = value; },
     setTimeFormat: value => { timeFormat = value; },
     fix: latitude => send({ type: 'navigation-sensors', event: { kind: 'location', location: fix(latitude), id: 1 } }),
@@ -248,3 +250,60 @@ for (const [outcome, search] of [
     assert.deepEqual(h.errors, []);
   });
 }
+
+const cafes = [
+  { name: 'Cafe One', placeFormatted: '1 First St', latitude: 37.72, longitude: -122.4, distanceMeters: null },
+  { name: 'Cafe Two', placeFormatted: '2 Second St', latitude: 37.701, longitude: -122.4, distanceMeters: null },
+  { name: 'Cafe Three', placeFormatted: '3 Third St', latitude: 37.75, longitude: -122.4, distanceMeters: null },
+  { name: 'Cafe Four', placeFormatted: '4 Fourth St', latitude: 37.76, longitude: -122.4, distanceMeters: null },
+];
+
+test('several matches list the top three to pick from, and a pick routes to that one', async () => {
+  const h = fixture(); h.setPlaces(cafes); h.setDistanceUnit('kilometers');
+  const starting = h.startNavigation('cafe', 'walking');
+  h.fix(37.7); const summary = await starting; await flush();
+  assert.match(summary, /Found 3 places matching "cafe"/);
+  assert.match(summary, /1\. Cafe One \(1 First St\), 2\.2 km away; 2\. Cafe Two \(2 Second St\), 100 m away; 3\. Cafe Three/);
+  assert.doesNotMatch(summary, /Cafe Four/);
+  assert.equal(h.state().phase, 'idle');
+  assert.deepEqual(h.state().choice.candidates.map(c => c.name), ['Cafe One', 'Cafe Two', 'Cafe Three']);
+  assert.deepEqual(h.requests, ['geocode']);
+
+  h.input('scroll-down'); h.input('click'); await flush(); await flush();
+  assert.equal(h.state().choice, null);
+  assert.equal(h.state().phase, 'navigating');
+  assert.equal(h.state().destinationName, 'Cafe Two');
+  assert.deepEqual(h.requests, ['geocode', 'route']);
+  assert.deepEqual(h.errors, []);
+});
+
+test('double-click closes the place list without navigating', async () => {
+  const h = fixture(); h.setPlaces(cafes);
+  const starting = h.startNavigation('cafe', 'walking');
+  h.fix(37.7); await starting; await flush();
+  h.input('double-click'); await flush();
+  assert.equal(h.state().choice, null);
+  assert.equal(h.state().phase, 'idle');
+  assert.deepEqual(h.requests, ['geocode']);
+});
+
+test('a place list opened mid-route keeps guidance running until something is picked', async () => {
+  const h = fixture(); const first = h.startNavigation('Test park', 'walking');
+  h.fix(37.7); await first; await flush();
+  h.setPlaces(cafes);
+  await h.startNavigation('cafe', 'walking'); await flush();
+  assert.equal(h.state().phase, 'navigating');
+  assert.equal(h.state().destinationName, 'Test park');
+  assert.ok(h.state().choice);
+  h.input('double-click'); await flush();
+  assert.equal(h.state().phase, 'navigating');
+  assert.equal(h.state().destinationName, 'Test park');
+});
+
+test('a single match navigates straight away', async () => {
+  const h = fixture(); h.setPlaces([cafes[0]]);
+  const starting = h.startNavigation('cafe one', 'walking');
+  h.fix(37.7); assert.match(await starting, /Navigating to Cafe One/); await flush();
+  assert.equal(h.state().choice, null);
+  assert.equal(h.state().phase, 'navigating');
+});

@@ -143,7 +143,7 @@ const NAVIGATE_TOOLS: ToolSpec[] = [
   {
     name: "start_route",
     description:
-      "Start turn-by-turn navigation to a destination. Give the destination as free text (a place name, business, or address); it is resolved near the user's current location. The name of one of the user's saved destinations (e.g. 'home', 'work') is used directly. Returns the resolved destination, distance, and estimated time. If the wrong place was picked, call again with a more specific query.",
+      "Start turn-by-turn navigation to a destination. Give the destination as free text (a place name, business, or address); it is resolved near the user's current location. The name of one of the user's saved destinations (e.g. 'home', 'work') is used directly. Returns the resolved destination, distance, and estimated time. When several places match, the glasses list the top three for the user to pick and this returns those matches instead; navigation starts once the user picks. If the wrong place was picked, call again with a more specific query.",
     inputSchema: {
       type: "object",
       properties: {
@@ -230,6 +230,22 @@ type DestinationEdit = {
   onCancel?: () => void;
 };
 let editing: DestinationEdit | null = null;
+
+/**
+ * The top places a free-text search matched, listed for the user to pick
+ * when there's more than one. An overlay like `editing`: whatever was on
+ * screen (guidance, the map, the idle list) keeps running underneath, so
+ * cancelling just closes the list.
+ */
+type PlaceChoice = {
+  query: string;
+  profile: RouteProfile;
+  candidates: GeocodeCandidate[];
+};
+const MAX_PLACE_CHOICES = 3;
+let choice: PlaceChoice | null = null;
+/** The choice overlay's list; created on first use, like idleMenu. */
+let choiceMenu: Menu<GeocodeCandidate> | null = null;
 
 let mapMode: MapMode = "follow";
 let zoomOffset = 0;
@@ -470,6 +486,7 @@ async function startNavigationTo(target: NavTarget, requestedProfile: RouteProfi
   }
   const generation = ++navigationGeneration;
   const checkCurrent = () => { if (generation !== navigationGeneration) throw new Error("Navigation cancelled."); };
+  choice = null;
   const hadActiveRoute = phase === "navigating" && follower !== null;
   const hadActiveMap = phase === "map";
   const previous = {
@@ -477,6 +494,20 @@ async function startNavigationTo(target: NavTarget, requestedProfile: RouteProfi
     destinationName,
     destinationPlace,
     profile,
+  };
+  // Back to whatever was showing before this lookup: an existing map or
+  // guidance stays up, with its destination (geocoding may have overwritten it).
+  const restorePrevious = () => {
+    if (hadActiveRoute || hadActiveMap) {
+      phase = hadActiveRoute ? "navigating" : "map";
+      destination = previous.destination;
+      destinationName = previous.destinationName;
+      destinationPlace = previous.destinationPlace;
+      profile = previous.profile;
+    } else {
+      phase = "idle";
+    }
+    stopTrackingIfIdle();
   };
   try {
     profile = requestedProfile;
@@ -506,6 +537,13 @@ async function startNavigationTo(target: NavTarget, requestedProfile: RouteProfi
       if (!candidates.length) {
         throw new Error(`No places found matching "${query}".`);
       }
+      // Free text with several matches: list them and let the user pick.
+      // A saved destination's address goes straight to its best match.
+      if (!target.label && candidates.length > 1) {
+        restorePrevious();
+        statusMessage = "";
+        return offerPlaceChoice(query, candidates, fix, requestedProfile);
+      }
       picked = candidates[0]!;
     }
     destination = { longitude: picked.longitude, latitude: picked.latitude };
@@ -532,23 +570,67 @@ async function startNavigationTo(target: NavTarget, requestedProfile: RouteProfi
     return startSummary(picked, candidates, route);
   } catch (error) {
     if (generation !== navigationGeneration) throw error;
-    const message = String((error as Error)?.message ?? error);
-    statusMessage = message;
+    statusMessage = String((error as Error)?.message ?? error);
     // A failed new destination shouldn't close the existing map or guidance.
-    // Restore the destination too: geocoding may have overwritten it.
-    if (hadActiveRoute || hadActiveMap) {
-      phase = hadActiveRoute ? "navigating" : "map";
-      destination = previous.destination;
-      destinationName = previous.destinationName;
-      destinationPlace = previous.destinationPlace;
-      profile = previous.profile;
-    } else {
-      phase = "idle";
-    }
-    stopTrackingIfIdle();
+    restorePrevious();
     render();
     throw error;
   }
+}
+
+/** Show the top matches for the user to pick; returns what the assistant is told. */
+function offerPlaceChoice(
+  query: string,
+  candidates: GeocodeCandidate[],
+  near: { longitude: number; latitude: number },
+  requestedProfile: RouteProfile,
+): string {
+  choice = {
+    query,
+    profile: requestedProfile,
+    candidates: candidates.slice(0, MAX_PLACE_CHOICES).map((candidate) => ({
+      ...candidate,
+      distanceMeters:
+        candidate.distanceMeters ??
+        haversineMeters([near.longitude, near.latitude], [candidate.longitude, candidate.latitude]),
+    })),
+  };
+  choiceList().setItems(choice.candidates, 0);
+  render();
+  // An assistant call may have opened the app in the background; the ring
+  // has to reach the list.
+  if (window) post({ type: "focus-window", windowId: window.windowId });
+  const listed = choice.candidates
+    .map((candidate, index) =>
+      `${index + 1}. ${describeCandidate(candidate)}` +
+      (candidate.distanceMeters !== null ? `, ${formatDistance(candidate.distanceMeters)} away` : ""))
+    .join("; ");
+  return (
+    `Found ${choice.candidates.length} places matching "${query}". The glasses are listing them for the user ` +
+    `to pick, and navigation starts when they do: ${listed}.`
+  );
+}
+
+/** Route to the selected match; the overlay closes either way. */
+function pickPlaceChoice(): void {
+  const pending = choice;
+  const picked = pending ? choiceList().selectedItem : null;
+  choice = null;
+  if (!pending || !picked) return;
+  void startNavigationTo(
+    {
+      kind: "place",
+      name: picked.name,
+      place: picked.placeFormatted,
+      longitude: picked.longitude,
+      latitude: picked.latitude,
+    },
+    pending.profile,
+  ).catch(() => {});
+}
+
+function describeCandidate(candidate: GeocodeCandidate): string {
+  return `${candidate.name}${candidate.placeFormatted ? ` (${candidate.placeFormatted})` : ""}`;
 }
 
 function adoptRoute(route: Route): void {
@@ -569,6 +651,7 @@ function adoptRoute(route: Route): void {
 function stopNavigation(finalStatus: string): void {
   ++navigationGeneration;
   phase = "idle";
+  choice = null;
   statusMessage = finalStatus;
   follower = null;
   progress = null;
@@ -919,7 +1002,7 @@ async function handleNavigateTool(name: string, args: any): Promise<ToolResult> 
 
 function startSummary(picked: GeocodeCandidate, candidates: GeocodeCandidate[], route: Route): string {
   const parts = [
-    `Navigating to ${picked.name}${picked.placeFormatted ? ` (${picked.placeFormatted})` : ""}: ` +
+    `Navigating to ${describeCandidate(picked)}: ` +
       `${formatDistance(route.distanceMeters)}, about ${formatDurationLong(route.durationSec)}, ` +
       `arriving ${formatClock(Date.now() + route.durationSec * 1000)}.`,
   ];
@@ -927,7 +1010,7 @@ function startSummary(picked: GeocodeCandidate, candidates: GeocodeCandidate[], 
   if (alternates.length) {
     parts.push(
       `Other matches: ${alternates
-        .map((c) => `${c.name}${c.placeFormatted ? ` (${c.placeFormatted})` : ""}`)
+        .map(describeCandidate)
         .join("; ")}. Call start_route with a more specific query to pick one of these instead.`,
     );
   }
@@ -1310,6 +1393,20 @@ function handleInput(win: NavWindow, event: InputEvent, frameId: number): void {
     renderAndSubmit(win, frameId);
     return;
   }
+  if (choice) {
+    if (event.type === "click") {
+      pickPlaceChoice();
+    } else if (event.type === "double-click") {
+      choice = null;
+    } else if (event.type === "scroll-up" || event.type === "scroll-down") {
+      choiceList().moveSelection(event.type === "scroll-down" ? 1 : -1);
+    } else {
+      frameTimings.finishFrame(frameId, "discarded: navigate place choice ignored input");
+      return;
+    }
+    renderAndSubmit(win, frameId);
+    return;
+  }
   if (event.type === "short-then-long-press") {
     windowMenu(win).open();
     renderAndSubmit(win, frameId);
@@ -1368,6 +1465,8 @@ function paintContent(win: NavWindow): GrayImage {
   const image = new GrayImage(win.viewportWidth, win.viewportHeight, 0);
   if (editing) {
     paintEdit(image, editing);
+  } else if (choice) {
+    paintPlaceChoice(image, win, choice);
   } else if (phase === "map") {
     paintMap(image);
   } else if (phase === "idle" || phase === "acquiring" || phase === "routing") {
@@ -1464,6 +1563,52 @@ function drawIdleRow({ image, item: entry, x, y, width, selected }: MenuDrawArgs
   image.drawText(smallFont, textX, textY, truncateText(smallFont, label, labelWidth), selected ? 245 : 210);
   const detailX = textX + labelWidth + 8;
   image.drawText(smallFont, detailX, textY, truncateText(smallFont, detail, x + width - 6 - detailX), selected ? 170 : 130);
+}
+
+function choiceList(): Menu<GeocodeCandidate> {
+  choiceMenu ??= new Menu<GeocodeCandidate>({
+    wrap: false,
+    rowGap: IDLE_ROW_GAP,
+    highlight: { radius: 6 },
+    // Two text lines: the name, then distance and address.
+    getHeight: () => listRowHeight(smallFont) + smallFont.lineHeight + 2,
+    draw: drawPlaceChoiceRow,
+  });
+  return choiceMenu;
+}
+
+/** "Pick a place": a search's top matches in relevance order, each with its distance from the user. */
+function paintPlaceChoice(image: GrayImage, win: NavWindow, pending: PlaceChoice): void {
+  image.drawText(mediumFont, 24, 16, "Pick a place", 245);
+  image.drawText(smallFont, 24, 52, truncateText(smallFont, `Matches for "${pending.query}"`, image.width - 48), 170);
+  const top = 52 + smallFont.lineHeight + 10;
+  const list = choiceList();
+  const rowHeight = listRowHeight(smallFont) + smallFont.lineHeight + 2;
+  const visibleRows = Math.max(1, Math.floor((image.height - 30 - top) / rowHeight));
+  list.paint(
+    image,
+    { x: IDLE_LIST_X, y: top, width: image.width - 40, height: visibleRows * rowHeight - IDLE_ROW_GAP },
+    win.focused,
+  );
+  drawFooter(image, `${GESTURE_SCROLL} select   ${GESTURE_CLICK} go   ${GESTURE_DOUBLE_CLICK} cancel`);
+}
+
+function drawPlaceChoiceRow({ image, item, x, y, width, selected }: MenuDrawArgs<GeocodeCandidate>): void {
+  const textX = x + 6;
+  const textWidth = width - 12;
+  const textY = y + LIST_ROW_TEXT_INSET;
+  image.drawText(smallFont, textX, textY, truncateText(smallFont, item.name, textWidth), selected ? 245 : 210);
+  const detail = [
+    item.distanceMeters !== null ? formatDistanceShort(item.distanceMeters) : "",
+    item.placeFormatted,
+  ].filter(Boolean).join("   ");
+  image.drawText(
+    smallFont,
+    textX,
+    textY + smallFont.lineHeight + 2,
+    truncateText(smallFont, detail, textWidth),
+    selected ? 170 : 130,
+  );
 }
 
 function paintNavigating(image: GrayImage, win: NavWindow): void {
