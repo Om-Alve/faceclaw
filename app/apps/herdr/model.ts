@@ -209,7 +209,7 @@ export type Hub = {
  * workspaces across every machine. A workspace with one pane still appears as a
  * workspace row; the caller opens its pane directly.
  */
-export function buildHub(refs: readonly PaneRef[], markers: ReadMarkers, multiMachine: boolean): Hub {
+export function buildHub(refs: readonly PaneRef[], markers: ReadMarkers, _multiMachine: boolean): Hub {
   const needsYou = sortPanes(refs, markers).filter((ref) => {
     if (ref.pane.status === "blocked") return true;
     return isDoneUnseen(ref, markers);

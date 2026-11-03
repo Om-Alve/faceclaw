@@ -84,7 +84,7 @@ import {
   type ReadMarkers,
   type WorkspaceGroup,
 } from "./model";
-import { HerdrMachineClient, describeSocketFailure, type ClientSnapshot, type HerdrSocket, type SocketFactory, type ViewState, type WriteResult } from "./client";
+import { HerdrMachineClient, type ClientSnapshot, type HerdrSocket, type SocketFactory, type ViewState, type WriteResult } from "./client";
 import { anchorAt, firstUnreadEntryId, latestActivity, layoutReader, lineForAnchor, newOutputCount, resolveScroll, trimEntries, type ReaderLine, type ScrollAnchor } from "./reader";
 import { canEnterKeysMode, KEYS_MODE_HINT, keysForDirection, keysModeBanner } from "./keys";
 import { buildGlanceSnapshot, HERDR_GLANCE_STATE_KEY, wakeCandidates } from "./glance";
@@ -537,7 +537,7 @@ const socketFactory: SocketFactory = (url, handlers) => {
     onOpen: () => handlers.onOpen(),
     onTextMessage: (text) => handlers.onMessage(text),
     onClosed: (code, reason) => end(reason || `Connection closed (${code}).`),
-    onFailure: (message) => end(describeSocketFailure(message)),
+    onFailure: (message) => end(message),
   });
   const herdrSocket: HerdrSocket = {
     send: (text) => {

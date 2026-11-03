@@ -267,7 +267,7 @@ export class HerdrMachineClient {
   openView(paneId: string, subagent?: string): void {
     const same = this.desiredView?.pane === paneId && this.desiredView?.subagent === subagent;
     if (same && this.view) return;
-    if (this.desiredView && this.connected) this.sendRequest(clientMessages.close(this.nextId()), { kind: "read", viewToken: this.viewToken });
+    if (this.desiredView && this.connected) void this.sendRequest(clientMessages.close(this.nextId()), { kind: "read", viewToken: this.viewToken });
     this.desiredView = subagent ? { pane: paneId, subagent } : { pane: paneId };
     this.view = initialView(paneId, subagent);
     this.viewToken++;
@@ -279,7 +279,7 @@ export class HerdrMachineClient {
     this.desiredView = null;
     this.view = null;
     this.viewToken++;
-    if (this.connected) this.sendRequest(clientMessages.close(this.nextId()), { kind: "read", viewToken: null });
+    if (this.connected) void this.sendRequest(clientMessages.close(this.nextId()), { kind: "read", viewToken: null });
     this.emit();
   }
 
@@ -287,7 +287,7 @@ export class HerdrMachineClient {
   private sendOpen(): void {
     const desired = this.desiredView;
     if (!desired) return;
-    this.sendRequest(clientMessages.open(this.nextId(), desired.pane, desired.subagent), {
+    void this.sendRequest(clientMessages.open(this.nextId(), desired.pane, desired.subagent), {
       kind: "read",
       viewToken: this.viewToken,
     });
@@ -421,9 +421,11 @@ export class HerdrMachineClient {
     }
     this.failPending("closed", reason || "The connection closed.");
     const kind = classifyClose(reason);
+    const human = describeSocketFailure(reason);
+    this.lastError = human;
     if (kind === "forbidden") {
       // A rejected identity will not fix itself by retrying.
-      this.setPhase("forbidden", this.lastError);
+      this.setPhase("forbidden", human);
       return;
     }
     this.attempt++;

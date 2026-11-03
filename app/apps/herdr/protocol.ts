@@ -401,10 +401,6 @@ const ERROR_CODES: readonly ErrorCode[] = [
   "queue_closed",
 ];
 
-const bad = (why: string): never => {
-  throw new Error(`herdr protocol: ${why}`);
-};
-
 /**
  * Parse one server message, returning null for anything malformed. A bad
  * message never takes the connection down; the caller logs and ignores it.
@@ -492,9 +488,9 @@ export function parseServerMessage(text: string): ServerMsg | null {
       case "prompt": {
         const pane = str(raw.pane);
         if (pane === null) return null;
-        const text = raw.text === null ? null : str(raw.text);
-        if (raw.text !== null && text === null) return null;
-        return { t, pane, text };
+        const promptText = raw.text === null ? null : str(raw.text);
+        if (raw.text !== null && promptText === null) return null;
+        return { t, pane, text: promptText };
       }
       case "pong":
       case "ok": {
