@@ -1794,6 +1794,10 @@ function openAnswerMenu(ref: PaneRef, view: ViewState): void {
   openWindowMenu(items, "Answer");
 }
 
+/** How long an answer gets to clear its prompt before the notice admits it did not. */
+const ANSWER_CLEAR_TIMEOUT_MS = 2500;
+const ANSWER_CLEAR_POLL_MS = 150;
+
 const ANSWER_KEYS = [
   { label: "Enter", keys: ["enter"] },
   { label: "y", keys: ["y"] },
@@ -1827,7 +1831,29 @@ async function submitAnswer(guard: AnswerGuard, keys: string[], label: string): 
   }
   const revision = ref.pane.terminalId ? promptRevision(ref.pane.terminalId, guard.stateSeq, guard.promptText) : undefined;
   const result = await client.answer(ref.pane, keys, revision);
-  showNotice(result.status === "ok" ? `Sent ${label}` : writeFailureText(result));
+  if (result.status !== "ok") {
+    showNotice(writeFailureText(result));
+    return;
+  }
+  showNotice((await answerCleared(guard)) ? `Sent ${label}` : `Sent ${label}; prompt still open`);
+}
+
+/**
+ * Wait for the prompt the wearer answered to leave the pane. A vanished pane or a
+ * closed view counts as cleared: there is no visible prompt left to answer.
+ */
+async function answerCleared(guard: AnswerGuard): Promise<boolean> {
+  const answered = normalizePromptText(guard.promptText);
+  const deadline = Date.now() + ANSWER_CLEAR_TIMEOUT_MS;
+  for (;;) {
+    const ref = findRef(guard.machineId, guard.paneId);
+    if (!ref) return true;
+    if (ref.pane.status !== "blocked") return true;
+    const prompt = viewForScope({ machineId: guard.machineId, paneId: guard.paneId })?.prompt ?? null;
+    if (!prompt || normalizePromptText(prompt) !== answered) return true;
+    if (Date.now() >= deadline) return false;
+    await wait(ANSWER_CLEAR_POLL_MS);
+  }
 }
 
 async function sendKeysDirect(ref: PaneRef, keys: string[], label: string): Promise<void> {
