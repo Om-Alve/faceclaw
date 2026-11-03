@@ -1782,6 +1782,8 @@ function openAnswerMenu(ref: PaneRef, view: ViewState): void {
   for (const choice of answerChoices(view.prompt ?? "")) addChoice(choice);
   for (const choice of questionChoices(view.entries)) addChoice(choice);
   for (const key of ANSWER_KEYS) {
+    // The parsed menu already offers some of these keys; do not list them twice.
+    if (seenKeys.has(key.keys.join(" "))) continue;
     items.push({
       label: key.label,
       onSelect: (ctx) => {
