@@ -193,7 +193,7 @@ type ComposeState = {
 
 type ReaderScope = { machineId: string; paneId: string; subagentId?: string };
 
-type AnswerGuard = { machineId: string; paneId: string; stateSeq: number; promptText: string };
+type AnswerGuard = { machineId: string; paneId: string; terminalId?: string; stateSeq: number; promptText: string };
 
 type PaneMatch = { client: HerdrMachineClient; ref: PaneRef };
 
@@ -1734,7 +1734,7 @@ function writeFailureText(result: WriteResult): string {
 // Answers, keys, snippets, queue
 
 function answerGuard(ref: PaneRef, view: ViewState | undefined): AnswerGuard {
-  return { machineId: ref.machineId, paneId: ref.pane.id, stateSeq: ref.pane.stateSeq, promptText: view?.prompt ?? "" };
+  return { machineId: ref.machineId, paneId: ref.pane.id, terminalId: ref.pane.terminalId, stateSeq: ref.pane.stateSeq, promptText: view?.prompt ?? "" };
 }
 
 function openAnswerMenu(ref: PaneRef, view: ViewState): void {
@@ -1805,6 +1805,7 @@ async function submitAnswer(guard: AnswerGuard, keys: string[], label: string): 
   const currentPrompt = view?.prompt ?? "";
   if (
     ref.pane.stateSeq !== guard.stateSeq ||
+    ref.pane.terminalId !== guard.terminalId ||
     normalizePromptText(currentPrompt) !== normalizePromptText(guard.promptText) ||
     ref.pane.status !== "blocked"
   ) {
