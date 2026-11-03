@@ -194,7 +194,8 @@ export type ClientMsg =
   | { t: "open"; id: string; pane: string; subagent?: string }
   | { t: "close"; id: string }
   | { t: "older"; id: string; pane: string; subagent?: string; before: string; limit?: number }
-  | { t: "keys"; id: string; pane: string; keys: string[] }
+  /** Raw keys; protocol 3 also guards against a reused pane ID holding another terminal. */
+  | { t: "keys"; id: string; pane: string; keys: string[]; terminalId?: string }
   /**
    * Protocol 2 text write. With `enter` the bridge pauses then presses Enter;
    * with `queue` it holds the text until the agent is idle. `terminalId` is a
@@ -576,7 +577,8 @@ export const clientMessages = {
     if (limit !== undefined) message.limit = limit;
     return message;
   },
-  keys: (id: string, pane: string, keys: string[]): ClientMsg => ({ t: "keys", id, pane, keys }),
+  keys: (id: string, pane: string, keys: string[], terminalId?: string): ClientMsg =>
+    terminalId ? { t: "keys", id, pane, keys, terminalId } : { t: "keys", id, pane, keys },
   text: (id: string, pane: string, text: string, options: { enter: boolean; queue?: boolean; terminalId?: string }): ClientMsg => {
     const message: ClientMsg = { t: "text", id, pane, text, enter: options.enter };
     if (options.queue) message.queue = true;

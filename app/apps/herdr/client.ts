@@ -305,11 +305,14 @@ export class HerdrMachineClient {
 
   // ---------------------------------------------------------------- writes
 
-  sendKeys(paneId: string, keys: readonly string[]): Promise<WriteResult> {
+  sendKeys(paneId: string, keys: readonly string[], terminalId?: string): Promise<WriteResult> {
     const invalid = keys.find((key) => !isAllowedKey(key));
     if (invalid) return Promise.resolve({ status: "error", code: "key_not_allowed", message: `Key not allowed: ${invalid}` });
     if (!this.connected) return Promise.resolve(offline("keys", keys.join(" ")));
-    return this.sendRequest(clientMessages.keys(this.nextId(), paneId, [...keys]), { kind: "write", viewToken: null });
+    return this.sendRequest(clientMessages.keys(this.nextId(), paneId, [...keys], this.supportsProtocol3() ? terminalId : undefined), {
+      kind: "write",
+      viewToken: null,
+    });
   }
 
   /**
@@ -349,7 +352,10 @@ export class HerdrMachineClient {
     if (this.supportsProtocol3() && pane.terminalId && revision) {
       return this.sendRequest(clientMessages.answer(this.nextId(), pane.id, pane.terminalId, revision, [...keys]), { kind: "write", viewToken: null });
     }
-    return this.sendRequest(clientMessages.keys(this.nextId(), pane.id, [...keys]), { kind: "write", viewToken: null });
+    return this.sendRequest(clientMessages.keys(this.nextId(), pane.id, [...keys], this.supportsProtocol3() ? pane.terminalId : undefined), {
+      kind: "write",
+      viewToken: null,
+    });
   }
 
   unqueue(paneId: string, itemId: string): Promise<WriteResult> {
