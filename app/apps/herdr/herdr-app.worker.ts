@@ -88,6 +88,7 @@ import {
 import { HerdrMachineClient, type ClientSnapshot, type HerdrSocket, type SocketFactory, type ViewState, type WriteResult } from "./client";
 import { anchorAt, firstUnreadEntryId, latestActivity, layoutReader, lineForAnchor, newOutputCount, resolveScroll, trimEntries, type ReaderLine, type ScrollAnchor } from "./reader";
 import { canEnterKeysMode, KEYS_MODE_HINT, keysForDirection, keysModeBanner } from "./keys";
+import { answerChoices } from "./prompt";
 import { buildGlanceSnapshot, HERDR_GLANCE_STATE_KEY, wakeCandidates } from "./glance";
 import {
   HERDR_COMPOSE_DRAFT_KEY,
@@ -1760,8 +1761,16 @@ function openAnswerMenu(ref: PaneRef, view: ViewState): void {
     const line = oneLine(view.prompt);
     items.push({ label: truncateText(font(), line, 230), disabled: true, onSelect: () => {} });
   }
-  const choices = questionChoices(view.entries);
-  for (const choice of choices) {
+  // The pane's rendered menu first: its rows are what the agent is actually
+  // showing, and its key grammar differs per agent. Structured question
+  // choices follow, deduplicated against it (the same options reach us twice).
+  const seenLabels = new Set<string>();
+  const seenKeys = new Set<string>();
+  const addChoice = (choice: { label: string; keys: string[] }) => {
+    const keys = choice.keys.join(" ");
+    if (!choice.keys.length || seenLabels.has(choice.label) || seenKeys.has(keys)) return;
+    seenLabels.add(choice.label);
+    seenKeys.add(keys);
     items.push({
       label: truncateText(font(), choice.label, 230),
       onSelect: (ctx) => {
@@ -1769,7 +1778,9 @@ function openAnswerMenu(ref: PaneRef, view: ViewState): void {
         void submitAnswer(guard, choice.keys, choice.label);
       },
     });
-  }
+  };
+  for (const choice of answerChoices(view.prompt ?? "")) addChoice(choice);
+  for (const choice of questionChoices(view.entries)) addChoice(choice);
   for (const key of ANSWER_KEYS) {
     items.push({
       label: key.label,
