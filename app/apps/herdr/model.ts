@@ -9,7 +9,7 @@
  * the machine, completion-based unread tracking, prompt-bound answers, and a
  * draft with a fixed target.
  */
-import type { AgentStatus, AgentSession, PaneSummary, QueueSummary, Snippet, SubagentSummary } from "./protocol";
+import type { AgentStatus, AgentSession, ChatEntry, PaneSummary, QueueSummary, Snippet, SubagentSummary } from "./protocol";
 
 /** A pane from one machine. `machineId` is the local machine record id. */
 export type PaneRef = {
@@ -38,8 +38,18 @@ export type ReadMarkers = Record<string, number>;
 /** What marks a completed pane unread: protocol 3's completion sequence, else protocol 2's state sequence. */
 export const completionIdentity = (pane: PaneSummary): number => pane.completionSeq ?? pane.stateSeq;
 
+/**
+ * Read identity: the pane slot plus its terminal, since a replaced terminal is
+ * a different conversation. Protocol 2 has no terminal id, so the key falls
+ * back to the slot and stays compatible with markers already stored.
+ */
+export function readKey(ref: PaneRef): string {
+  const base = refKey(ref);
+  return ref.pane.terminalId ? `${base}|${ref.pane.terminalId}` : base;
+}
+
 export function isDoneUnseen(ref: PaneRef, markers: ReadMarkers): boolean {
-  return ref.pane.status === "done" && markers[refKey(ref)] !== completionIdentity(ref.pane);
+  return ref.pane.status === "done" && markers[readKey(ref)] !== completionIdentity(ref.pane);
 }
 
 /** blocked 0 -> done-and-unseen 1 -> working 2 -> idle agents (incl. seen done) 3 -> other panes 4. */
@@ -240,7 +250,7 @@ export const needingCount = (hub: Hub): number => hub.needsYou.length;
 
 /** Whether a pane view has reached its live tail, which clears a completion marker. */
 export function markRead(markers: ReadMarkers, ref: PaneRef): ReadMarkers {
-  const key = refKey(ref);
+  const key = readKey(ref);
   const identity = completionIdentity(ref.pane);
   if (markers[key] === identity) return markers;
   return { ...markers, [key]: identity };
@@ -248,7 +258,7 @@ export function markRead(markers: ReadMarkers, ref: PaneRef): ReadMarkers {
 
 /** Keeping only the newest markers keeps the settings value bounded. */
 export function pruneReadMarkers(markers: ReadMarkers, refs: readonly PaneRef[], limit = 200): ReadMarkers {
-  const live = new Set(refs.map(refKey));
+  const live = new Set(refs.map(readKey));
   const kept: ReadMarkers = {};
   for (const [key, value] of Object.entries(markers)) if (live.has(key)) kept[key] = value;
   const entries = Object.entries(kept);
@@ -396,6 +406,22 @@ function isSkippedRecord(text: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Options for a structured question, as numbered keys. Only offered when one
+ * question is on screen: with several, the same numbers would answer the first
+ * question while the label describes another.
+ */
+export function questionChoices(entries: readonly ChatEntry[]): Array<{ label: string; keys: string[] }> {
+  for (let index = entries.length - 1; index >= 0; index--) {
+    const entry = entries[index];
+    if (!entry || entry.kind !== "question" || entry.answered) continue;
+    const question = entry.questions[0];
+    if (entry.questions.length !== 1 || !question) return [];
+    return question.options.slice(0, 9).map((label, optionIndex) => ({ label, keys: [String(optionIndex + 1)] }));
+  }
+  return [];
 }
 
 /** Apply chat.update semantics: entries with a known id replace, new ids append. */

@@ -26,5 +26,7 @@ Feature playbook steps (from pstack feature.md), plus the throughput checkpoint.
 ## Deliberate gaps
 
 - Structured approvals (Claude hooks / channel relay) are specified but not prototyped; they need the bridge patch and one live Claude pane.
+- The step-3 screen-text toggle for agent panes is deferred: protocol 2's `open` carries no source choice, so it needs the step-4 `pane.read` subscription or a new wire field.
+- The client keeps the session's full entry list (the reader trims its window); a very long pane grows the worker's view array until the window closes.
 - Device measurements (blocked-to-display, scroll latency, two live machines, sleeping/waking) require the phone and glasses.
 - The worker has no headless harness; verification is typecheck, lint, and review over the pure modules it composes.

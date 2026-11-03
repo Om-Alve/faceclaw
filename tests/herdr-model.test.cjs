@@ -424,3 +424,27 @@ test('tailLines keeps the newest lines', () => {
   assert.deepEqual(model.tailLines('a\nb\nc\nd', 2), ['c', 'd']);
   assert.deepEqual(model.tailLines('only', 1), ['only']);
 });
+
+test('read markers follow the terminal, not the reused pane slot', () => {
+  const first = ref('m1', 'mac', { status: 'done', stateSeq: 11, terminalId: 'term-1' });
+  const marked = model.markRead({}, first);
+  assert.equal(model.isDoneUnseen(first, marked), false);
+  const replaced = ref('m1', 'mac', { status: 'done', stateSeq: 11, terminalId: 'term-2' });
+  assert.equal(model.isDoneUnseen(replaced, marked), true, 'a replaced terminal starts unread');
+  assert.equal(model.readKey(first), 'm1|default/w1:p1|term-1');
+  assert.equal(model.readKey(ref('m1', 'mac')), 'm1|default/w1:p1', 'protocol 2 keeps the old key shape');
+});
+
+test('question choices are offered only when one question is on screen', () => {
+  const question = (questions, answered = false) => ({ id: 'q1', kind: 'question', text: '', questions, answered, reply: 'message' });
+  assert.deepEqual(
+    model.questionChoices([question([{ prompt: 'db', options: ['Postgres', 'MySQL'] }])]),
+    [{ label: 'Postgres', keys: ['1'] }, { label: 'MySQL', keys: ['2'] }],
+  );
+  assert.deepEqual(
+    model.questionChoices([question([{ prompt: 'db', options: ['Postgres'] }, { prompt: 'schema', options: ['Existing', 'Fresh'] }])]),
+    [],
+    'two questions would make the same numbers answer the first one',
+  );
+  assert.deepEqual(model.questionChoices([question([{ prompt: 'db', options: ['Postgres'] }], true)]), [], 'answered questions are skipped');
+});

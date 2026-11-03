@@ -271,6 +271,7 @@ export class HerdrMachineClient {
     this.desiredView = subagent ? { pane: paneId, subagent } : { pane: paneId };
     this.view = initialView(paneId, subagent);
     this.viewToken++;
+    this.supersedeReads();
     if (this.connected) this.sendOpen();
     this.emit();
   }
@@ -279,8 +280,19 @@ export class HerdrMachineClient {
     this.desiredView = null;
     this.view = null;
     this.viewToken++;
+    this.supersedeReads();
     if (this.connected) void this.sendRequest(clientMessages.close(this.nextId()), { kind: "read", viewToken: null });
     this.emit();
+  }
+
+  /** Resolve read requests for a view the wearer left; a stale page is not a bridge failure. */
+  private supersedeReads(): void {
+    for (const [id, pending] of Array.from(this.pending)) {
+      if (pending.kind !== "read" || pending.viewToken === null) continue;
+      this.timers.clearTimeout(pending.timer);
+      this.pending.delete(id);
+      pending.resolve({ status: "unknown", message: "The view changed." });
+    }
   }
 
   /** Long-lived socket reopened: re-request the view. */
@@ -430,7 +442,9 @@ export class HerdrMachineClient {
     }
     this.attempt++;
     const delay = Math.min(RECONNECT_MAX_MS, RECONNECT_MIN_MS * 2 ** Math.min(this.attempt - 1, 6));
-    this.setPhase("retrying", this.attempt > 1 ? `Reconnecting in ${Math.round(delay / 1000)}s…` : "Reconnecting…");
+    // After the first failure say "can't reach" rather than "connecting" forever.
+    if (this.attempt > 1) this.setPhase("unreachable", human);
+    else this.setPhase("retrying", "Reconnecting…");
     this.connectTimer = this.timers.setTimeout(() => {
       this.connectTimer = null;
       this.connect();
@@ -457,6 +471,8 @@ export class HerdrMachineClient {
         this.attempt = 0;
         this.connected = true;
         this.setPhase("connected", message.protocol >= PROTOCOL_VERSION_3 ? "Connected" : "Connected (protocol 2)");
+        // The connected emit may stop this client (a duplicate machine record).
+        if (this.stopped) return;
         this.startPing();
         this.sendOpen();
         this.emit();
@@ -657,6 +673,7 @@ export class HerdrMachineClient {
   }
 
   private startPing(): void {
+    if (this.stopped) return;
     this.stopPing();
     this.pingTimer = this.timers.setInterval(() => {
       if (!this.connected) return;

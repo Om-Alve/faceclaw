@@ -289,3 +289,10 @@ test('parseHealth accepts the health body and rejects anything else', () => {
   assert.equal(parseHealth([]), null);
   assert.equal(parseHealth('ok'), null);
 });
+
+test('promptRevision matches the pinned fixture the bridge must agree with', () => {
+  const revision = promptRevision('term_abc', 7, 'Allow Bash?\r\n\r\n❯ 1. Yes\r\n  2. No\r\n\r\n');
+  assert.equal(revision, '8f0032dd8be28750');
+  assert.equal(promptRevision('term_abc', 8, 'Allow Bash?\n\n❯ 1. Yes\n  2. No'), '80001b408be28750', 'a new change sequence changes the revision');
+  assert.equal(promptRevision('term_abd', 7, 'Allow Bash?\n\n❯ 1. Yes\n  2. No'), '794f68a0ab96d0fd', 'a replaced terminal changes the revision');
+});

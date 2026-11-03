@@ -64,6 +64,7 @@ import {
   oneLine,
   paneRowLabel,
   primaryAction,
+  questionChoices,
   queueSummaryText,
   refKey,
   rowLabel,
@@ -585,7 +586,9 @@ function syncClients(): void {
     } else {
       client.updateConfig({ id: machine.id, label: machine.label, url: machine.url });
     }
-    if (clientsShouldRun()) client.start();
+    // A record already known to repeat another machine's hello stays connected-but-off.
+    if (duplicates.has(machine.id)) client.stop();
+    else if (clientsShouldRun()) client.start();
     else client.stop();
   }
   enforceDuplicates();
@@ -850,6 +853,8 @@ function wakeNow(): void {
   const key = refKey(pick);
   notifiedIdentities.set(key, blockedIdentity(pick));
   hubSelectionKey = `pane:${key}`;
+  // The wake lands on the hub, so an answer menu left open on the old screen must not survive.
+  window?.menu?.close();
   showScreen({ kind: "hub" });
   if (!window) {
     post({ type: "open-window-request", windowId: MAIN_WINDOW_ID, title: APP_TITLE, iconLetter: "H", icon: "activity", focus: false });
@@ -1195,7 +1200,7 @@ function bodyMetrics(win: AppWindow): { step: number; bodyTop: number; bodyHeigh
 
 function readerMetrics(win: AppWindow, ref: PaneRef, view: ViewState, state: ReaderState): ReaderMetrics {
   const { step, bodyTop, bodyHeight, width } = bodyMetrics(win);
-  const entries = cleanEntries(trimEntries(view.entries, 800));
+  const entries = cleanEntries(trimEntries(view.entries, 800, state.anchor?.entryId));
   const lines = layoutReader({
     entries,
     prompt: view.subagent ? null : view.prompt,
@@ -1235,9 +1240,9 @@ function maybeRequestOlder(ref: PaneRef, view: ViewState, state: ReaderState): v
   state.olderRequestedFor = before;
   void client.requestOlder(before).then((result) => {
     state.loadingOlder = false;
-    if (result.status === "ok") return;
     state.olderRequestedFor = null;
-    showNotice(result.status === "error" ? `Earlier output: ${result.message}` : "The bridge did not answer; try again.");
+    if (result.status === "ok" || result.status === "unknown") return;
+    showNotice(`Earlier output: ${result.message}`);
   });
 }
 
@@ -1248,6 +1253,8 @@ function maybeMarkRead(ref: PaneRef): void {
   if (!isDoneUnseen(ref, readMarkers)) return;
   const view = viewForScope({ machineId: ref.machineId, paneId: ref.pane.id });
   if (!view || !view.entries.length) return;
+  // A transcript pane that fell back to screen text has no stable end to reach.
+  if (view.source === "screen") return;
   readMarkers = markRead(readMarkers, ref);
   saveReadMarkers(readMarkers, allRefs());
   const state = readerStateFor(viewKeyOf({ machineId: ref.machineId, paneId: ref.pane.id }));
@@ -1514,18 +1521,18 @@ async function sendKeysModeKey(ref: PaneRef, key: string): Promise<void> {
 // Text input (voice and the phone editor)
 
 function handleTextInput(raw: string, submit: boolean): void {
-  const text = raw.trim();
-  if (!text) return;
+  const trimmed = raw.trim();
+  if (!trimmed) return;
   if (screen.kind === "setup" && screen.editingUrl) {
-    setStringSetting(HERDR_URL_DRAFT_KEY, text);
+    setStringSetting(HERDR_URL_DRAFT_KEY, trimmed);
     render();
     return;
   }
   if (screen.kind === "compose" || screen.kind === "review") {
     if (!compose) return;
-    compose.draft = { ...compose.draft, text };
+    compose.draft = { ...compose.draft, text: raw };
     drafts.set(compose.key, compose.draft);
-    if (textEditOwner === "draft") setStringSetting(HERDR_COMPOSE_DRAFT_KEY, text);
+    if (textEditOwner === "draft") setStringSetting(HERDR_COMPOSE_DRAFT_KEY, raw);
     if (submit) openReview(true);
     else render();
     return;
@@ -1549,9 +1556,10 @@ function handleTextInput(raw: string, submit: boolean): void {
     const kind: ComposeKind = action === "command" ? "command" : "message";
     openCompose(ref, kind);
     if (!compose) return;
-    compose.draft = { ...compose.draft, text };
+    // The draft is literal: voice and watch text keep leading and trailing whitespace.
+    compose.draft = { ...compose.draft, text: raw };
     drafts.set(compose.key, compose.draft);
-    if (textEditOwner === "draft") setStringSetting(HERDR_COMPOSE_DRAFT_KEY, text);
+    if (textEditOwner === "draft") setStringSetting(HERDR_COMPOSE_DRAFT_KEY, raw);
     if (submit) openReview(true);
     else render();
     return;
@@ -1744,7 +1752,7 @@ function openAnswerMenu(ref: PaneRef, view: ViewState): void {
     const line = oneLine(view.prompt);
     items.push({ label: truncateText(font(), line, 230), disabled: true, onSelect: () => {} });
   }
-  const choices = promptChoices(view.entries);
+  const choices = questionChoices(view.entries);
   for (const choice of choices) {
     items.push({
       label: truncateText(font(), choice.label, 230),
@@ -1777,21 +1785,6 @@ const ANSWER_KEYS = [
   { label: "Escape", keys: ["esc"] },
   { label: "Ctrl+C", keys: ["ctrl+c"] },
 ];
-
-function promptChoices(entries: readonly ChatEntry[]): Array<{ label: string; keys: string[] }> {
-  for (let index = entries.length - 1; index >= 0; index--) {
-    const entry = entries[index];
-    if (!entry || entry.kind !== "question" || entry.answered) continue;
-    const choices: Array<{ label: string; keys: string[] }> = [];
-    for (const question of entry.questions) {
-      for (let optionIndex = 0; optionIndex < question.options.length && optionIndex < 9; optionIndex++) {
-        choices.push({ label: question.options[optionIndex]!, keys: [String(optionIndex + 1)] });
-      }
-    }
-    if (choices.length) return choices;
-  }
-  return [];
-}
 
 /** Send keys only if the prompt the wearer saw is still the prompt on the pane. */
 async function submitAnswer(guard: AnswerGuard, keys: string[], label: string): Promise<void> {

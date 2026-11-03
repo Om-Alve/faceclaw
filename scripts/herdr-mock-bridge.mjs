@@ -31,6 +31,22 @@ const log = (...parts) => {
 
 const now = () => Date.now();
 let serial = 1;
+
+/** The bridge's prompt revision, matching app/apps/herdr/protocol.ts. */
+function normalizePromptText(text) {
+  return text.replace(/\r\n?/g, "\n").split("\n").map((line) => line.replace(/[ \t]+$/, "")).join("\n").replace(/\n+$/, "");
+}
+function hash32(text) {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < text.length; index++) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, "0");
+}
+function promptRevision(terminalId, stateSeq, text) {
+  return hash32(`${terminalId}\u0000${stateSeq}`) + hash32(`${terminalId}\u0000${normalizePromptText(text)}`);
+}
 const nextId = (prefix) => `${prefix}${serial++}`;
 
 const panes = [
@@ -301,8 +317,10 @@ function handle(socket, message) {
       return finishWrite(socket, id, paneId, String(message.text ?? ""), message.t);
     case "answer": {
       if (!promptOpen.has(paneId)) return send(socket, { t: "error", id, code: "stale_prompt", message: "no open prompt" });
-      promptOpen.delete(paneId);
       const pane = panes.find((candidate) => candidate.id === paneId);
+      const expected = promptRevision(pane.terminalId, pane.stateSeq, promptOpen.get(paneId));
+      if (message.revision !== expected) return send(socket, { t: "error", id, code: "stale_prompt", message: "revision mismatch" });
+      promptOpen.delete(paneId);
       pane.status = "idle";
       pane.stateSeq += 1;
       send(socket, { t: "ok", id });

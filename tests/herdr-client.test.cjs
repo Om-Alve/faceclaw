@@ -497,3 +497,27 @@ test('a malformed frame is ignored instead of breaking the connection', () => {
   assert.equal(h.client.snapshot.phase, 'connected');
   assert.equal(h.client.snapshot.protocol, 2);
 });
+
+test('a second failed connection reports unreachable while still retrying', () => {
+  const h = harness();
+  h.connect();
+  h.drop('Failed to connect');
+  assert.equal(h.client.snapshot.phase, 'retrying');
+  h.timers.advance(RECONNECT_MIN_MS);
+  h.open();
+  h.drop('Failed to connect');
+  assert.equal(h.client.snapshot.phase, 'unreachable');
+  assert.equal(h.client.snapshot.lastError, "Can't reach the bridge.");
+  assert.equal(h.timers.pendingTimeouts(), 1, 'the backoff timer still runs');
+});
+
+test('a page reply superseded by switching panes resolves quietly', async () => {
+  const h = harness();
+  h.connect();
+  h.client.openView('default/w1:p1');
+  const page = h.client.requestOlder('a1');
+  h.client.openView('default/w1:p2');
+  const result = await page;
+  assert.equal(result.status, 'unknown');
+  assert.equal(result.message, 'The view changed.');
+});

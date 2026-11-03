@@ -168,7 +168,7 @@ export type ScrollAnchor = { entryId: string; lineOffset: number };
  * position that starts on a divider still survives appends.
  */
 export function anchorAt(lines: readonly ReaderLine[], firstLine: number): ScrollAnchor | null {
-  if (firstLine <= 0 || firstLine >= lines.length) return null;
+  if (firstLine < 0 || firstLine >= lines.length) return null;
   for (let index = firstLine; index >= 0; index--) {
     const line = lines[index];
     if (!line?.entryId) continue;
@@ -224,9 +224,19 @@ export function firstUnreadEntryId(entries: readonly ChatEntry[]): string | null
   return entries[0]?.id ?? null;
 }
 
-/** Bound retained transcript entries so an all-day pane cannot grow without limit. */
-export function trimEntries(entries: readonly ChatEntry[], limit = 800): ChatEntry[] {
-  return entries.length <= limit ? [...entries] : entries.slice(entries.length - limit);
+/**
+ * Bound retained transcript entries so an all-day pane cannot grow without
+ * limit. A scroll anchor older than the window keeps its entry (plus context)
+ * instead of being trimmed away the moment an older page arrives.
+ */
+export function trimEntries(entries: readonly ChatEntry[], limit = 800, keepId?: string | null): ChatEntry[] {
+  if (entries.length <= limit) return [...entries];
+  let start = entries.length - limit;
+  if (keepId) {
+    const index = entries.findIndex((entry) => entry.id === keepId);
+    if (index >= 0 && index < start) start = Math.max(0, index - 20);
+  }
+  return entries.slice(start);
 }
 
 /** `N new lines` marker shown while the wearer is scrolled back. */

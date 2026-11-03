@@ -11,7 +11,7 @@
 export type KeysDirection = "up" | "down" | "left" | "right";
 
 export const KEYS_MODE_TITLE = "KEYS";
-export const KEYS_MODE_HINT = "tap Enter · hold to leave";
+export const KEYS_MODE_HINT = "tap Enter · double tap leaves";
 
 /** The keys a directional input sends in Keys mode; empty for directions the mode leaves to the palette. */
 export function keysForDirection(direction: KeysDirection): string[] {

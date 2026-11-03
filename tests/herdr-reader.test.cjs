@@ -229,3 +229,21 @@ test('latestActivity prefers the newest entry and truncates', () => {
   // The prefix counts toward the limit for tool lines.
   assert.equal(latestActivity([tool('t', long)], 10), `tool: ${'x'.repeat(3)}…`);
 });
+
+test('scrolling to the very first line keeps a scroll anchor instead of jumping live', () => {
+  const lines = layout({ entries: [assistant('a', 'one'), assistant('b', 'two'), assistant('c', 'three')] });
+  const anchor = anchorAt(lines, 0);
+  assert.ok(anchor, 'line zero anchors to the first entry');
+  assert.equal(anchor.entryId, 'a');
+  const kept = scrollFromFirstLine(lines, 0, 1);
+  assert.equal(kept.firstLine, 0);
+  assert.ok(kept.anchor, 'the top of the transcript is a frozen position, not live');
+});
+
+test('trimEntries keeps an older anchored entry that scrolled back to', () => {
+  const entries = Array.from({ length: 30 }, (_, index) => assistant(`e${index}`, `line ${index}`));
+  const trimmed = trimEntries(entries, 10, 'e2');
+  assert.ok(trimmed.some((entry) => entry.id === 'e2'), 'the anchored entry and the context above it stay');
+  assert.equal(trimmed.at(-1).id, 'e29');
+  assert.deepEqual(trimEntries(entries, 10).map((item) => item.id)[0], 'e20');
+});
