@@ -48,3 +48,7 @@ pane with a queued message, a done pane, a shell, and a screen-only pane, so
 the hub, reader, answer, queue and outcome paths can be exercised without a
 tailnet or a real Herdr. Add `http://<laptop-ip>:8791` as a machine (cleartext
 HTTP is accepted for local development).
+
+`npm test` runs the protocol, model, client, reader and glance tests plus one
+end-to-end client test against that mock bridge. The worker itself is verified
+by typecheck, lint and device testing.
