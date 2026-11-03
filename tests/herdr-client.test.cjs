@@ -521,3 +521,17 @@ test('a page reply superseded by switching panes resolves quietly', async () => 
   assert.equal(result.status, 'unknown');
   assert.equal(result.message, 'The view changed.');
 });
+
+test('a forced open resets the view and re-requests the pane', () => {
+  const h = harness();
+  h.connect();
+  h.client.openView('default/w1:p1');
+  h.receive({ t: 'chat', pane: 'default/w1:p1', source: 'transcript', entries: [entry('a1', 'old session')], hasOlder: false });
+  assert.equal(h.client.snapshot.view.entries[0].text, 'old session');
+
+  h.client.openView('default/w1:p1', undefined, true);
+  assert.deepEqual(h.client.snapshot.view.entries, [], 'the old session is not shown while the new one loads');
+  const opens = h.sent().filter((frame) => frame.t === 'open');
+  assert.equal(opens.length, 2, 'the bridge is asked for the pane again');
+  assert.equal(h.sent().filter((frame) => frame.t === 'close').length, 0, 'a same-pane refresh does not close first');
+});

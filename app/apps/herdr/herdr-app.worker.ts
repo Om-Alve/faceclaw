@@ -640,6 +640,8 @@ function onClientChanged(machineId: string): void {
   }
   if (lastPanes.get(machineId) !== snapshot.panes) {
     lastPanes.set(machineId, snapshot.panes);
+    // A new terminal or agent session in the displayed pane changes its identity; re-open the view.
+    syncViewTarget();
     if (baselinePending.has(machineId)) {
       baselinePending.delete(machineId);
       recordBlockedIdentities();
@@ -1098,8 +1100,14 @@ function submitBridgeUrl(input: string): void {
 // ---------------------------------------------------------------------------
 // Reader state
 
+/** Terminal and agent session are part of a pane's identity: a new session must not inherit old scroll or cache. */
+function paneIdentity(scope: ReaderScope): string {
+  const ref = findRef(scope.machineId, scope.paneId);
+  return ref ? `${ref.pane.terminalId ?? ""}|${ref.pane.agentSession?.value ?? ""}` : "";
+}
+
 function viewKeyOf(scope: ReaderScope): string {
-  return `${scope.machineId}|${scope.paneId}|${scope.subagentId ?? ""}`;
+  return `${scope.machineId}|${scope.paneId}|${scope.subagentId ?? ""}|${paneIdentity(scope)}`;
 }
 
 function readerStateFor(key: string): ReaderState {
@@ -1151,7 +1159,7 @@ function syncViewTarget(): void {
   if (key === viewTargetKey) return;
   viewTargetKey = key;
   for (const [machineId, client] of clients) {
-    if (scope && machineId === scope.machineId) client.openView(scope.paneId, scope.subagentId);
+    if (scope && machineId === scope.machineId) client.openView(scope.paneId, scope.subagentId, true);
     else if (client.snapshot.view) client.closeView();
   }
 }

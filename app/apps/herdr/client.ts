@@ -264,10 +264,12 @@ export class HerdrMachineClient {
    * Subscribe to a pane (or one of its subagents). Replaces the previous view
    * subscription; retained while disconnected and reopened on reconnect.
    */
-  openView(paneId: string, subagent?: string): void {
+  openView(paneId: string, subagent?: string, force = false): void {
     const same = this.desiredView?.pane === paneId && this.desiredView?.subagent === subagent;
-    if (same && this.view) return;
-    if (this.desiredView && this.connected) void this.sendRequest(clientMessages.close(this.nextId()), { kind: "read", viewToken: this.viewToken });
+    if (same && this.view && !force) return;
+    // A forced open is a new terminal or agent session in the same pane slot: blank the local view rather than
+    // leaving the previous session's content on screen while the bridge sends the new snapshot.
+    if (this.desiredView && this.connected && !same) void this.sendRequest(clientMessages.close(this.nextId()), { kind: "read", viewToken: this.viewToken });
     this.desiredView = subagent ? { pane: paneId, subagent } : { pane: paneId };
     this.view = initialView(paneId, subagent);
     this.viewToken++;
