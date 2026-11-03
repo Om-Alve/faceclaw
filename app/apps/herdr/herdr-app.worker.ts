@@ -211,7 +211,8 @@ const lastPanes = new Map<string, readonly PaneSummary[]>();
 /** Machines whose next pane snapshot is a baseline, not a wake-worthy event. */
 const baselinePending = new Set<string>();
 const blockedIdentities = new Map<string, string>();
-let lastNotified: { key: string; identity: string } | null = null;
+/** Block events already woken for, so a second pane can still wake the glasses. */
+const notifiedIdentities = new Map<string, string>();
 let wakeTimer: ReturnType<typeof setTimeout> | null = null;
 
 let readMarkers: ReadMarkers = loadReadMarkers();
@@ -785,7 +786,10 @@ function recordBlockedIdentities(): void {
       continue;
     }
     seen.add(key);
-    blockedIdentities.set(key, blockedIdentity(ref));
+    const identity = blockedIdentity(ref);
+    blockedIdentities.set(key, identity);
+    // A fresh connection's existing blocks are the baseline, not new events.
+    notifiedIdentities.set(key, identity);
   }
   for (const key of Array.from(blockedIdentities.keys())) if (!seen.has(key)) blockedIdentities.delete(key);
 }
@@ -808,10 +812,19 @@ function noteBlockedEvents(): void {
     if (previous !== identity) event = true;
   }
   for (const key of Array.from(blockedIdentities.keys())) if (!seen.has(key)) blockedIdentities.delete(key);
+  // Forget wakes for panes that unblocked or moved to a new prompt; those are new events.
+  for (const [key, identity] of Array.from(notifiedIdentities)) {
+    if (blockedIdentities.get(key) !== identity) notifiedIdentities.delete(key);
+  }
   if (!event) return;
   const viewing = window?.foreground === true && screenOn;
   if (window && !viewing) post({ type: "set-attention", windowId: window.windowId, attention: true });
-  if (wakeOnBlockedEnabled() && asleepForWake()) scheduleWake();
+  if (!asleepForWake()) {
+    // The wearer is awake and the hub/attention marker shows it; do not wake later for this event.
+    for (const [key, identity] of blockedIdentities) notifiedIdentities.set(key, identity);
+    return;
+  }
+  if (wakeOnBlockedEnabled()) scheduleWake();
 }
 
 function asleepForWake(): boolean {
@@ -829,13 +842,13 @@ function scheduleWake(): void {
 /** One deterministic pane from simultaneous blocked events; no wake for one already notified. */
 function wakeNow(): void {
   if (!wakeOnBlockedEnabled() || !asleepForWake()) return;
-  const candidates = wakeCandidates(allRefs().filter((ref) => onlineFor(ref.machineId)));
+  const candidates = wakeCandidates(allRefs().filter((ref) => onlineFor(ref.machineId))).filter(
+    (ref) => notifiedIdentities.get(refKey(ref)) !== blockedIdentity(ref),
+  );
   const pick = candidates[0];
   if (!pick) return;
   const key = refKey(pick);
-  const identity = blockedIdentity(pick);
-  if (lastNotified && lastNotified.key === key && lastNotified.identity === identity) return;
-  lastNotified = { key, identity };
+  notifiedIdentities.set(key, blockedIdentity(pick));
   hubSelectionKey = `pane:${key}`;
   showScreen({ kind: "hub" });
   if (!window) {
