@@ -12,7 +12,7 @@ let stopWatchingSettings: (() => void) | null = null;
 const herdrApp: AppDefinition = {
   appId: "herdr",
   title: "Herdr",
-  icon: "activity",
+  icon: "herdr",
   launch: (ctx) =>
     launchWorkerAppWindow(ctx, {
       createWorker,
@@ -20,7 +20,7 @@ const herdrApp: AppDefinition = {
       windowId: "herdr:main",
       title: "Herdr",
       iconLetter: "H",
-      icon: "activity",
+      icon: "herdr",
       matchExistingBy: "windowId",
       // The watch's four directions are meaningful in the pane reader and Keys mode.
       acceptsDirectional: true,

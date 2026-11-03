@@ -857,7 +857,7 @@ function wakeNow(): void {
   window?.menu?.close();
   showScreen({ kind: "hub" });
   if (!window) {
-    post({ type: "open-window-request", windowId: MAIN_WINDOW_ID, title: APP_TITLE, iconLetter: "H", icon: "activity", focus: false });
+    post({ type: "open-window-request", windowId: MAIN_WINDOW_ID, title: APP_TITLE, iconLetter: "H", icon: "herdr", focus: false });
   }
   // The shell drops this unless the glasses are actually asleep.
   post({ type: "wake-window", windowId: MAIN_WINDOW_ID });

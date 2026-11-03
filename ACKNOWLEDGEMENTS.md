@@ -59,3 +59,9 @@ app/fonts/OFL-SpaceGrotesk.txt.
 The Phosphor icon set is by Phosphor Icons:
 https://github.com/phosphor-icons/core. It is distributed under the MIT
 License.
+
+The Herdr ram and terminal-prompt app icon is from the Herdr project:
+https://github.com/herdrdev/herdr-app (assets/icons/herdr-ui-icon-clean.svg).
+It is distributed under the Apache License, Version 2.0. The ram path in
+app/graphics/icons.ts is a transformed copy of that vector, kept as one filled
+path for Faceclaw's monochrome icon renderer.
