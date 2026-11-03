@@ -83,6 +83,8 @@
     "../app/apps/herdr/model.ts",
     "../app/apps/herdr/client.ts",
     "../app/apps/herdr/reader.ts",
+    "../app/apps/herdr/render.ts",
+    "../app/apps/herdr/prompt.ts",
     "../app/apps/herdr/glance.ts",
     "../app/apps/herdr/keys.ts"
   ]

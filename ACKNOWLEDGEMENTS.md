@@ -65,3 +65,8 @@ https://github.com/herdrdev/herdr-app (assets/icons/herdr-ui-icon-clean.svg).
 It is distributed under the Apache License, Version 2.0. The ram path in
 app/graphics/icons.ts is a transformed copy of that vector, kept as one filled
 path for Faceclaw's monochrome icon renderer.
+
+Herdr's permission/question menu grammar (app/apps/herdr/prompt.ts) and the
+table and tool-box render transforms (app/apps/herdr/render.ts) are adapted from
+pawaca/even-better: https://github.com/pawaca/even-better. It is distributed
+under the MIT License.

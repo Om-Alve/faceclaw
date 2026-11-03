@@ -9,6 +9,7 @@
  * is reading. A null anchor means "follow the live tail".
  */
 import type { ChatEntry, QueuedItem, QueueOutcomeEntry } from "./protocol";
+import { renderForGlasses } from "./render";
 
 export type ReaderLineKind = "entry" | "prompt" | "queue" | "outcome" | "marker" | "spacer";
 
@@ -95,9 +96,12 @@ function entryText(entry: ChatEntry): string {
   if (entry.kind === "tool") return text.split("\n")[0] ?? "";
   if (entry.kind === "question") {
     const questions = entry.questions.map((question) => question.prompt).join(" / ");
-    return questions || text;
+    return renderForGlasses(questions || text);
   }
-  return text;
+  // Markdown tables and box-drawn output only read on the panel once they are
+  // turned into lines. Tool and subagent entries are one-liners already.
+  if (entry.kind === "subagent") return text;
+  return renderForGlasses(text);
 }
 
 export function layoutReader(input: ReaderInput): ReaderLine[] {
