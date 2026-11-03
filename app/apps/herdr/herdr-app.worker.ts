@@ -836,7 +836,7 @@ function wakeNow(): void {
   const identity = blockedIdentity(pick);
   if (lastNotified && lastNotified.key === key && lastNotified.identity === identity) return;
   lastNotified = { key, identity };
-  hubSelectionKey = `needs:${key}`;
+  hubSelectionKey = `pane:${key}`;
   showScreen({ kind: "hub" });
   if (!window) {
     post({ type: "open-window-request", windowId: MAIN_WINDOW_ID, title: APP_TITLE, iconLetter: "H", icon: "activity", focus: false });
@@ -1512,6 +1512,7 @@ function handleTextInput(raw: string, submit: boolean): void {
     if (!compose) return;
     compose.draft = { ...compose.draft, text };
     drafts.set(compose.key, compose.draft);
+    if (textEditOwner === "draft") setStringSetting(HERDR_COMPOSE_DRAFT_KEY, text);
     if (submit) openReview(true);
     else render();
     return;
@@ -1537,6 +1538,7 @@ function handleTextInput(raw: string, submit: boolean): void {
     if (!compose) return;
     compose.draft = { ...compose.draft, text };
     drafts.set(compose.key, compose.draft);
+    if (textEditOwner === "draft") setStringSetting(HERDR_COMPOSE_DRAFT_KEY, text);
     if (submit) openReview(true);
     else render();
     return;
@@ -2218,7 +2220,7 @@ function hubItems(): ListItem[] {
       const ref = row.ref;
       const summary = clients.get(ref.machineId)?.snapshot.queueSummaries.get(ref.pane.id);
       items.push({
-        key: row.key,
+        key: `pane:${refKey(ref)}`,
         kind: "pane",
         label: rowLabel(ref, multi),
         right: queueSummaryText(summary) || undefined,
