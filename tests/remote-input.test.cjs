@@ -11,8 +11,8 @@ function fixture(permissions = ['input', 'text', 'assistant']) {
     () => crypto.randomBytes(32).toString('hex'), value => crypto.createHash('sha256').update(value).digest('hex'));
   const { token, record } = tokens.create('Test app', permissions);
   const host = { ready: () => true, locked: () => false, input: async (...args) => calls.push(args),
-    acceptsText: () => true, text: text => calls.push(['text', text]), assistantAvailable: () => true,
-    assistant: text => calls.push(['assistant', text]) };
+    acceptsText: () => true, text: text => calls.push(['text', text]), type: keys => { calls.push(['type', keys]); return true; },
+    assistantAvailable: () => true, assistant: text => calls.push(['assistant', text]) };
   const request = payload => handleRequest(JSON.stringify({ version: 1, token, ...payload }), tokens, host);
   return { tokens, token, record, host, calls, request, stored: () => stored };
 }
@@ -55,7 +55,7 @@ test('malformed and unauthorized requests have no side effects', async () => {
   for (const body of ['null', '[]', '{', 'true']) assert.equal((await handleRequest(body, f.tokens, f.host)).ok, false);
   for (const payload of [ { token: 'bad' }, { version: 2 }, { action: 'unlock' },
     { action: 'input', gesture: 'wakeword' }, { action: 'input', gesture: 'click', source: 'phone' },
-    { action: 'text', text: '' }, { action: 'text', text: 123 }, { action: 'text', text: 'x'.repeat(8001) },
+    { action: 'text', text: '' }, { action: 'text', text: ' ' }, { action: 'text', text: 123 }, { action: 'text', text: 'x'.repeat(8001) },
     { action: 'assistant', text: '\0' } ]) assert.equal((await f.request(payload)).ok, false);
   assert.deepEqual(f.calls, []);
 });
@@ -80,13 +80,47 @@ test('readiness and unavailable destinations fail; text whitespace is preserved'
   f.host.input = async () => { throw new Error('private detail'); };
   assert.equal((await f.request({ action: 'input', gesture: 'click' })).error, 'failed');
 });
+test('watch typing appends to the keyboard draft, including spaces and backspace', async () => {
+  const f = fixture();
+  for (const text of ['abc', ' ', 'ab\bc']) assert.equal((await f.request({ action: 'type', text })).ok, true);
+  assert.deepEqual(f.calls, [['type', 'abc'], ['type', ' '], ['type', 'ab\bc']]);
+});
+test('watch typing needs the text permission', async () => {
+  const f = fixture(['input']);
+  assert.equal((await f.request({ action: 'type', text: 'a' })).error, 'forbidden');
+  assert.deepEqual(f.calls, []);
+  const g = fixture(['text']);
+  assert.equal((await g.request({ action: 'type', text: 'a' })).ok, true);
+  assert.deepEqual(g.calls, [['type', 'a']]);
+});
+test('locks block watch typing', async () => {
+  const f = fixture(); f.host.locked = () => true;
+  assert.equal((await f.request({ action: 'type', text: 'a' })).error, 'locked');
+  assert.deepEqual(f.calls, []);
+});
+test('watch typing reports unavailable when the keyboard dialog cannot open', async () => {
+  const f = fixture(); f.host.type = () => false;
+  assert.equal((await f.request({ action: 'type', text: 'a' })).error, 'unavailable');
+  assert.deepEqual(f.calls, []);
+});
+test('watch typing rejects empty, NUL, oversized and non-string keys', async () => {
+  const f = fixture();
+  for (const text of ['', 'a\0b', 'x'.repeat(65), 123, null, undefined]) {
+    assert.equal((await f.request({ action: 'type', text })).error, 'bad_request');
+  }
+  assert.equal((await f.request({ action: 'type', text: 'x'.repeat(64) })).ok, true);
+  assert.deepEqual(f.calls, [['type', 'x'.repeat(64)]]);
+});
 test('CLI parses one-off commands and maps keyboard input', () => {
   const env = { FACECLAW_TOKEN: fixture().token };
   assert.deepEqual(cli.parseArgs(['input', 'up'], env).payload, { action: 'input', gesture: 'swipe-up', source: 'watch' });
   assert.equal(cli.parseArgs(['assistant', 'a message'], env).payload.text, 'a message');
+  assert.deepEqual(cli.parseArgs(['type', 'ab\bc'], env).payload, { action: 'type', text: 'ab\bc' });
+  assert.deepEqual(cli.parseArgs(['type', 'ab\\bc'], env).payload, { action: 'type', text: 'ab\bc' });
   assert.equal(cli.parseArgs(['interactive'], env).interactive, true);
   assert.throws(() => cli.parseArgs(['input', 'up', '--source', 'ring'], env));
   assert.throws(() => cli.parseArgs(['text', ''], env));
+  assert.throws(() => cli.parseArgs(['type', ''], env));
   assert.throws(() => cli.parseArgs(['input', 'tap', '--port', '0'], env));
   assert.equal(cli.parseArgs(['--help'], {}).help, true);
   assert.deepEqual(['up','down','left','right','return','escape','tab'].map(name => cli.keyGesture({name})),

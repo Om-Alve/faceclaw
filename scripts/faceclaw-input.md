@@ -10,10 +10,11 @@ Permissions are independent:
 
 - **Provide input** simulates watch or ring gestures, including navigation,
   taps and the system menu. It has the same reach as those input devices.
-- **Text to foreground window** delivers text to the selected app's text input.
+- **Text to foreground window** delivers text to the selected app's text input,
+  and lets a watch type into the keyboard draft.
 - **Text to voice assistant** submits a query to the configured assistant.
 
-Text delivery is rejected while the glasses are locked. Gestures pass through
+Text delivery and watch typing are rejected while the glasses are locked. Gestures pass through
 the existing lock-screen and sleep behavior. The assistant must be configured;
 the selected window must accept text. Android requires connected glasses; iOS
 also allows the active phone preview. An assistant acknowledgment means the
@@ -76,6 +77,7 @@ node scripts/faceclaw-input.cjs input up
 node scripts/faceclaw-input.cjs input scroll-down --source ring
 node scripts/faceclaw-input.cjs text 'Text for the foreground app'
 node scripts/faceclaw-input.cjs text -n 'Type without pressing Enter'
+node scripts/faceclaw-input.cjs type 'hello'
 node scripts/faceclaw-input.cjs assistant 'What is on my calendar?'
 node scripts/faceclaw-input.cjs interactive
 ```
@@ -138,6 +140,7 @@ Authentication and current permissions are checked for every request.
 ```json
 {"version":1,"token":"fc1_…","action":"input","gesture":"click","source":"watch"}
 {"version":1,"token":"fc1_…","action":"text","text":"hello","submit":false}
+{"version":1,"token":"fc1_…","action":"type","text":"hi\b"}
 {"version":1,"token":"fc1_…","action":"ping","permission":"input"}
 {"version":1,"token":"fc1_…","action":"assistant","text":"Hello"}
 ```
@@ -151,6 +154,13 @@ The CLI also accepts `tap`, `double-tap`, `up`, `down`, `left`, `right` aliases.
 suppresses the terminal app's appended Enter. `ping` validates the token and,
 if supplied, the requested `permission`, without dispatching any input or
 requiring connected glasses.
+
+`type` edits the keyboard draft on the glasses, and opens the dialog if it is
+not up. It needs the **Text to foreground window** permission. Each character
+appends to the draft; `\b` (U+0008) deletes the last character. A single space
+is valid, and the value holds 1 to 64 characters without NUL. It fails with
+`unavailable` when the dialog cannot open, such as while a voice dialog is up.
+The draft is not sent until someone chooses a destination in the dialog.
 
 Successful reply: `{"ok":true}`. Rejections contain `ok:false`, `error`, and
 `message`. Error codes: `bad_request`, `unauthorized`, `forbidden`, `locked`,

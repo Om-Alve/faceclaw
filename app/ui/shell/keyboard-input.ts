@@ -19,6 +19,25 @@ export type KeyboardInputVisibility = "both" | "phone" | "glasses";
 const MAX_HISTORY = 20;
 
 /**
+ * Apply a batch of watch keystrokes to a draft: printable characters append,
+ * "\b" (U+0008) deletes the last code point, and backspace on an empty draft
+ * does nothing.
+ */
+function applyKeyboardKeys(text: string, keys: string): string {
+  let draft = text;
+  for (const key of keys) {
+    if (key !== "\b") {
+      draft += key;
+      continue;
+    }
+    const characters = Array.from(draft);
+    characters.pop();
+    draft = characters.join("");
+  }
+  return draft;
+}
+
+/**
  * The phone side's handle on an open keyboard-input dialog: the phone types
  * into it and picks where the text goes. The layer itself implements this;
  * the controller hands it to the phone UI while the dialog is up.
@@ -26,6 +45,12 @@ const MAX_HISTORY = 20;
 export type KeyboardInputSession = {
   /** The send destinations, in the glasses menu's row order. */
   readonly targets: ReadonlyArray<{ id: string; label: string }>;
+  /** The draft as it stands, including keys typed on the watch. */
+  readonly text: string;
+  /** Calls back whenever the draft changes from either end. Returns an unsubscribe. */
+  onTextChanged(listener: (text: string) => void): () => void;
+  /** Apply watch keystrokes to the draft (see applyKeyboardKeys). */
+  type(keys: string): void;
   /** Replace the message with what the phone's text field now holds. */
   setText(text: string): void;
   /**
@@ -73,7 +98,8 @@ export type KeyboardInputLayerOptions = {
  * simply edit the text.
  */
 export class KeyboardInputLayer implements Layer, KeyboardInputSession {
-  private text = "";
+  private draft = "";
+  private readonly textListeners = new Set<(text: string) => void>();
   private readonly menu: Menu<KeyboardMenuRow>;
   private closed = false;
   private currentVisibility: KeyboardInputVisibility;
@@ -107,6 +133,19 @@ export class KeyboardInputLayer implements Layer, KeyboardInputSession {
     return this.sendTargets.map((target) => ({ id: target.id, label: target.label }));
   }
 
+  get text(): string {
+    return this.draft;
+  }
+
+  onTextChanged(listener: (text: string) => void): () => void {
+    this.textListeners.add(listener);
+    return () => { this.textListeners.delete(listener); };
+  }
+
+  type(keys: string): void {
+    this.setText(applyKeyboardKeys(this.draft, keys));
+  }
+
   get visibility(): KeyboardInputVisibility {
     return this.currentVisibility;
   }
@@ -135,8 +174,9 @@ export class KeyboardInputLayer implements Layer, KeyboardInputSession {
   }
 
   setText(text: string): void {
-    if (this.closed || this.text === text) return;
-    this.text = text;
+    if (this.closed || this.draft === text) return;
+    this.draft = text;
+    for (const listener of this.textListeners) listener(text);
     this.actions.requestRender();
   }
 
@@ -200,7 +240,7 @@ export class KeyboardInputLayer implements Layer, KeyboardInputSession {
     this.menu.setItems(this.menuRows());
     paintInputDialog(image, {
       title: "Keyboard",
-      status: "Type on the phone",
+      status: "Type on the phone or watch",
       text: this.text || "(nothing typed yet)",
       menu: this.menu,
     });

@@ -517,6 +517,15 @@ class DashboardController {
       },
       acceptsText: () => !!shell.foregroundWindow()?.receiveTextInput,
       text: (text, submit) => { if (!shell.isScreenOn()) shell.wake("window"); shell.sendTextToForegroundWindow(text, { submit }); this.requestShellRender(); },
+      type: (keys) => {
+        if (!shell.isScreenOn()) shell.wake("window");
+        const session = shell.startKeyboardInput();
+        if (!session) return false;
+        if (session.visibility === "phone") session.setVisibility("both");
+        session.type(keys);
+        this.requestShellRender();
+        return true;
+      },
       assistantAvailable: () => shell.isAssistantAvailable(),
       assistant: text => shell.sendToAssistant(text),
     });

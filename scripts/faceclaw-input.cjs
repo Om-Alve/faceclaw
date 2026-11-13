@@ -11,6 +11,7 @@ const HELP = `Usage: faceclaw-input [--host HOST] [--port PORT] [--token-file FI
 
   input GESTURE [--source watch|ring]   Send one gesture (default source: watch)
   text [-n] MESSAGE                   Type into the foreground window (-n: no Enter)
+  type KEYS                           Type keys into the keyboard draft (\\b: backspace)
   assistant MESSAGE                   Send a message to the voice assistant
   interactive                         Use this terminal as a watch input device
 
@@ -60,7 +61,11 @@ function parseArgs(args, env = process.env) {
     const text = values.join(' ');
     if (!text.trim() || text.length > 8000 || text.includes('\0')) throw new Error('Message must contain 1–8000 characters without NUL.');
     payload = { action: command, text, ...(noSubmit ? { submit: false } : {}) };
-  } else throw new Error('Expected input, text, assistant or interactive. See --help.');
+  } else if (command === 'type') {
+    const text = values.join(' ').replace(/\\b/g, '\b');
+    if (!text.length || text.length > 64 || text.includes('\0')) throw new Error('Keys must contain 1–64 characters without NUL.');
+    payload = { action: 'type', text };
+  } else throw new Error('Expected input, text, type, assistant or interactive. See --help.');
   return { options, payload };
 }
 function send(options, payload, signal) {

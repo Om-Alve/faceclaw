@@ -199,6 +199,9 @@ export class IosPreviewController {
       voiceInputEnabled: true,
       onKeyboardInputChanged: session => this.onKeyboardInputChanged(session ? {
         targets: session.targets,
+        get text() { return session.text },
+        onTextChanged: listener => session.onTextChanged(listener),
+        type: keys => { if (this.active && !this.glassesLocked) session.type(keys) },
         setText: text => { if (this.active && !this.glassesLocked) session.setText(text) },
         send: () => { if (this.active && !this.glassesLocked) session.send() },
         sendTo: id => { if (this.active && !this.glassesLocked) session.sendTo(id) },
@@ -262,6 +265,15 @@ export class IosPreviewController {
       },
       acceptsText: () => !!shell.foregroundWindow()?.receiveTextInput,
       text: (text, submit) => { if (!shell.isScreenOn()) shell.wake('window'); shell.sendTextToForegroundWindow(text, { submit }); this.requestShellRender() },
+      type: keys => {
+        if (!shell.isScreenOn()) shell.wake('window')
+        const session = shell.startKeyboardInput()
+        if (!session) return false
+        if (session.visibility === 'phone') session.setVisibility('both')
+        session.type(keys)
+        this.requestShellRender()
+        return true
+      },
       assistantAvailable: () => shell.isAssistantAvailable(),
       assistant: text => shell.sendToAssistant(text),
     })

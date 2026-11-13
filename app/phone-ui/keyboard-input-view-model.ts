@@ -30,15 +30,24 @@ function historyLabel(text: string): string {
 export class KeyboardInputViewModel extends Observable {
   private session: KeyboardInputSession | null = null
   private text = ''
+  private unsubscribeText: (() => void) | null = null
 
   setSession(session: KeyboardInputSession | null): void {
     if (session === this.session) return
+    this.unsubscribeText?.()
+    this.unsubscribeText = null
     this.session = session
-    this.text = ''
+    this.text = session?.text ?? ''
+    if (session) this.unsubscribeText = session.onTextChanged(text => this.applySessionText(text))
     this.notifyPanel(['keyboardInputText', 'keyboardInputVisibility', 'keyboardInputPrimaryTargetLabel',
       'keyboardInputPrimaryTargetVisibility', 'keyboardInputSecondaryTargetLabel', 'keyboardInputSecondaryTargetVisibility',
       'keyboardInputHistoryOpacity'])
     this.notifyVisibilityMode()
+  }
+  private applySessionText(text: string): void {
+    if (text === this.text) return
+    this.text = text
+    this.notifyPanel(['keyboardInputText'])
   }
   private notifyPanel(properties: string[]): void {
     for (const property of properties) this.notifyPropertyChange(property, this.get(property))

@@ -13,6 +13,7 @@ export type RemoteHost = {
   input(gesture: RemoteGesture, source: 'watch' | 'ring'): Promise<void>;
   acceptsText(): boolean;
   text(text: string, submit: boolean): void;
+  type(keys: string): boolean;
   assistantAvailable(): boolean;
   assistant(text: string): void;
 };
@@ -67,18 +68,24 @@ export async function handleRequest(body: string, tokens: TokenStore, host: Remo
   if (!request || typeof request !== 'object' || Array.isArray(request)) return error('bad_request', 'Expected a JSON object.');
   const token = tokens.authenticate(request.token);
   if (!token) return error('unauthorized', 'Invalid or revoked token.');
-  if (request.version !== 1 || (request.action !== 'ping' && !PERMISSIONS.includes(request.action))) return error('bad_request', 'Expected version 1 and action ping, input, text or assistant.');
+  // The watch keyboard's type action edits the draft and needs text permission.
+  const permission = request.action === 'type' ? 'text' : request.action;
+  if (request.version !== 1 || (request.action !== 'ping' && !PERMISSIONS.includes(permission))) return error('bad_request', 'Expected version 1 and action ping, input, text, type or assistant.');
   if (request.action === 'ping') {
     if (request.permission !== undefined && !PERMISSIONS.includes(request.permission)) return error('bad_request', 'Invalid permission.');
     if (request.permission && !token.permissions.includes(request.permission)) return error('forbidden', `Token lacks ${request.permission} permission.`);
     return { ok: true };
   }
   if (request.action === 'text' && request.submit !== undefined && typeof request.submit !== 'boolean') return error('bad_request', 'submit must be a boolean.');
-  if (!token.permissions.includes(request.action)) return error('forbidden', `Token lacks ${request.action} permission.`);
+  if (!token.permissions.includes(permission)) return error('forbidden', `Token lacks ${permission} permission.`);
   if (request.action === 'input') {
     if (!GESTURES.includes(request.gesture) || !['watch', 'ring'].includes(request.source ?? 'watch') ||
       (request.source === 'ring' && request.gesture.startsWith('swipe-'))) {
       return error('bad_request', 'Invalid gesture or source; directions require watch input.');
+    }
+  } else if (request.action === 'type') {
+    if (typeof request.text !== 'string' || !request.text.length || request.text.length > 64 || request.text.includes('\0')) {
+      return error('bad_request', 'Keys must be 1–64 characters without NUL.');
     }
   } else if (typeof request.text !== 'string' || !request.text.trim() || request.text.length > 8000 || request.text.includes('\0')) {
     return error('bad_request', 'Text must contain 1–8000 characters without NUL.');
@@ -91,7 +98,9 @@ export async function handleRequest(body: string, tokens: TokenStore, host: Remo
   if (request.action !== 'input' && host.locked()) return error('locked', 'The glasses are locked.');
   try {
     if (request.action === 'input') await host.input(request.gesture, request.source ?? 'watch');
-    else if (request.action === 'text') {
+    else if (request.action === 'type') {
+      if (!host.type(request.text)) return error('unavailable', 'The keyboard dialog cannot open now.');
+    } else if (request.action === 'text') {
       if (!host.acceptsText()) return error('unavailable', 'The foreground window does not accept text.');
       host.text(request.text, request.submit !== false);
     } else {

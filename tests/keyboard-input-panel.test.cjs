@@ -7,15 +7,17 @@ function fixture({ choose } = {}) {
   const Dialogs = { action: async options => { dialogs.push(options); return choose ? choose(options.actions) : options.cancelButtonText; } };
   const { KeyboardInputViewModel } = loader({ setTimeout: callback => callback() },
     { '@nativescript/core': { Observable, Dialogs } })('app/phone-ui/keyboard-input-view-model.ts');
-  const model = new KeyboardInputViewModel(), sent = [], text = [], visibilities = [];
+  const model = new KeyboardInputViewModel(), sent = [], text = [], visibilities = [], listeners = new Set();
   const session = { targets: [{ id: 'assistant', label: 'Send to Assistant' }, { id: 'app', label: 'Type Into App' }],
+    text: '', onTextChanged(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     setText: value => text.push(value), sendTo: id => sent.push(id), discard: () => model.setSession(null),
     visibility: 'both', setVisibility(value) { visibilities.push(value); this.visibility = value; },
     history: [] };
+  const emitText = value => { session.text = value; for (const listener of listeners) listener(value); };
   model.setSession(session);
   const field = { text: '', focused: 0, selection: null, focus() { this.focused++; }, setSelection(start) { this.selection = start; } };
   const button = { page: { getViewById: id => id === 'keyboardInputField' ? field : undefined } };
-  return { model, session, sent, text, visibilities, dialogs, field, button };
+  return { model, session, sent, text, visibilities, dialogs, field, button, emitText };
 }
 test('multiline keyboard editor routes Assistant and App buttons to distinct shell destinations', () => {
   const h = fixture();
@@ -67,6 +69,21 @@ test('history button lists recent inputs on one line each and puts the pick in t
   assert.equal(h.text.at(-1), long);
   assert.equal(h.field.text, long);
   assert.equal(h.field.selection, 100);
+});
+
+test('watch typing updates the phone field, and the next phone keystroke keeps it', () => {
+  const h = fixture();
+  h.emitText('from watch');
+  assert.equal(h.model.keyboardInputText, 'from watch');
+  h.model.onKeyboardInputTextChange({ object: { text: 'from watch!' } });
+  assert.equal(h.text.at(-1), 'from watch!');
+});
+test('opening the phone panel shows a draft the watch already typed', () => {
+  const h = fixture();
+  h.session.text = 'watch draft';
+  h.model.setSession(null);
+  h.model.setSession(h.session);
+  assert.equal(h.model.keyboardInputText, 'watch draft');
 });
 
 function layerFixture(visibility = 'both', history = []) {
@@ -125,4 +142,17 @@ test('sent messages go into the shared history newest first, without duplicates 
   }
   assert.equal(history.length, 20);
   assert.equal(history[0], 'message 24');
+});
+test('watch keystrokes append to the draft and backspace by code point', () => {
+  const f = layerFixture();
+  f.layer.type('ab\bc');
+  assert.equal(f.layer.text, 'ac');
+  f.layer.type('😀\b');
+  assert.equal(f.layer.text, 'ac');
+  f.layer.type('\b\b\b');
+  assert.equal(f.layer.text, '');
+  f.layer.type(' ');
+  assert.equal(f.layer.text, ' ');
+  f.layer.type('x'); f.layer.sendTo('app');
+  assert.deepEqual(f.events, ['closed', 'sent:x']);
 });
