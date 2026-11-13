@@ -60,7 +60,6 @@ function settingsEnv(initialUrl = '', initialModel = 'openai-compatible') {
       deleteAsrModel() {}, startAsrModelDownload() {}, onAsrModelStateChanged: () => () => {},
     },
     '../../apps/files/text-viewer': { TextViewerLayer: class {} },
-    '../../analytics/privacy-disclosure': { IOS_PRIVACY_NOTICE: '' },
     '../menu': {
       drawRightValueMenuItem() {}, openModalMenu() {},
       submenuItem: label => ({ label, onSelect() {} }),
@@ -73,6 +72,7 @@ function settingsEnv(initialUrl = '', initialModel = 'openai-compatible') {
       openSettingsSubMenu() {},
     },
     '../font-picker': { uiFontPickerMenuItem: () => ({ label: 'Font' }) },
+    '../notification-filter': { NotificationFilterLayer: class {} },
     '../openai-compatible-model-picker': {
       compatibleModelDiscoveryMenuItem: () => ({ label: 'Discover models' }),
     },

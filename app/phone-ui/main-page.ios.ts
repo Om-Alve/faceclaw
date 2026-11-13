@@ -20,37 +20,26 @@ export function createMainPage(): Page {
   root.rows = 'auto,*'
   page.content = root
   const header = new GridLayout()
-  header.columns = '*,auto,auto,auto,auto'; header.className = 'main-header'
+  header.columns = '*,auto,auto,auto'; header.className = 'main-header'
   const title = new Label()
   title.text = 'Faceclaw'; title.className = 'action-bar-title'
   header.addChild(title)
-  // The foreground EvenHub app's icon, which opens its phone UI. UIImageView
-  // ignores padding, so a wrapper supplies Android's wider tap target.
-  const appIconButton = new GridLayout()
-  appIconButton.className = 'action-bar-app-icon'; appIconButton.verticalAlignment = 'middle'
-  appIconButton.visibility = 'collapse'; appIconButton.accessible = true
-  const appIcon = new Image()
-  appIcon.width = 21; appIcon.height = 21
-  appIconButton.addChild(appIcon)
-  let phoneUiWindowId: string | null = null
-  appIconButton.on('tap', () => { if (phoneUiWindowId) controller.showEvenHubPhoneUi(phoneUiWindowId) })
-  GridLayout.setColumn(appIconButton, 1); header.addChild(appIconButton)
   const state = new Label()
   state.text = 'Preview'; state.className = 'action-bar-status'
   state.verticalAlignment = 'middle'
   state.on('tap', () => { void openDevices() })
-  GridLayout.setColumn(state, 2); header.addChild(state)
+  GridLayout.setColumn(state, 1); header.addChild(state)
   // Android's warning triangle: shown while the glasses report firmware Faceclaw can't run.
   const warning = new Label()
   warning.text = '\u26A0\uFE0F'; warning.className = 'action-bar-warning'
   warning.accessibilityLabel = 'Attention needed'; warning.verticalAlignment = 'middle'
   warning.visibility = 'collapse'
   warning.on('tap', () => { void showFirmwareWarning() })
-  GridLayout.setColumn(warning, 3); header.addChild(warning)
+  GridLayout.setColumn(warning, 2); header.addChild(warning)
   const overflow = new Button()
   overflow.text = '⋮'; overflow.accessibilityLabel = 'More options'; overflow.className = 'overflow-button'
   overflow.on('tap', () => openMenu())
-  GridLayout.setColumn(overflow, 4); header.addChild(overflow); root.addChild(header)
+  GridLayout.setColumn(overflow, 3); header.addChild(overflow); root.addChild(header)
   const body = new GridLayout()
   GridLayout.setRow(body, 1); root.addChild(body)
   const mirror = new Image()
@@ -88,11 +77,10 @@ export function createMainPage(): Page {
       focusTimer = setTimeout(() => { focusTimer = null; keyboardField()?.focus() }, 0)
     } else keyboardField()?.dismissSoftInput()
   }, button => {
-    phoneUiWindowId = button?.icon ? button.windowId : null
-    appIcon.imageSource = button?.icon ?? null
-    appIconButton.visibility = phoneUiWindowId ? 'visible' : 'collapse'
-    appIconButton.accessibilityLabel = button ? `Open ${button.title} on phone` : ''
+    // The foreground EvenHub app's button in the bar under the mirror.
+    model.evenHubPhoneUi = button
   })
+  model.showEvenHubPhoneUi = windowId => controller.showEvenHubPhoneUi(windowId)
   async function navigateDevicePage(moduleName: string, context?: object): Promise<void> {
     suppressAutoReconnect()
     await controller.disconnect()
@@ -183,7 +171,8 @@ export function createMainPage(): Page {
   mirror.on('touch', touch(mirrorInput))
   const cancelGestures = () => { watchInput.cancel(); ringInput.cancel(); mirrorInput.cancel() }
   model.on('propertyChange', (args: PropertyChangeData) => {
-    if (args.propertyName === 'watchTabVisibility') cancelGestures()
+    // The other pad took this one's place (Settings > Phone input style).
+    if (args.propertyName === 'watchPadVisibility') cancelGestures()
   })
   let controlsLayoutTimer: ReturnType<typeof setTimeout> | null = null
   model.set('onControlsContentLayoutChanged', (args: { object: View }) => {
@@ -265,8 +254,8 @@ export function createMainPage(): Page {
         root.paddingBottom = Math.max(0, view.bounds.size.height - local.origin.y - view.safeAreaInsets.bottom)
       })
     Application.on(Application.suspendEvent, pause); Application.on(Application.resumeEvent, resume)
-    offSettings?.(); offSettings = onAnySettingChanged(() => { model.refreshDisplayControls(); syncBandwidth() })
-    model.refreshDisplayControls(); resume()
+    offSettings?.(); offSettings = onAnySettingChanged(() => { model.refreshInputStyle(); syncBandwidth() })
+    model.refreshInputStyle(); resume()
     if (!isPreviewOnlyMode() && !isAutoReconnectSuppressed() && !deviceAddressError(loadDeviceAddresses())) void controller.connect()
   })
   page.on('unloaded', () => {

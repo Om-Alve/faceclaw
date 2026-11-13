@@ -1,8 +1,10 @@
-import { G2_LENS_HEIGHT, G2_LENS_WIDTH, GrayImage } from "../graphics/image";
+import { GrayImage } from "../graphics/image";
+import { screenHeight, screenWidth } from "../graphics/screen-size";
 import { dimPlanes, type Plane } from "../graphics/plane";
 import { spanCurrent } from "../native/frame-timings";
 import { type ConfigSettingBoolean, type ConfigSettingString, type VoiceProvider } from "./dashboard-settings";
 import { directionalFallback, isDirectionalInput, type InputEvent } from "./gestures";
+import { toViewport, type Viewport, type ViewportSize } from "./viewport";
 
 export type TextSettingsEditToggle = {
   setting: ConfigSettingBoolean;
@@ -11,7 +13,7 @@ export type TextSettingsEditToggle = {
 
 /** A continuous-capture client's needs (see LayerActions.startContinuousVoiceCapture). */
 export type ContinuousCaptureOptions = {
-  /** Names a WAV of the captured audio in Downloads (iOS, when Save Transcribe audio is on). */
+  /** Names a WAV of the captured audio in Downloads, written while Save Recording is on. */
   recordAs?: string;
   /**
    * Transcribe with this provider, expecting this spoken language (ISO 639-1,
@@ -153,15 +155,20 @@ export class LayerStack {
   }
   private readonly shellKeys = new WeakMap<Layer, number>();
   private readonly ctx: LayerContext;
-  private baseWidth: number;
-  private baseHeight: number;
+  /**
+   * The base viewport, or null to follow the paired glasses' screen as it
+   * is now: the shell's own stack lives for the whole process, and
+   * re-pairing with the other glasses type changes the screen under it.
+   */
+  private baseSize: Viewport | null;
   private readonly focusedFn: () => boolean;
   private lastBaseDim: number | false = 1;
 
   constructor(
     baseLayer: Layer,
     actions: LayerActions,
-    baseSize?: { width: number; height: number },
+    // A bare size is a viewport nothing borders (see toViewport).
+    baseSize?: ViewportSize | Viewport,
     // Whether this stack is the current input target; drives the strength of
     // selection highlights (a visible-but-unfocused window dims its selection).
     // Defaults to always-focused for shell overlays and standalone stacks.
@@ -172,8 +179,7 @@ export class LayerStack {
       stack: this,
       actions,
     };
-    this.baseWidth = baseSize?.width ?? G2_LENS_WIDTH;
-    this.baseHeight = baseSize?.height ?? G2_LENS_HEIGHT;
+    this.baseSize = baseSize ? toViewport(baseSize) : null;
     this.focusedFn = isFocused;
   }
 
@@ -243,14 +249,22 @@ export class LayerStack {
     return this.layers.length === 1;
   }
 
-  getBaseSize(): { width: number; height: number } {
-    return { width: this.baseWidth, height: this.baseHeight };
+  /**
+   * The viewport layers lay out in: its size, what each of its edges
+   * touches, and the padding suggested for them (see viewport.ts). A host
+   * that gave only a size, and the shell's own screen-sized stack, have
+   * edges nothing borders and no padding.
+   */
+  getBaseSize(): Viewport {
+    return toViewport(this.baseSize ?? { width: screenWidth(), height: screenHeight() });
   }
 
-  /** Resize the base viewport (e.g. an EvenHub window switching to the tall canvas). */
-  setBaseSize(size: { width: number; height: number }): void {
-    this.baseWidth = size.width;
-    this.baseHeight = size.height;
+  /**
+   * Resize the base viewport (e.g. an EvenHub window switching to the tall
+   * canvas), or change what its edges touch.
+   */
+  setBaseSize(size: ViewportSize | Viewport): void {
+    this.baseSize = toViewport(size);
   }
 
   setActions(actions: Partial<LayerActions>): void {
@@ -321,7 +335,8 @@ export class LayerStack {
       layer.paint(this.ctx, () => {
         belowRequested = true;
         if (!canvas) {
-          canvas = new GrayImage(this.baseWidth, this.baseHeight, 0);
+          const { width, height } = this.getBaseSize();
+          canvas = new GrayImage(width, height, 0);
         }
         return canvas;
       }),
