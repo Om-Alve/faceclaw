@@ -55,6 +55,19 @@ export type LayerActions = {
   stopContinuousVoiceCapture: (client: string) => Promise<void> | void;
   /** Play a CFW tone-sequencer payload (see sound-effects.ts). */
   playBuzzerSequence: (payload: Uint8Array) => Promise<void> | void;
+  /**
+   * Open the keyboard dialog to answer a notification through its reply action;
+   * false when no dialog can open now. Absent where no shell owns dialogs.
+   */
+  startNotificationReply?: (request: NotificationReplyRequest) => boolean;
+};
+
+/** A notification reply action to answer (see LayerActions.startNotificationReply). */
+export type NotificationReplyRequest = {
+  notificationKey: string;
+  actionIndex: number;
+  /** The dialog's send row, e.g. "Reply to Alice". */
+  label: string;
 };
 
 /** Do-nothing actions, for stacks whose layers never use them (or as a base to spread over). */

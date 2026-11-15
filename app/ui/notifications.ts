@@ -296,6 +296,19 @@ export class SingleNotificationLayer implements Layer {
     if (item.kind === "back") {
       this.close(ctx);
     } else if (item.kind === "action") {
+      // A reply action wants text: open the keyboard dialog (typed on the watch
+      // or phone) aimed at it, and get out of its way. Invoked bare, it would
+      // only open the app's reply box on the phone, if anything.
+      const startReply = ctx.actions.startNotificationReply;
+      if (item.action.reply && startReply) {
+        const opened = startReply({
+          notificationKey: this.notificationKey,
+          actionIndex: item.action.index,
+          label: `Reply to ${notificationTitle(notification)}`,
+        });
+        if (opened) this.close(ctx);
+        return;
+      }
       invokeNotificationAction(this.notificationKey, item.action.index);
       if (!readActiveNotifications(ALL_NOTIFICATIONS).some((active) => active.key === this.notificationKey)) {
         this.closeUnavailableNotification(ctx);

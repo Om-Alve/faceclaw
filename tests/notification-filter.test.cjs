@@ -47,9 +47,10 @@ test('invalid saved source data falls back to enabled', () => {
   }
 });
 
-function ui(fontSize = 12) {
+function ui(fontSize = 12, { actions = [], layerActions = {} } = {}) {
   const prefs = store();
-  let active = [{ ...mail, key: 'key', title: 'Message', text: 'Hello', bigText: '', lines: [], actions: [], postTime: 0 }];
+  let active = [{ ...mail, key: 'key', title: 'Message', text: 'Hello', bigText: '', lines: [], actions, postTime: 0 }];
+  const invoked = [];
   let dismissals = 0;
   let closes = 0;
   const textwrap = load('app/graphics/textwrap.ts');
@@ -71,6 +72,7 @@ function ui(fontSize = 12) {
     ALL_NOTIFICATIONS: 0x7fffffff,
     readActiveNotifications: () => { prefs.rememberNotificationSources(active); return active; },
     dismissNotification: () => { dismissals++; active = []; return true; },
+    invokeNotificationAction: (key, index) => { invoked.push([key, index]); return true; },
     readNotificationIconByKey: () => ({ icon: null, stale: false }),
   };
   const dependencies = {
@@ -98,7 +100,7 @@ function ui(fontSize = 12) {
   dependencies['./menu'] = load('app/ui/menu.ts', requireModule);
   const { SingleNotificationLayer } = load('app/ui/notifications.ts', requireModule);
   const { NotificationFilterLayer } = load('app/ui/notification-filter.ts', requireModule);
-  const ctx = { stack: { getBaseSize: () => ({ width: 540, height: 224 }), isFocused: () => true, pop: () => closes++ } };
+  const ctx = { stack: { getBaseSize: () => ({ width: 540, height: 224 }), isFocused: () => true, pop: () => closes++ }, actions: layerActions };
   const popup = new SingleNotificationLayer('key', { origin: 'new-notification-modal', onClose: () => closes++ });
   const trayCloses = [];
   const tray = new SingleNotificationLayer('key', { origin: 'notification-tray', onClose: (_ctx, gone) => trayCloses.push(gone) });
@@ -107,7 +109,7 @@ function ui(fontSize = 12) {
   const paint = (layer) => layer.paint(ctx, () => { paintedBelow++; return new RecordingImage(540, 224); });
   const input = (layer, type) => layer.handleInput({ type }, ctx);
   return { prefs, popup, tray, filter, paint, input, active: (value) => { active = value; },
-    dismissals: () => dismissals, closes: () => closes, trayCloses, paintedBelow: () => paintedBelow };
+    dismissals: () => dismissals, closes: () => closes, trayCloses, paintedBelow: () => paintedBelow, invoked };
 }
 
 test('a notification the switcher selected reports back and dismissal to it, and repeats its last frame once gone', async () => {
@@ -253,4 +255,43 @@ test('controller filters before waking or opening a popup, and still refreshes t
   prefs.setNotificationSourceEnabled(mail, false);
   elapse();
   assert.equal(popups, 1);
+});
+
+// WhatsApp-style buttons: Reply takes typed text, Mark as read does not.
+const replyActions = [
+  { index: 0, title: 'Reply', enabled: true, reply: true },
+  { index: 1, title: 'Mark as read', enabled: true, reply: false },
+];
+
+test('Reply opens the keyboard dialog aimed at the notification and closes the popup', async () => {
+  const requests = [];
+  const app = ui(12, { actions: replyActions, layerActions: { startNotificationReply: (request) => { requests.push({ ...request }); return true; } } });
+  app.paint(app.popup);
+  await app.input(app.popup, 'scroll-down');
+  await app.input(app.popup, 'click');
+  assert.deepEqual(requests, [{ notificationKey: 'key', actionIndex: 0, label: 'Reply to Message' }]);
+  assert.deepEqual(app.invoked, []);
+  assert.equal(app.closes(), 1);
+});
+
+test('Reply stays put when no dialog can open, and other buttons still fire directly', async () => {
+  const requests = [];
+  const app = ui(12, { actions: replyActions, layerActions: { startNotificationReply: (request) => { requests.push(request); return false; } } });
+  app.paint(app.popup);
+  await app.input(app.popup, 'scroll-down');
+  await app.input(app.popup, 'click');
+  assert.equal(requests.length, 1);
+  assert.deepEqual(app.invoked, []);
+  assert.equal(app.closes(), 0);
+  await app.input(app.popup, 'scroll-down');
+  await app.input(app.popup, 'click');
+  assert.deepEqual(app.invoked, [['key', 1]]);
+});
+
+test('without a host that opens dialogs, Reply falls back to firing the button', async () => {
+  const app = ui(12, { actions: replyActions });
+  app.paint(app.popup);
+  await app.input(app.popup, 'scroll-down');
+  await app.input(app.popup, 'click');
+  assert.deepEqual(app.invoked, [['key', 0]]);
 });

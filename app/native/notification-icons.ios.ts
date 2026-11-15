@@ -26,6 +26,8 @@ export function iosNotificationState(): AncsState { return active?.state ?? 'dis
 export function readActiveNotifications(maxNotifications = 50) { return active?.read(maxNotifications) ?? [] }
 export function invokeNotificationAction(key: string, index: number): boolean { return active?.action(key,index) ?? false }
 export function dismissNotification(key: string): boolean { return active?.dismiss(key) ?? false }
+// ANCS has no free-form reply, so iOS notifications never carry a reply action.
+export function replyToNotification(_key: string, _index: number, _text: string): boolean { return false }
 export function onAndroidNotificationPosted(listener: (key: string) => void): () => void {
   listeners.add(listener); return () => { listeners.delete(listener) }
 }
