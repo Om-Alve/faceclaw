@@ -329,6 +329,19 @@ export function invokeNotificationAction(notificationKey: string, actionIndex: n
   );
 }
 
+/** Send `text` through a reply action (see AndroidNotificationAction.reply); false if Android could not deliver it. */
+export function replyToNotification(notificationKey: string, actionIndex: number, text: string): boolean {
+  if (!global.isAndroid || !notificationKey || !text.trim()) return false;
+  invalidateIconCaches();
+  return Boolean(
+    com.faceclaw.app.FaceclawMediaNotificationListenerService.replyToNotification(
+      notificationKey,
+      Math.round(actionIndex),
+      text,
+    ),
+  );
+}
+
 export function dismissNotification(notificationKey: string): boolean {
   if (!global.isAndroid || !notificationKey) return false;
   invalidateIconCaches();
@@ -478,5 +491,6 @@ function normalizeAction(value: any): AndroidNotificationAction | null {
     index,
     title,
     enabled: Boolean(value.enabled),
+    reply: Boolean(value.reply),
   };
 }

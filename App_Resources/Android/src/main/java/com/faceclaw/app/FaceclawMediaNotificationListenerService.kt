@@ -3,8 +3,10 @@ package com.faceclaw.app
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.app.RemoteInput
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.database.ContentObserver
 import android.graphics.Bitmap
 import android.graphics.Canvas
@@ -486,6 +488,55 @@ class FaceclawMediaNotificationListenerService : NotificationListenerService() {
             }
         }
 
+        /**
+         * Answers a notification through one of its reply actions (WhatsApp's "Reply"): the
+         * text goes into the action's free-form RemoteInput fields, the way a smartwatch or
+         * Android Auto replies. False when the notification, the action or its free-form
+         * input is gone, or the app refused the intent.
+         */
+        @JvmStatic
+        fun replyToNotification(key: String?, actionIndex: Int, text: String?): Boolean {
+            val service = activeService ?: return false
+            if (text.isNullOrBlank()) {
+                return false
+            }
+            val statusBarNotification = findActiveNotificationByKey(service, key) ?: return false
+            val actions: Array<Notification.Action>? = statusBarNotification.notification?.actions
+            if (actions == null || actionIndex < 0 || actionIndex >= actions.size) {
+                return false
+            }
+            val action = actions[actionIndex]
+            val pendingIntent = action.actionIntent ?: return false
+            val inputs = freeFormRemoteInputs(action)
+            if (inputs.isEmpty()) {
+                return false
+            }
+            val results = Bundle()
+            for (input in inputs) {
+                results.putCharSequence(input.resultKey, text)
+            }
+            val fillIn = Intent()
+            RemoteInput.addResultsToIntent(inputs, fillIn, results)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                RemoteInput.setResultsSource(fillIn, RemoteInput.SOURCE_FREE_FORM_INPUT)
+            }
+            try {
+                pendingIntent.send(service, 0, fillIn)
+                return true
+            } catch (e: PendingIntent.CanceledException) {
+                Log.w(TAG, "notification reply pending intent was canceled", e)
+                return false
+            } catch (t: Throwable) {
+                Log.w(TAG, "failed to send notification reply", t)
+                return false
+            }
+        }
+
+        /** The action's RemoteInputs that take typed text (not just a fixed choice list). */
+        private fun freeFormRemoteInputs(action: Notification.Action): Array<RemoteInput> {
+            return action.remoteInputs?.filter { it.allowFreeFormInput }?.toTypedArray() ?: emptyArray()
+        }
+
         @JvmStatic
         fun dismissNotification(key: String?): Boolean {
             val service = activeService
@@ -859,6 +910,7 @@ class FaceclawMediaNotificationListenerService : NotificationListenerService() {
                     actionJson.put("index", index)
                     actionJson.put("title", title)
                     actionJson.put("enabled", action.actionIntent != null)
+                    actionJson.put("reply", action.actionIntent != null && freeFormRemoteInputs(action).isNotEmpty())
                     actionsJson.put(actionJson)
                 }
             }

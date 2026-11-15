@@ -17,7 +17,7 @@ import {
   isWatchInput,
   makeInputEvent,
 } from "../gestures";
-import { Layer, LayerActions, LayerContext, LayerStack, noopLayerActions } from "../layers";
+import { Layer, LayerActions, LayerContext, LayerStack, noopLayerActions, type NotificationReplyRequest } from "../layers";
 import { CONTEXT_MENU_DIM, MenuLayer, type MenuItem } from "../menu";
 import { VoiceInputLayer, type VoiceSendTarget } from "./voice-input";
 import { KeyboardInputLayer, type KeyboardInputSession, type KeyboardInputVisibility } from "./keyboard-input";
@@ -65,7 +65,7 @@ import {
 } from "./chrome-layer";
 import { ShellModalLayer } from "./modal-layer";
 import { NotificationModalQueue } from "./notification-modal-queue";
-import { ALL_NOTIFICATIONS, readActiveNotifications } from "../../native/notification-icons";
+import { ALL_NOTIFICATIONS, readActiveNotifications, replyToNotification } from "../../native/notification-icons";
 import { shouldShowNotificationOnGlasses } from "../../native/notification-sources";
 import { ToolDebugMenuLayer } from "./tool-debug-layer";
 import type { InProcessWindow } from "./in-process-window";
@@ -1642,10 +1642,6 @@ class Shell {
   startKeyboardInput(): KeyboardInputSession | null {
     if (this.activeKeyboardLayer) return this.activeKeyboardLayer;
     if (this.activeVoiceLayer || this.foregroundWindow()?.isVoiceCapturing?.()) return null;
-    const storedVisibility = getStringSetting(KEYBOARD_INPUT_VISIBILITY_KEY, "both");
-    const visibility: KeyboardInputVisibility =
-      storedVisibility === "phone" || storedVisibility === "glasses" ? storedVisibility : "both";
-    if (visibility !== "phone" && !this.screenOn) this.wake("sidebar");
     const assistantLayer = this.assistantLayer;
     const assistantSession = this.assistantSession;
     let targets: VoiceSendTarget[];
@@ -1670,6 +1666,33 @@ class Shell {
       targets = this.buildVoiceSendTargets();
       defaultIndex = Math.max(0, targets.findIndex((target) => target.id === "assistant"));
     }
+    return this.openKeyboardInput(targets, defaultIndex);
+  }
+
+  /**
+   * Open the keyboard dialog with one destination: the notification's reply
+   * action. The watch keyboard and the phone type into it as usual. False
+   * while another keyboard or voice dialog is up.
+   */
+  startNotificationReply(request: NotificationReplyRequest): boolean {
+    if (this.activeKeyboardLayer || this.activeVoiceLayer || this.foregroundWindow()?.isVoiceCapturing?.()) return false;
+    const target: VoiceSendTarget = {
+      id: "notification-reply",
+      label: request.label,
+      onSend: (text) => {
+        const sent = replyToNotification(request.notificationKey, request.actionIndex, text);
+        this.showAlert(sent ? "Reply sent" : "Reply failed: the notification is gone or its app refused it");
+      },
+    };
+    this.openKeyboardInput([target], 0);
+    return true;
+  }
+
+  private openKeyboardInput(targets: VoiceSendTarget[], defaultIndex: number): KeyboardInputSession {
+    const storedVisibility = getStringSetting(KEYBOARD_INPUT_VISIBILITY_KEY, "both");
+    const visibility: KeyboardInputVisibility =
+      storedVisibility === "phone" || storedVisibility === "glasses" ? storedVisibility : "both";
+    if (visibility !== "phone" && !this.screenOn) this.wake("sidebar");
     const layer = new KeyboardInputLayer({
       actions: this.config.actions,
       onClosed: () => {

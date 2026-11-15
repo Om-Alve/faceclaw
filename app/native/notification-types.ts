@@ -8,7 +8,11 @@
  */
 export const NOTIFICATION_ICON_SIZE = 25;
 
-export type AndroidNotificationAction = { index: number; title: string; enabled: boolean };
+export type AndroidNotificationAction = {
+  index: number; title: string; enabled: boolean;
+  /** Takes typed text (Android RemoteInput): answer it with replyToNotification instead of invoking it bare. */
+  reply?: boolean;
+};
 export type AndroidNotification = {
   key: string; packageName: string; appName: string; title: string; text: string;
   bigText: string; subText: string; infoText: string; summaryText: string;
