@@ -86,6 +86,9 @@ class IosGlassesSession internal constructor(
 
     fun setRequiredFirmwareRevision(revision: Int) = core.setRequiredFirmwareRevision(revision)
 
+    /** Drive an Even G1 on g1v0 (see GlassesSessionG1.kt). Before [start]. */
+    fun useG1() = core.useG1()
+
     fun start(): Boolean = core.start()
 
     fun disconnect() = core.disconnect()
@@ -104,6 +107,8 @@ class IosGlassesSession internal constructor(
     }
 
     fun isAncsAuthorized(): Boolean = central?.isAncsAuthorized(rightIdentifier) ?: false
+
+    fun ancsRelayAvailable(): Boolean = core.ancsRelayAvailable()
 
     fun setAncsListener(listener: IosAncsListener?) {
         if (listener == null) {
