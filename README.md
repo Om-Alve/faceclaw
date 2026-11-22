@@ -97,8 +97,10 @@ import it into the new version (see [config transfer](scripts/config-transfer.md
  * **Integration with Android notifications**: shows the same notification
    icons your phone does, and popups when notifications arrive.
  * **Terminal mirroring.** Mirror terminal apps such as Claude Code or Codex
-   CLI with [g2mirror](https://github.com/jimrandomh/g2mirror), view them on
-   the glasses, and send them inputs with the voice assistant.
+   CLI with [g2mirror](https://github.com/jimrandomh/g2mirror), or attach to
+   tmux sessions over SSH (no server-side setup beyond tmux 3.2+), view them
+   on the glasses, and send them inputs with the voice assistant. g2mirror
+   can also be tunnelled over SSH instead of a VPN.
  * **Media player controls** including playlist and media library navigation,
    compatible with most Android media players.
  * **Turn-by-turn directions** (requires a Mapbox API token; an optional Google
@@ -202,6 +204,12 @@ scripts/push_config.sh from this repo; the instructions are written so an
 OpenClaw agent with the phone plugged into its host can perform the whole
 setup itself. Note that a pulled settings file contains your API keys, so
 treat it as a secret (the default output path is gitignored here).
+
+On iOS, configure it in Settings > Assistant or with
+scripts/pull_config_ios.sh and scripts/push_config_ios.sh. iOS blocks
+connections without TLS to most addresses, so put the bridge behind a TLS
+proxy (for example `tailscale serve`) and enter its full `wss://` address as
+the Bridge host.
 
 ## EvenHub App Notes
 

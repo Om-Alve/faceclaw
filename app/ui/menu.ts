@@ -1,4 +1,4 @@
-import { GrayImage, type UiFont } from "../graphics/image";
+import { GrayImage, imageFromAsciiArt, type UiFont } from "../graphics/image";
 import { screenHeight } from "../graphics/screen-size";
 import { wrapText } from "../graphics/textwrap";
 import { getDefaultSmallFont } from "../graphics/ui-fonts";
@@ -10,7 +10,7 @@ import { MENU_ANIMATION_KEY, setMenuAnimationReader } from "./menu-animation-pre
 import { Menu, MENU_HIGHLIGHT_FILL, MENU_HIGHLIGHT_STROKE } from "./menu-core";
 
 import { GESTURE_DOUBLE_CLICK, InputEvent } from "./gestures";
-import { LIST_ROW_TEXT_INSET, centeredTextY, lineStep, listRowHeight, menuTitleHeight } from "./metrics";
+import { LIST_ROW_TEXT_INSET, lineStep, listRowHeight, menuTitleHeight } from "./metrics";
 
 // Menu<T> and IconGrid consult this (through their motion classes) at each
 // paint; a SharedPreferences read, so changes apply to the next navigation.
@@ -39,6 +39,8 @@ const PAGE_TITLE_OFFSET_Y = 2;
 const PAGE_TITLE_GAP = 4;
 /** Room a page menu keeps right of its rows for the scrollbar. */
 const PAGE_SCROLLBAR_GUTTER = 6;
+/** A heading row's text: dimmer than a row's, brighter than a disabled row's. */
+const MENU_HEADING_VALUE = 90;
 
 export type MenuLayout = {
   /** Stereo depth of the menu surface, including the selected row. */
@@ -57,7 +59,7 @@ export type MenuLayout = {
    * Dim hint line pinned to the bottom edge inside the box, below the items
    * (gesture help such as "●— system menu"). Takes a line off the item area.
    */
-  footer?: string;
+  footer?: MenuFooter;
   /** Brightness factor for everything beneath the menu (see Layer.dimUnderneath). Default: none. */
   dimUnderneath?: number;
   /**
@@ -83,8 +85,15 @@ export type MenuPageLayout = {
   /** Width of the rows. Default (and at most): the window's, inside its side padding. */
   width?: number;
   /** Dim hint line pinned above the window's bottom padding, below the rows. */
-  footer?: string;
+  footer?: MenuFooter;
 };
+
+/** A menu's footer line: fixed text, or read on every paint (a live value). */
+export type MenuFooter = string | (() => string);
+
+function footerText(footer: MenuFooter): string {
+  return typeof footer === "function" ? footer() : footer;
+}
 
 export type MenuItemRenderArgs = {
   image: GrayImage;
@@ -104,6 +113,12 @@ export type MenuItem = {
   description?: string;
   /** Disabled rows stay visible but render dimly and ignore clicks. */
   disabled?: boolean | (() => boolean);
+  /**
+   * A label for the group of rows after it (see menuHeadingItem). MenuLayer's
+   * highlight skips it; a list that doesn't know headings shows it as a
+   * disabled row.
+   */
+  heading?: boolean;
   onSelect: (ctx: LayerContext, menu: MenuLayer) => Promise<void> | void;
   render?: (args: MenuItemRenderArgs) => void;
 };
@@ -169,9 +184,67 @@ export function drawListScrollbar(
 }
 
 /**
- * Draw a "▶>" submenu indicator inset at the right edge of a row's selection
- * highlight box, vertically centered within it. Pass the same rect as the
- * row's drawSelectionHighlight call (the row need not actually be selected).
+ * The submenu indicator: a solid right-pointing triangle, as a bitmap rather
+ * than a "▶" character. As text it came from a fallback face wherever the UI
+ * font lacks the glyph, and Android's and iOS's fallbacks draw different
+ * triangles. Antialiased by hand: the edges rise one row per two columns, so
+ * each row ends in a 3/4 pixel and then a 1/4 pixel.
+ */
+const SUBMENU_ARROW_PALETTE = { "#": 255, "+": 191, "-": 64 };
+const SUBMENU_ARROW = imageFromAsciiArt(
+  [
+    "+-........",
+    "##+-......",
+    "####+-....",
+    "######+-..",
+    "########+-",
+    "########+-",
+    "######+-..",
+    "####+-....",
+    "##+-......",
+    "+-........",
+  ],
+  SUBMENU_ARROW_PALETTE,
+);
+/** For small fonts; the glyph it replaces scaled with the text. */
+const SMALL_SUBMENU_ARROW = imageFromAsciiArt(
+  [
+    "+-....",
+    "##+-..",
+    "####+-",
+    "####+-",
+    "##+-..",
+    "+-....",
+  ],
+  SUBMENU_ARROW_PALETTE,
+);
+/** Fonts with a shorter line than this get SMALL_SUBMENU_ARROW (the 12px bitmap faces do). */
+const SUBMENU_ARROW_MIN_LINE_HEIGHT = 15;
+/** Gap between the triangle's tip and the right edge of the row's rect. */
+const SUBMENU_ARROW_INSET = 4;
+
+/**
+ * The triangles at each brightness they have been drawn at. drawImage sources
+ * must be long-lived (the glasses cache them by content), and rows only use a
+ * handful of text values.
+ */
+const tintedSubmenuArrows = new Map<GrayImage, Map<number, GrayImage>>();
+
+function submenuArrow(font: UiFont, value: number): GrayImage {
+  const base = font.lineHeight < SUBMENU_ARROW_MIN_LINE_HEIGHT ? SMALL_SUBMENU_ARROW : SUBMENU_ARROW;
+  const level = clamp(Math.round(value), 0, 255);
+  let tints = tintedSubmenuArrows.get(base);
+  if (!tints) tintedSubmenuArrows.set(base, tints = new Map());
+  let arrow = tints.get(level);
+  if (!arrow) tints.set(level, arrow = base.dimmed(level / 255));
+  return arrow;
+}
+
+/**
+ * Draw the submenu indicator (a "▶" triangle, sized for `font`) inset at the
+ * right edge of a row's selection highlight box, vertically centered within
+ * it. Pass the same rect as the row's drawSelectionHighlight call (the row
+ * need not actually be selected). `value` is the brightness of the row's text.
  */
 export function drawSubmenuIndicator(
   image: GrayImage,
@@ -182,13 +255,14 @@ export function drawSubmenuIndicator(
   highlightHeight: number,
   value: number,
 ): void {
-  const arrow = "▶";
-  const x = highlightX + highlightWidth - font.measureText(arrow) - 4;
-  const y = centeredTextY(font, highlightY, highlightHeight);
-  image.drawText(font, x, y, arrow, value);
+  const arrow = submenuArrow(font, value);
+  const x = Math.round(highlightX + highlightWidth) - arrow.width - SUBMENU_ARROW_INSET;
+  // A spare pixel goes above the triangle, which is where the glyph sat.
+  const y = Math.round(highlightY + (highlightHeight - arrow.height) / 2);
+  image.drawImage(arrow, x, y);
 }
 
-/** A row that opens a nested menu: the label plus a right-edge ">". */
+/** A row that opens a nested menu: the label plus a right-edge triangle. */
 export function submenuItem(
   label: string,
   onSelect: MenuItem["onSelect"],
@@ -203,6 +277,22 @@ export function submenuItem(
       const value = disabled ? 70 : selected ? 255 : 200;
       image.drawText(font, x, y + LIST_ROW_TEXT_INSET, text, value);
       drawSubmenuIndicator(image, font, x, y, width, height, value);
+    },
+  };
+}
+
+/**
+ * A heading for the rows that follow it, splitting a long menu into sections:
+ * dim capitals in the rows' text column, never selected.
+ */
+export function menuHeadingItem(label: string): MenuItem {
+  return {
+    label,
+    heading: true,
+    disabled: true,
+    onSelect: () => {},
+    render: ({ image, x, y, text }) => {
+      image.drawText(getDefaultSmallFont(), x, y + LIST_ROW_TEXT_INSET, text.toUpperCase(), MENU_HEADING_VALUE);
     },
   };
 }
@@ -274,6 +364,7 @@ export class MenuLayer implements Layer {
       wrap: true,
       rowGap: 1,
       getHeight: () => listRowHeight(getDefaultSmallFont()),
+      isSelectable: (item) => !item.heading,
       draw: ({ image, item, x, y, width, height, selected }) => {
         const font = getDefaultSmallFont();
         const disabled = isMenuItemDisabled(item);
@@ -360,7 +451,7 @@ export class MenuLayer implements Layer {
       image.drawText(font, x + 12, y + 8, this.title, 220);
     }
     if (layout.footer) {
-      image.drawText(font, x + 22, y + height - MENU_BODY_PADDING - font.lineHeight, layout.footer, 110);
+      image.drawText(font, x + 22, y + height - MENU_BODY_PADDING - font.lineHeight, footerText(layout.footer), 110);
     }
 
     const bodyY = y + chromeTop;
@@ -397,7 +488,7 @@ export class MenuLayer implements Layer {
     let fixedBottom = height - padding.bottom;
     if (layout.footer) {
       const footerY = height - padding.bottom - font.lineHeight;
-      image.drawText(font, x + MENU_ROW_TEXT_INSET, footerY, layout.footer, 110);
+      image.drawText(font, x + MENU_ROW_TEXT_INSET, footerY, footerText(layout.footer), 110);
       bottom = fixedBottom = footerY - MENU_FOOTER_GAP;
     }
     if (bottom <= top) return image;
@@ -431,17 +522,26 @@ export class MenuLayer implements Layer {
   }
 }
 
+export type ModalMenuOptions = {
+  /** A dim line under the items (see MenuLayout.footer). */
+  footer?: MenuFooter;
+  /** Runs when the menu leaves the stack, however it closes. */
+  onClosed?: () => void;
+};
+
 /** Open a centered, bordered menu over the current layer. */
 export function openModalMenu(
   ctx: LayerContext,
   title: string,
   items: MenuItem[],
   initialSelectedIndex = 0,
+  options: ModalMenuOptions = {},
 ): void {
   const { width, height } = ctx.stack.getBaseSize();
   const font = getDefaultSmallFont();
   const menuWidth = Math.min(320, width - 40);
-  const naturalHeight = menuTitleHeight(font) + 2 * MENU_BODY_PADDING + items.length * listRowHeight(font);
+  const footerHeight = options.footer ? MENU_FOOTER_GAP + lineStep(font) : 0;
+  const naturalHeight = menuTitleHeight(font) + 2 * MENU_BODY_PADDING + items.length * listRowHeight(font) + footerHeight;
   // 20px clear above and below, or 8 in a short window (the RayNeo iO's),
   // where those rows are worth more than the margin.
   const marginY = height < SHORT_WINDOW_HEIGHT ? 8 : 20;
@@ -454,8 +554,19 @@ export function openModalMenu(
     maxHeight: menuHeight,
     // Floats nearer than the content it opens over, like the window and system menus.
     depth: 4,
+    footer: options.footer,
   };
-  ctx.stack.push(new MenuLayer(title, items, layout).selectItem(initialSelectedIndex));
+  ctx.stack.push(new ModalMenuLayer(title, items, layout, options.onClosed).selectItem(initialSelectedIndex));
+}
+
+class ModalMenuLayer extends MenuLayer {
+  constructor(title: string, items: MenuItem[], layout: MenuLayout, private readonly onClosed?: () => void) {
+    super(title, items, layout);
+  }
+
+  onRemoved(): void {
+    this.onClosed?.();
+  }
 }
 
 export function isMenuItemDisabled(item: MenuItem): boolean {

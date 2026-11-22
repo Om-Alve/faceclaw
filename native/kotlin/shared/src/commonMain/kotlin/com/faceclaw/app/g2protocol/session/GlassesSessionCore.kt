@@ -44,6 +44,8 @@ class GlassesSessionCore(
         internal const val FACECLAW_WAKE_LEASE_RENEW_MS = 45_000L
         internal const val FACECLAW_WAKE_CONTROL_WAIT_MS = 1_500L
         internal const val CFW_CLEANUP_WAIT_MS = 4_000L
+        /** How long an arm gets to hang up after a release request; it normally takes a few connection intervals. */
+        internal const val LINK_RELEASE_WAIT_MS = 1_500
         internal const val COMPASS_REPORT_INTERVAL_MS = 100
         internal const val COMPASS_MIN_CHANGE_DEGREES = 0
 
@@ -131,6 +133,7 @@ class GlassesSessionCore(
     internal val compassSubscriptions = CopyOnWriteList<CompassSubscription>(platform)
     internal val ambientLightListeners = CopyOnWriteList<FaceclawAmbientLightListener>(platform)
     internal val micStatusListeners = CopyOnWriteList<FaceclawMicStatusListener>(platform)
+    internal val keyboardEventListeners = CopyOnWriteList<FaceclawKeyboardEventListener>(platform)
     internal val audioMonitorListeners = CopyOnWriteList<FaceclawAudioPacketListener>(platform)
     @Volatile internal var running = false
     @Volatile internal var userDisconnectRequested = false
@@ -306,6 +309,13 @@ class GlassesSessionCore(
      * here.
      */
     internal var customFirmwareDetected = false
+    /**
+     * The revision that read reported ("Faceclaw/<n>"), or -1 for none yet or other firmware.
+     * Only for features newer than the required revision; see [releaseArmLinks].
+     */
+    internal var faceclawFirmwareRevision = -1
+    /** [releaseArmLinks] ran for this start(): close() repeats disconnect(), and one request is enough. */
+    private var armLinksReleased = false
     internal val brightnessPolicy = BrightnessPolicy()
     internal var brightnessSentVisible: Boolean? = null
     internal var brightnessSentLevel = -1
@@ -357,6 +367,26 @@ class GlassesSessionCore(
     internal var lastGlassesRingInputAtMs = 0L
     internal var lastGlassesRingInputLabel = ""
     internal var lastGlassesRingBatteryAtMs = 0L
+    // Head-up (look-up wake) state from settings reads: -1 switch = not read yet.
+    internal var headUpSwitch = -1
+    internal var headUpAngle = 0
+    internal var headUpCalibration = 0
+    internal var headUpReadAtMs = 0L
+    // The trigger pitch TS asked for (degrees, 1..90), or -1 to leave the glasses'
+    // own setting alone. Reapplied after every read that disagrees with it.
+    internal var desiredHeadUpTrigger = -1
+    // The glasses' own switch and angle from before Faceclaw first changed them
+    // (switch -1 = unknown): captured before the first write, or handed back by TS,
+    // which persists them across app restarts. Written back while
+    // headUpRestorePending (TS stopped managing the trigger), then forgotten once a
+    // read confirms them.
+    internal var headUpOriginalSwitch = -1
+    internal var headUpOriginalAngle = 0
+    internal var headUpRestorePending = false
+    // Set after queueing a correction so the next settings read comes right away to
+    // confirm it; cleared by that read, so a firmware that refuses the value is
+    // retried on the normal poll cadence, not in a loop.
+    internal var headUpVerifyPending = false
     internal var ringConnectedChangedAtMs = 0L
     internal var ringConnectCount = 0
     internal var lastDirectRingError = ""
@@ -486,7 +516,7 @@ class GlassesSessionCore(
     // Preview/screenshot/recording callers render those explicitly on demand.
     internal val compositor = SurfaceCompositor(false)
 
-    // Phone-side model of the CFW's 192 KiB resource cache.
+    // Phone-side model of the CFW's resource cache (ResourceCacheState.CACHE_SIZE).
     // Reset whenever the image pipeline / EvenHub session is torn down: the
     // firmware frees the cache with the fb lease, and after any resync the
     // cheap safe assumption is an empty cache (glyphs re-upload lazily).
@@ -606,6 +636,7 @@ class GlassesSessionCore(
                 return false
             }
             running = true
+            armLinksReleased = false
             userDisconnectRequested = false
             reconnectHalted = false
             incompatibleFirmware = null
@@ -664,6 +695,10 @@ class GlassesSessionCore(
             // Unknown until the next connection's first push or settings poll.
             silentMode = -1
         }
+        if (!armLinksReleased) {
+            armLinksReleased = true
+            releaseArmLinks()
+        }
         link.disconnect(rightAddress)
         link.disconnect(leftAddress)
         if (hasRingAddress()) {
@@ -672,6 +707,63 @@ class GlassesSessionCore(
         link.close()
         host.setScreenWakeLock(false)
         setStateDisplay("disconnected", "Disconnected.")
+    }
+
+    /**
+     * Before a requested disconnect, ask each arm to hang up where the platform would otherwise
+     * keep the link ([SessionLink.keepsLinkAfterDisconnect]): iOS holds the one a bonded
+     * accessory reads ANCS over, which leaves the glasses unreachable from any other phone.
+     * Both arms are offered and the link asks only the one the system keeps (on iOS, the arm
+     * it shares notifications with); an arm this session already let go of (a failed session
+     * cancels both) is covered too, the link reattaching to what the system still holds. This
+     * is the session's last write, after the cleanup message. An arm whose firmware is too
+     * old for the request, or was never identified by this session, is left alone: it would
+     * not act on it.
+     */
+    private fun releaseArmLinks() {
+        if (isIo || !link.keepsLinkAfterDisconnect()) return
+        val characteristic = if (isG1) G1Ble.CTRL_CHAR_UUID else BleProtocol.WRITE_CHAR_UUID
+        val needed = if (isG1) "g1v0 " + G1Ble.LINK_RELEASE_FIRMWARE else "Faceclaw/" + BleProtocol.LINK_RELEASE_FIRMWARE_REVISION
+        for (arm in intArrayOf(1, 0)) {
+            val address = if (arm == 1) rightAddress else leftAddress
+            val side = if (arm == 1) "right" else "left"
+            val (firmware, request) = monitor.withLock { linkReleaseRequestLocked(arm) }
+            if (request == null) {
+                // Worth a line only when there is a link it could have applied to.
+                if (firmware.isNotEmpty() || link.isConnected(address)) {
+                    logLine("not asking the $side arm to hang up (needs $needed, it reports "
+                        + firmware.ifEmpty { "nothing" } + "); the system may keep its link open")
+                }
+                continue
+            }
+            val released = try {
+                link.releaseFromPeer(address, characteristic, request, LINK_RELEASE_WAIT_MS)
+            } catch (t: Throwable) {
+                logLine("$side arm link release failed: " + safeMessage(t))
+                false
+            }
+            if (!released) logLine("$side arm did not hang up; the system may keep its link open")
+        }
+    }
+
+    /**
+     * What an arm (0 left, 1 right) last said it runs, "" if it never did, and the request
+     * that makes that firmware hang up, or null when it has none: relay op 3 on a G2
+     * (Faceclaw/41), the `HANGUP` control request on a G1 (g1v0 0.5.67).
+     */
+    private fun linkReleaseRequestLocked(arm: Int): Pair<String, ByteArray?> {
+        if (isG1) {
+            val version = g1.armVersions[arm]
+            if (version.isEmpty()) return "" to null
+            val request = if (G1Ble.firmwareAtLeast(version, G1Ble.LINK_RELEASE_FIRMWARE)) {
+                G1Protocol.control(G1Protocol.OP_HANGUP, g1.nextTag())
+            } else null
+            return "g1v0 $version" to request
+        }
+        val revision = faceclawFirmwareRevision
+        if (revision < 0) return "" to null
+        return "Faceclaw/$revision" to
+            (if (revision >= BleProtocol.LINK_RELEASE_FIRMWARE_REVISION) BleProtocol.linkReleaseCommand() else null)
     }
 
     fun close() {
@@ -1013,6 +1105,61 @@ class GlassesSessionCore(
             logLine("queue wear detection enable + current-state query")
         }
         interruptibleSleep.interrupt()
+    }
+
+    /**
+     * Set the pitch (degrees, 1..90) at which looking up wakes the display, or 0 to stop
+     * managing it. Kept for the life of this object and reapplied on every connection: the
+     * next settings read supplies the glasses' calibration, then the switch and angle are
+     * written (see reconcileHeadUpLocked) and a follow-up read confirms them.
+     *
+     * [originalSwitch] (0/1, or -1 when unknown) and [originalAngle] are the glasses' own
+     * values from before Faceclaw changed them, as TS saved them from getHeadUpStatus; they
+     * take precedence over what this object captured. With degrees 0 they are written back.
+     */
+    fun setHeadUpTrigger(degrees: Int, originalSwitch: Int, originalAngle: Int) {
+        monitor.withLock {
+            if (originalSwitch in 0..1) {
+                headUpOriginalSwitch = originalSwitch
+                headUpOriginalAngle = originalAngle
+            }
+            // A change of mind drops writes still queued for the previous value.
+            clearMessagesOfKindLocked("head-up-control")
+            headUpVerifyPending = false
+            desiredHeadUpTrigger = if (degrees in 1..90) degrees else -1
+            headUpRestorePending = desiredHeadUpTrigger < 0 && headUpOriginalSwitch >= 0
+            logLine(when {
+                desiredHeadUpTrigger > 0 -> "head-up trigger requested: ${desiredHeadUpTrigger}°"
+                headUpRestorePending -> "head-up trigger: restore the glasses' own " +
+                    "(switch=$headUpOriginalSwitch angle=$headUpOriginalAngle)"
+                else -> "head-up trigger: left to the glasses"
+            })
+            if (!running || !sessionReady) return
+            if (desiredHeadUpTrigger <= 0 && !headUpRestorePending) return
+            if (headUpSwitch >= 0) {
+                applyHeadUpLocked(verifying = false)
+            } else {
+                // Calibration unknown: read the settings first; the ack applies the trigger.
+                lastBatteryRefreshAtMs = 0L
+            }
+        }
+        interruptibleSleep.interrupt()
+    }
+
+    /** Head-up settings as last read, as JSON (switch -1 = not read on this connection). */
+    fun getHeadUpStatus(): String {
+        monitor.withLock {
+            val status = linkedMapOf<String, Any?>()
+            status["switch"] = headUpSwitch
+            status["angle"] = headUpAngle
+            status["calibration"] = headUpCalibration
+            status["desired"] = desiredHeadUpTrigger
+            status["originalSwitch"] = headUpOriginalSwitch
+            status["originalAngle"] = headUpOriginalAngle
+            status["restorePending"] = headUpRestorePending
+            status["readAgeMs"] = if (headUpReadAtMs == 0L) -1L else maxOf(0L, now() - headUpReadAtMs)
+            return try { Json.write(status) } catch (e: Exception) { "{}" }
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -1383,6 +1530,39 @@ class GlassesSessionCore(
                 pendingMessages.addLast(messageBuilder.faceclawMicControl(record, label, true))
             }
             logLine("queue mic control $label")
+        }
+        interruptibleSleep.interrupt()
+        return true
+    }
+
+    fun addKeyboardEventListener(listener: FaceclawKeyboardEventListener?) {
+        if (listener != null) {
+            keyboardEventListeners.add(listener)
+        }
+    }
+
+    fun removeKeyboardEventListener(listener: FaceclawKeyboardEventListener?) {
+        if (listener != null) {
+            keyboardEventListeners.remove(listener)
+        }
+    }
+
+    /**
+     * Queue a CFW keyboard-bridge control (['K','B',ver,op,request,epoch,...]) as a settings
+     * field-130 write to the right temple. Fire-and-forget: the firmware answers with field-131
+     * records, which arrive through addKeyboardEventListener. Returns false when nothing was
+     * queued (not a G2, no session, or a malformed record).
+     */
+    fun sendFaceclawKeyboardControl(record: ByteArray?, label: String): Boolean {
+        if (!isG2 || record == null || record.size < 8) {
+            return false
+        }
+        monitor.withLock {
+            if (!running || !sessionReady) {
+                logLine("skip keyboard control ($label); session not ready")
+                return false
+            }
+            pendingMessages.addLast(messageBuilder.faceclawKeyboardControl(record, label))
         }
         interruptibleSleep.interrupt()
         return true
@@ -1892,8 +2072,21 @@ class GlassesSessionCore(
             tap(data.copyOf())
             return
         }
-        logDebug("onNotification: address=" + address + " characteristicUuid=" + characteristicUuid + " data.length=" + data.size)
         val frame = BleProtocol.parseFrame(data)
+        if (frame.ok && frame.sid == BleProtocol.SID_UI_SETTING) {
+            // CFW keyboard-bridge records (field 131) come from whichever temple hosts the
+            // keyboard. They are their own stream: neither an ACK nor glasses input, and the
+            // once-a-second status record among them must not count as user activity (which
+            // would hold off battery polling). A touchpad sends a hundred of them a second
+            // while a finger is on it, so they are not logged one by one either.
+            val keyboardEvent = BleProtocol.parseFaceclawKeyboardEvent(frame.pb)
+            if (keyboardEvent != null) {
+                monitor.withLock { lastIncomingAtMs = now() }
+                emitKeyboardEvent(keyboardEvent)
+                return
+            }
+        }
+        logDebug("onNotification: address=" + address + " characteristicUuid=" + characteristicUuid + " data.length=" + data.size)
         val decodedWearState = BleProtocol.parseWearState(frame)
         val compassEvent = if (address.equals(rightAddress, ignoreCase = true))
             BleProtocol.parseCompassEvent(frame)
@@ -2061,11 +2254,10 @@ class GlassesSessionCore(
                 } else if (decoded != null
                         && "sys-event" == decoded.kind
                         && decoded.eventType == BleProtocol.EVENT_HEAD_DOWN) {
-                    // Faceclaw/38 also forwards the head coming back down. Nothing
-                    // uses it yet; as an unknown input it would count as activity
-                    // and keep the screen awake, so drop it here.
-                    logLine("head-down forwarded by CFW (ignored)")
-                    decoded = null
+                    // Faceclaw/38 also forwards the head coming back down. TS uses
+                    // it to end a head-tilt Glanceboard and otherwise drops it
+                    // before the shell, so it never counts as activity.
+                    logLine("head-down forwarded by CFW")
                 }
                 event = decoded
                 if (decoded != null) {

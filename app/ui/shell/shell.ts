@@ -17,6 +17,7 @@ import {
   isWatchInput,
   makeInputEvent,
 } from "../gestures";
+import type { KeyEvent } from "../../g2/keyboard/keys";
 import { Layer, LayerActions, LayerContext, LayerStack, noopLayerActions, type NotificationReplyRequest } from "../layers";
 import { CONTEXT_MENU_DIM, MenuLayer, type MenuItem } from "../menu";
 import { VoiceInputLayer, type VoiceSendTarget } from "./voice-input";
@@ -74,6 +75,7 @@ import { ToolDebugMenuLayer } from "./tool-debug-layer";
 import type { InProcessWindow } from "./in-process-window";
 import { BrightnessPickerLayer } from "./brightness-picker-layer";
 import { toolRegistry } from "../../assistant/tool-registry";
+import { formatDateTime } from "../../assistant/date-format";
 import {
   appViewportRect,
   minWindowTop,
@@ -151,6 +153,13 @@ export type ShellWindow = {
    * draws this window's top bar.
    */
   heightMode: WindowHeightMode;
+  /**
+   * False for a window that must not bring its app back when Faceclaw
+   * restarts (the controller's open-apps restore relaunches apps, not
+   * windows): one that shows something a plain launch of its app would not,
+   * where the relaunch would do something else in its place.
+   */
+  restoresApp?: boolean;
   /** App-side cleanup when the shell closes the window (worker notification, surface removal). */
   close?: () => void;
   drawIcon: ShellChromeWindow["drawIcon"];
@@ -185,6 +194,15 @@ export type ShellWindow = {
    * only windows that consume typed text (the terminal) implement it.
    */
   receiveTextInput?: (text: string, options?: { submit?: boolean }) => void;
+  /**
+   * Take a key from a hardware keyboard (app/g2/keyboard) as a key. Optional:
+   * only windows that give keys a meaning of their own (the terminal)
+   * implement it. They get the keys no keybinding claimed while they have
+   * input focus, presses and releases alike; the rest of the time, and for
+   * every other window, the navigation keys act as gestures (see
+   * app/g2/keyboard/bindings.ts).
+   */
+  handleKeyEvent?: (event: KeyEvent) => void;
   /** Foreground state changed: this window's surface is (not) the visible one. */
   setForeground?: (foreground: boolean) => void;
   /**
@@ -1609,6 +1627,21 @@ class Shell {
   }
 
   /**
+   * Offer a hardware-keyboard key to the window that has input focus. True
+   * when that window takes keys (ShellWindow.handleKeyEvent) and got this
+   * one; false when the key is the caller's to interpret: the screen is off,
+   * the sidebar or a shell overlay has focus, or the window has no use for
+   * keys. Typing counts as activity for the screen timeout.
+   */
+  receiveKeyEvent(event: KeyEvent): boolean {
+    const window = this.inputTargetWindow();
+    if (!window?.handleKeyEvent) return false;
+    if (event.phase === "down") this.lastInputAtMs = Date.now();
+    window.handleKeyEvent(event);
+    return true;
+  }
+
+  /**
    * Open the voice dialog aimed at the foreground window. Called when the
    * user picks Voice input from the system menu (or an app asks via a
    * start-voice-input message). The menu click already ended the press, so
@@ -1848,7 +1881,7 @@ class Shell {
       foregroundApp: foreground?.appId ?? null,
       foregroundTitle: foreground?.title ?? null,
       screenOn: this.screenOn,
-      localTime: formatAssistantTime(new Date()),
+      localTime: formatDateTime(new Date(), timeFormatSetting.get() === "12h"),
       headsetBattery: this.battery.headset,
     };
   }
@@ -2132,20 +2165,6 @@ class Shell {
 }
 
 export const shell = new Shell();
-
-const ASSISTANT_WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const ASSISTANT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** Human-readable local time for the assistant's per-turn context. */
-function formatAssistantTime(date: Date): string {
-  let hours = date.getHours();
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-  const meridiem = hours >= 12 ? "PM" : "AM";
-  hours = hours % 12;
-  if (hours === 0) hours = 12;
-  const day = `${ASSISTANT_WEEKDAYS[date.getDay()]} ${ASSISTANT_MONTHS[date.getMonth()]} ${date.getDate()}`;
-  return `${day}, ${hours}:${minutes} ${meridiem}`;
-}
 
 export function rawInputEventToInputEvent(event: RawInputEvent): InputEvent {
   return { ...makeInputEvent(rawInputEventToPayload(event)),

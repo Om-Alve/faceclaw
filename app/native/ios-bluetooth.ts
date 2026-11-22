@@ -1,14 +1,27 @@
 import { ApplicationSettings } from '@nativescript/core'
+import { loadPairedGlassesIdentity } from '../g2/device-addresses'
+import { g2ManufacturerData } from '../g2/even-advertisement'
+import { serialKey } from '../g2/glasses-hardware-identity'
 import { identifyIosPeripheral, type IosAdvertisement, type IosDevice } from '../g2/ios-peripheral-identity'
 import { hexToBytes } from '../util/hex-util'
 import { kotlinListener } from './kotlin-listener.ios'
 
 declare const FaceclawKitIosBleCentral: any, FaceclawKitIosProtocolPlatform: any, FaceclawKitIosBleScanListener: any
+declare const UIApplication: any, UIApplicationState: any
 
 /** CBManagerState raw values reported by the Kotlin central. */
 export const BLE_STATE_UNSUPPORTED = 2, BLE_STATE_UNAUTHORIZED = 3, BLE_STATE_POWERED_OFF = 4, BLE_STATE_POWERED_ON = 5
 /** CBManagerAuthorization.allowedAlways. */
 const BLE_AUTHORIZATION_ALLOWED = 3
+
+/**
+ * Per address, the peripheral identifier and side last heard there and (since 2026-11-16)
+ * the advertisement itself, from which an arm that has stopped advertising is rebuilt.
+ */
+const PERIPHERAL_KEY_PREFIX = 'ios.ble.peripheral.'
+/** How long a connect listens for an arm before it trusts the identifier remembered for it. */
+const IDENTIFIER_CHECK_MS = 2_500
+type RememberedPeripheral = { identifier: string; role: string; name?: string; manufacturerData?: string }
 
 export type BluetoothEvent =
   | { kind: 'state'; state: number; authorization: number }
@@ -28,6 +41,8 @@ export class IosBluetooth {
   private readonly native = FaceclawKitIosBleCentral.alloc().initWithPlatform(FaceclawKitIosProtocolPlatform.shared)
   private readonly listeners = new Set<(event: BluetoothEvent) => void>()
   readonly devices = new Map<string, IosDevice>()
+  /** The record last written per settings key, so repeated advertisements don't rewrite it. */
+  private readonly rememberedValues = new Map<string, string>()
   private scanTimer: ReturnType<typeof setTimeout> | null = null
   private scanGeneration = 0
   private readonly scanListener: object
@@ -47,11 +62,67 @@ export class IosBluetooth {
         const device = identifyIosPeripheral(raw)
         if (device) {
           this.devices.set(device.address, device)
-          ApplicationSettings.setString(`ios.ble.peripheral.${device.address}`, JSON.stringify({ identifier: device.identifier, role: device.role }))
+          this.remember(device)
           this.emit({ kind: 'device', device })
         }
       },
     })
+  }
+  /** Persists what `device` advertised; skips the write when nothing changed (scans report duplicates). */
+  private remember(device: IosDevice): void {
+    const key = `${PERIPHERAL_KEY_PREFIX}${device.address}`
+    const record: RememberedPeripheral = { identifier: device.identifier, role: device.role, name: device.name, manufacturerData: device.manufacturerData }
+    const value = JSON.stringify(record)
+    if (this.rememberedValues.get(key) === value) return
+    this.rememberedValues.set(key, value)
+    ApplicationSettings.setString(key, value)
+  }
+  /**
+   * Even arms the system is connected to, rebuilt from what they last advertised here. A
+   * connected arm doesn't advertise, and iOS keeps the right arm's ANCS link open after a
+   * session ends (even after pairing other glasses), so a scan alone hears only the left
+   * arm. An arm this phone has never heard advertise can't be rebuilt: its MAC and the
+   * pair's serial come only from the advertisement. The device has no signal strength.
+   */
+  systemConnectedDevices(): IosDevice[] {
+    if (this.state !== BLE_STATE_POWERED_ON) return []
+    let connected: any
+    try {
+      connected = this.native.systemConnectedG2Arms()
+    } catch (error) {
+      // Scanning still works without this; don't let it take the pairing page down.
+      console.log(`[IosBluetooth] systemConnectedG2Arms failed: ${error}`)
+      return []
+    }
+    if (!connected?.count) return []
+    const records = new Map<string, { address: string; record: RememberedPeripheral }>()
+    for (const key of ApplicationSettings.getAllKeys()) {
+      if (!key.startsWith(PERIPHERAL_KEY_PREFIX)) continue
+      try {
+        const record = JSON.parse(ApplicationSettings.getString(key, '{}')) as RememberedPeripheral
+        if (typeof record.identifier === 'string') records.set(record.identifier.toUpperCase(), { address: key.slice(PERIPHERAL_KEY_PREFIX.length), record })
+      } catch { /* Malformed: a fresh advertisement rewrites it. */ }
+    }
+    const identity = loadPairedGlassesIdentity()
+    const devices: IosDevice[] = []
+    for (let i = 0; i < connected.count; i++) {
+      const peripheral = connected.objectAtIndex(i)
+      const identifier = String(peripheral.identifier)
+      const remembered = records.get(identifier)
+      if (!remembered) continue
+      const { address, record } = remembered
+      let name = record.name ?? ''
+      let manufacturerData = record.manufacturerData ?? ''
+      if (!manufacturerData && identity && (address === identity.leftAddress || address === identity.rightAddress)) {
+        // Remembered before advertisements were: the saved pairing supplies the serial.
+        const side = address === identity.leftAddress ? 'left' : 'right'
+        name ||= side === 'left' ? identity.leftName : identity.rightName
+        manufacturerData = g2ManufacturerData(serialKey(identity.serial) ?? '', address) ?? ''
+      }
+      const device = identifyIosPeripheral({ identifier, name: name || String(peripheral.name ?? ''), manufacturerData, rssi: 0, connectable: true })
+      if (device?.address === address && device.role === record.role) devices.push({ ...device, rssi: null, source: 'paired' })
+    }
+    return devices
   }
   onEvent(listener: (event: BluetoothEvent) => void): () => void {
     this.listeners.add(listener); return () => { this.listeners.delete(listener) }
@@ -111,12 +182,15 @@ export class IosBluetooth {
       const live = this.devices.get(address)
       if (live && live.role !== role) throw new Error(`${address} advertises as ${live.role}, not ${role}. Check Configure devices.`)
       try {
-        const saved = JSON.parse(ApplicationSettings.getString(`ios.ble.peripheral.${address}`, '{}'))
+        const saved = JSON.parse(ApplicationSettings.getString(`${PERIPHERAL_KEY_PREFIX}${address}`, '{}'))
         if (saved.role === role && typeof saved.identifier === 'string') result[role] = saved.identifier
       } catch { /* A fresh scan can recover malformed settings. */ }
     }
     const missing = () => (['left', 'right'] as const).filter(role => !result[role])
-    if (!missing().length && (!addresses.ring || result.ring)) return result
+    if (!missing().length && (!addresses.ring || result.ring)) {
+      await this.refreshIdentifiers(addresses, result)
+      return result
+    }
     await this.startScan(15_000)
     await new Promise<void>((resolve, reject) => {
       const off = this.onEvent(event => {
@@ -135,16 +209,69 @@ export class IosBluetooth {
     })
     return result
   }
+  /**
+   * Replaces remembered arm identifiers the system has moved on from. iOS can know one arm under two identifiers
+   * (seen 2026-11-21 with a G2 left arm whose advertising address had become a resolvable private one: bluetoothd
+   * logs "successful outgoing connection ... with new device UUID mapped"), and it drops a connection asked for
+   * under the other one the moment it completes, so the arm looks unreachable for good. An arm the system is
+   * connected to under the remembered identifier is right as it is. Any other is listened for, and the identifier
+   * it advertises under now wins (the scan also remembers it). An arm that isn't heard keeps what it had.
+   */
+  private async refreshIdentifiers(addresses: { left: string; right: string }, result: Record<string, string>): Promise<void> {
+    // A scan for everything hears nothing in the background, and would only delay the connect.
+    if (UIApplication.sharedApplication.applicationState !== UIApplicationState.Active) return
+    let connected: Set<string>
+    try {
+      connected = this.systemConnectedIdentifiers()
+    } catch (error) {
+      console.log(`[IosBluetooth] systemConnectedArms failed: ${error}`)
+      return
+    }
+    const pending = new Set((['left', 'right'] as const).filter(role => result[role] && !connected.has(result[role].toUpperCase())))
+    if (!pending.size) return
+    // Someone else's scan (the pairing page) is left running; this only listens to it.
+    const ownScan = !this.scanning
+    if (ownScan) {
+      try { await this.startScan(IDENTIFIER_CHECK_MS) } catch { return }
+    }
+    await new Promise<void>(resolve => {
+      const finish = () => { clearTimeout(timer); off(); resolve() }
+      const off = this.onEvent(event => {
+        if (event.kind === 'scan-stopped') { finish(); return }
+        if (event.kind !== 'device') return
+        for (const role of [...pending]) {
+          if (addresses[role] !== event.device.address || event.device.role !== role) continue
+          if (result[role].toUpperCase() !== event.device.identifier.toUpperCase()) {
+            console.log(`[IosBluetooth] the ${role} arm now advertises as ${event.device.identifier}, not ${result[role]}`)
+          }
+          result[role] = event.device.identifier
+          pending.delete(role)
+        }
+        if (!pending.size) { finish(); if (ownScan) this.stopScan() }
+      })
+      const timer = setTimeout(finish, IDENTIFIER_CHECK_MS)
+    })
+  }
+  /** Identifiers (uppercase) of the Even arms the system holds a connection to. */
+  private systemConnectedIdentifiers(): Set<string> {
+    const identifiers = new Set<string>()
+    if (this.state !== BLE_STATE_POWERED_ON) return identifiers
+    const connected = this.native.systemConnectedArms()
+    for (let i = 0; i < (connected?.count ?? 0); i++) identifiers.add(String(connected.objectAtIndex(i).identifier).toUpperCase())
+    return identifiers
+  }
   /** The peripheral last heard at this address, if it was on this side. */
   peripheralIdentifier(address: string, role: string): string | null {
     try {
-      const saved = JSON.parse(ApplicationSettings.getString(`ios.ble.peripheral.${address}`, '{}'))
+      const saved = JSON.parse(ApplicationSettings.getString(`${PERIPHERAL_KEY_PREFIX}${address}`, '{}'))
       return saved.role === role && typeof saved.identifier === 'string' ? saved.identifier : null
     } catch {
       return null
     }
   }
-  forget(address: string): void { ApplicationSettings.remove(`ios.ble.peripheral.${address}`); this.devices.delete(address) }
+  forget(address: string): void {
+    ApplicationSettings.remove(`${PERIPHERAL_KEY_PREFIX}${address}`); this.rememberedValues.delete(`${PERIPHERAL_KEY_PREFIX}${address}`); this.devices.delete(address)
+  }
 }
 let instance: IosBluetooth | null = null
 export function iosBluetooth(): IosBluetooth { return instance ??= new IosBluetooth() }

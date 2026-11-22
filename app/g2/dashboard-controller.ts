@@ -18,10 +18,15 @@ import { weatherBridge } from "../native/weather";
 import { ALL_NOTIFICATIONS, onAndroidNotificationPosted, onAndroidNotificationRemoved, readActiveNotifications } from "../native/notification-icons";
 import { watchNotificationListenerBinding } from "../native/notification-access";
 import { openEvenAppSettings, readEvenAppNotificationState } from "../native/even-app-conflict";
-import { defaultRingName, setGlassesRingLink } from "../native/ring-status";
-import { getBooleanSetting, setBooleanSetting } from "../native/settings-store";
+import { setGlassesRingLink } from "../native/ring-status";
+import { directRingRole, handRingBackToGlassesIfNeeded, noteRingSessionMode } from "./ring-connection";
+import { applyGlanceAngle, glassesHeadUpTrigger, syncGlanceAngleOriginal } from "./head-angle";
+import { glanceAngleTriggerDegrees, glanceTapTimeoutMs } from "../apps/glanceboard/glanceboard-settings";
+import { GLANCE_TILT_MAX_MS, glanceTiltMaxMs } from "./glance-state";
 import { grayImageToPreviewSource } from "../native/gray-image-preview";
 import { firmwareIncompatibilityMessage, hasCompatibleFirmware } from "./firmware-compat";
+import { keyboardService } from "./keyboard/service";
+import type { KeyEvent } from "./keyboard/keys";
 import { hasExtractedEvenHubFonts } from "./firmware-builder";
 import { isHaltedSessionPhase, resumeAutoReconnect, suppressAutoReconnect } from "./reconnect-policy";
 import { WearRemote, type WearRemoteInputKind } from "./wear-remote";
@@ -55,7 +60,7 @@ import { type GlanceEvent } from "./glance-state";
 import { isPreviewOnlyMode } from "../phone-ui/onboarding-state";
 import { claimGlassesOnboardingAutoLaunch, ONBOARDING_APP_ID } from "../apps/onboarding/onboarding-progress";
 import { beginRenderPass, endRenderPass } from "../util/render-freshness";
-import { voiceControlBridge } from "../native/voice-control";
+import { VoiceReplay, voiceControlBridge } from "../native/voice-control";
 import { voiceActivity } from "../ui/shell/voice-activity";
 import { GrayImage } from "../graphics/image";
 import { flattenPlanesWithDraws, planesFingerprint, type Plane } from "../graphics/plane";
@@ -69,7 +74,7 @@ import { updateGlassesPresence } from "./glasses-presence";
 import { timerEngine } from "../apps/timer/timer-engine";
 import { registerNavigateTools } from "../assistant/navigate-tools";
 import { registerRoamTools } from "../assistant/roam-tools";
-import { assistantBridge } from "../assistant/bridge-client";
+import { syncAssistantBridge } from "../assistant/bridge-sync";
 import { registerWindowTools } from "../assistant/window-tools";
 import { WorkerAppHost } from "../ui/shell/worker-window";
 import { ALL_APPS } from "../apps/all-apps";
@@ -78,9 +83,9 @@ import { type InProcessAppOptions, type InProcessWindow } from "../ui/shell/in-p
 import { loadPersistedOpenApps, savePersistedOpenApps } from "../ui/shell/open-apps-persistence";
 import { appViewportRect, isOnSwitcherEdge, screenHeight, screenWidth, sidebarStripVisible, windowEdges, type ScreenRect, type WindowHeightMode } from "../ui/shell/geometry";
 import { sameEdges } from "../ui/viewport";
-import { type ContinuousCaptureOptions, type LayerActions, type NotificationReplyRequest, type TextSettingsEditToggle, type TranscriptionChoice } from "../ui/layers";
+import { type ContinuousCaptureOptions, type LayerActions, type MicCount, type NotificationReplyRequest, type TextSettingsEditToggle, type TranscriptionChoice } from "../ui/layers";
 import { type KeyboardInputSession } from "../ui/shell/keyboard-input";
-import { appSwitcherPositionSetting, glassesModelName, glassesTypeSetting, statusBarPositionSetting, statusBarVisibilitySetting, windowBorderSetting, assistantAllowProactiveSetting, assistantBackendSetting, assistantBridgeHostSetting, assistantBridgePortSetting, assistantBridgeTokenSetting, getBrightnessPreferences, displayLayoutSetting, navigateDisplayLayoutSetting, terminalDisplayLayoutSetting, elevenLabsApiKeySetting, getStringSettingById, openAiApiKeySetting, nightscoutApiTokenSetting, firmwareDebugFlagsSetting, whisperServerApiKeySetting, whisperServerLanguageSetting, whisperServerModelSetting, whisperServerUrlSetting, lockScreenEnabledSetting, nightscoutSiteUrlSetting, onAnySettingChanged, previewColorSetting, effectiveRingConnectionMode, type RingConnectionMode, saveRecordingSetting, sonioxApiKeySetting, screenTimeoutSetting, screenTimeoutSettingToMs, shouldPopUpNewNotification, suspendEvenHubWhenScreenOffSetting, voiceProviderSetting, wakeWordActionSetting, type ConfigSettingString } from "../ui/dashboard-settings";
+import { appSwitcherPositionSetting, glassesModelName, glassesTypeSetting, statusBarPositionSetting, statusBarVisibilitySetting, windowBorderSetting, getBrightnessPreferences, displayLayoutSetting, navigateDisplayLayoutSetting, terminalDisplayLayoutSetting, elevenLabsApiKeySetting, getStringSettingById, openAiApiKeySetting, nightscoutApiTokenSetting, firmwareDebugFlagsSetting, whisperServerApiKeySetting, whisperServerLanguageSetting, whisperServerModelSetting, whisperServerUrlSetting, lockScreenEnabledSetting, nightscoutSiteUrlSetting, onAnySettingChanged, previewColorSetting, effectiveRingConnectionMode, type RingConnectionMode, saveRecordingSetting, sonioxApiKeySetting, screenTimeoutSetting, screenTimeoutSettingToMs, shouldPopUpNewNotification, suspendEvenHubWhenScreenOffSetting, voiceProviderSetting, wakeWordActionSetting, type ConfigSettingString } from "../ui/dashboard-settings";
 import { isIgnoringBatteryOptimizations, requestIgnoreBatteryOptimizations } from "../native/battery-optimization";
 import {
   getInstalledEvenHubAppById,
@@ -100,12 +105,13 @@ import { createNotificationsAppWindow, NOTIFICATIONS_SURFACE_ID, NOTIFICATIONS_W
 import { isInstalledPackagePresent } from "../apps/evenhub/updates";
 import { wearerVerificationOptions } from "../apps/microphones/speakers";
 import { micSession } from "../apps/microphones/mic-session";
+import { micArrayCaptureConfig, micControlSupported } from "../apps/microphones/mic-control";
+import { encodeMicControl } from "../apps/microphones/mic-protocol";
 import {
   chargingPreviewMessage,
-  glassesDisplayAsleep,
-  glassesDisplayDetail,
-  glassesDisplayLabel,
+  glassesPadStatus,
   type GlassesDisplayState,
+  type GlassesPadStatus,
 } from "./glasses-display-state";
 import { PreviewDisplayTarget, type DisplayTarget } from "../native/preview-display";
 
@@ -264,9 +270,6 @@ function sourceName(eventSource: number): string {
   return EventSourceTypeName[eventSource] ?? `SOURCE_${eventSource}`;
 }
 
-/** Set while a Direct ring session may have taken the R1 from the glasses; see handRingBackToGlassesIfNeeded. */
-const RING_TAKEN_FROM_GLASSES_KEY = "developer.ringTakenFromGlasses";
-
 class DashboardController {
   private phase: ConnectionPhase = "disconnected";
   private status = "Disconnected.";
@@ -349,6 +352,7 @@ class DashboardController {
   private evenHubResumePromise: Promise<boolean> | null = null;
   /** Faceclaw's firmware at the required revision reported in; its extensions can be used. */
   private customFirmwareConfirmed = false;
+  private lastGlanceAngleDegrees = glanceAngleTriggerDegrees();
   private faceclawWakeLeaseState: boolean | null = null;
   /** Ring connection mode the current session was started with (it applies per connection). */
   private ringModeAtConnect: RingConnectionMode = "glasses";
@@ -426,6 +430,7 @@ class DashboardController {
       startContinuousVoiceCapture: (client: string, options?: ContinuousCaptureOptions) =>
         this.startContinuousVoiceCapture(client, options),
       stopContinuousVoiceCapture: (client: string) => this.stopContinuousVoiceCapture(client),
+      openVoiceReplay: (path: string) => this.openVoiceReplay(path),
       playBuzzerSequence: (payload: Uint8Array) => this.playBuzzerSequence(payload),
       startNotificationReply: (request: NotificationReplyRequest) => {
         const opened = shell.startNotificationReply(request);
@@ -478,6 +483,7 @@ class DashboardController {
         if (on) this.glance.dismiss();
         this.handleScreenStateChanged(on);
         if (on) this.requestShellRender();
+        if (on) keyboardService.retryNow();
         this.emit();
       },
     });
@@ -507,8 +513,9 @@ class DashboardController {
       const appsResized = this.applyAppLayoutsIfChanged();
       // Either reflow hands windows their new edges along with their size.
       if (!resized && !appsResized) this.applyWindowEdgesIfChanged();
-      this.syncAssistantBridgeIfChanged();
+      syncAssistantBridge();
       this.syncLockScreenSettingIfChanged();
+      this.applyGlanceAngleIfChanged();
       this.syncContinuousRecording();
       // A Preview color or scaling change should show on the mirror at once,
       // not at the next composited frame (cheap: floor-limited, dedup'd on
@@ -518,7 +525,7 @@ class DashboardController {
     // Connect to the external agent bridge at boot if configured; the
     // connection stays up (with re-dial) so proactive tool calls work
     // outside voice turns.
-    this.syncAssistantBridge();
+    syncAssistantBridge();
     // The watch drives the same synthetic-input path as the phone UI's test
     // buttons, plus app/window/lock commands; it mirrors the state below.
     startRemoteInput({
@@ -546,6 +553,29 @@ class DashboardController {
       assistantAvailable: () => shell.isAssistantAvailable(),
       assistant: text => shell.sendToAssistant(text),
     });
+    // A keyboard paired through the glasses (CFW keyboard bridge). The
+    // service decides what each key means (app/g2/keyboard/key-router.ts);
+    // this is how it reaches the display and the input pipeline.
+    keyboardService.setHost({
+      ready: () => this.phase === "connected",
+      locked: () => this.glassesLocked,
+      wake: () => {
+        void this.handleInputEvent({
+          kind: "display-wake",
+          containerName: "",
+          eventType: OsEventTypeList.DOUBLE_CLICK_EVENT,
+          eventSource: EventSourceType.TOUCH_EVENT_FORM_DUMMY_NULL,
+          systemExitReasonCode: 0,
+          frameId: 0,
+        }).catch((error) => this.appendLog(`keyboard wake failed: ${this.formatError(error)}`));
+      },
+      gesture: (gesture, origin) => this.injectSyntheticRingInput(gesture, origin),
+      log: (line) => this.appendLog(line),
+      // A keyboard that is switched off would otherwise keep the glasses'
+      // radio looking for it around the clock. One still connected when the
+      // display sleeps stays connected, and its next key wakes the display.
+      shouldReconnect: () => this.phase === "connected" && shell.isScreenOn(),
+    });
     this.wearRemote = new WearRemote({
       apps: launchableApps,
       injectInput: (kind) => this.injectSyntheticRingInput(kind, "watch"),
@@ -563,41 +593,6 @@ class DashboardController {
         lastHeadsetBattery: this.lastHeadsetBattery,
       }),
       appendLog: (line) => this.appendLog(line),
-    });
-  }
-
-  // Bridge settings changes re-dial the connection; unrelated setting changes
-  // must not, so the config it was last started with is tracked.
-  private lastBridgeConfigKey = "";
-
-  private bridgeConfigKey(): string {
-    return JSON.stringify([
-      assistantBackendSetting.get(),
-      assistantBridgeHostSetting.get().trim(),
-      assistantBridgePortSetting.get().trim(),
-      assistantBridgeTokenSetting.get(),
-    ]);
-  }
-
-  private syncAssistantBridgeIfChanged(): void {
-    if (this.bridgeConfigKey() === this.lastBridgeConfigKey) return;
-    this.syncAssistantBridge();
-  }
-
-  private syncAssistantBridge(): void {
-    this.lastBridgeConfigKey = this.bridgeConfigKey();
-    const host = assistantBridgeHostSetting.get().trim();
-    const token = assistantBridgeTokenSetting.get();
-    if (assistantBackendSetting.get() !== "external" || !host || !token) {
-      assistantBridge.stop();
-      return;
-    }
-    assistantBridge.configure({
-      host,
-      port: parseInt(assistantBridgePortSetting.get(), 10) || 8790,
-      token,
-      deviceName: "faceclaw",
-      allowProactive: () => assistantAllowProactiveSetting.get(),
     });
   }
 
@@ -1140,14 +1135,8 @@ class DashboardController {
    * Called on connect.
    */
   private handRingBackToGlassesIfNeeded(): void {
-    if (this.ringModeAtConnect === "direct" || !getBooleanSetting(RING_TAKEN_FROM_GLASSES_KEY, false)) return;
     const ring = loadDeviceAddresses().ring;
-    if (!ring) {
-      setBooleanSetting(RING_TAKEN_FROM_GLASSES_KEY, false);
-      return;
-    }
-    if (setGlassesRingLink("connect", ring, defaultRingName(ring))) {
-      setBooleanSetting(RING_TAKEN_FROM_GLASSES_KEY, false);
+    if (handRingBackToGlassesIfNeeded(this.ringModeAtConnect, ring, (address, name) => setGlassesRingLink("connect", address, name))) {
       this.appendLog(`Handing the R1 ring ${ring} back to the glasses`);
     }
   }
@@ -1306,19 +1295,13 @@ class DashboardController {
     return "";
   }
 
-  /** What occupies the foreground-title line on the watch-style controls. */
-  glassesDisplayLabel(): string {
-    return glassesDisplayLabel(this.glassesDisplayState());
-  }
-
-  /** The smaller line the watch face shows under that one, or "" (the case level while charging). */
-  glassesDisplayDetail(): string {
-    return glassesDisplayDetail(this.glassesDisplayState());
-  }
-
-  /** Whether that line reads "Display off" (the watch face adds a wake hint under it). */
-  glassesDisplayAsleep(): boolean {
-    return glassesDisplayAsleep(this.glassesDisplayState());
+  /**
+   * The watch-style controls' face: what occupies the foreground-title line,
+   * whether it reads "Display off" (the face adds a wake hint under it), and
+   * the smaller line under it (the case level while charging).
+   */
+  glassesPadStatus(): GlassesPadStatus {
+    return glassesPadStatus(this.glassesDisplayState());
   }
 
   private glassesDisplayState(): GlassesDisplayState {
@@ -1598,9 +1581,7 @@ class DashboardController {
     this.ringModeAtConnect = ringMode;
     const glassesType = glassesTypeSetting.get();
     const ringAddress = ringMode !== "glasses" ? addresses.ring : "";
-    // Direct mode may unpair the ring from the glasses; remember to hand it
-    // back once a later session runs in another mode.
-    if (ringMode === "direct" && ringAddress) setBooleanSetting(RING_TAKEN_FROM_GLASSES_KEY, true);
+    noteRingSessionMode(ringMode, ringAddress);
     this.appendLog((glassesType === "rayneo-io"
       ? `Using configured RayNeo iO: ${addresses.right}`
       : `Using configured arms: R=${addresses.right} L=${addresses.left}`) + (ringAddress ? ` ring=${ringAddress}` : ""),
@@ -1621,10 +1602,7 @@ class DashboardController {
         right: addresses.right,
         left: addresses.left,
         ring: ringAddress,
-        // Direct mode acts as the ring's glasses (gestures, battery). Health
-        // sync needs the phone role, which the session borrows briefly for
-        // each pull (GlassesSessionRing.beginRingHealthWindowLocked).
-        ringRole: ringMode === "direct" ? "glasses" : "phone",
+        ringRole: directRingRole(ringMode),
         glassesType,
       });
       this.communicator = communicator;
@@ -1696,6 +1674,8 @@ class DashboardController {
         if (mappedPhase === "connected") {
           this.syncEvenHubScreenOffSetting();
           this.ensureWearStateTracking();
+          // The session reapplies it on reconnects; restate it for a new session.
+          applyGlanceAngle();
           this.maybeWakeAfterChargingReconnect();
         } else if (mappedPhase !== "charging") {
           this.cancelEvenHubSuspendTimer();
@@ -1805,6 +1785,7 @@ class DashboardController {
             this.appendLog(`wake takeover lease sync failed: ${this.formatError(error)}`);
           });
           this.ensureWearStateTracking();
+          this.syncKeyboardLink();
         }
         // The shared session halts on incompatible firmware by itself
         // ("incompatible-firmware" phase); this only explains why.
@@ -1858,6 +1839,7 @@ class DashboardController {
         this.requestShellRender();
         this.updateCompositePreview();
         this.updateConnectedForegroundNotification();
+        syncGlanceAngleOriginal();
         // Keeps the home widget's report time fresh while the link is up; the
         // bridge republishes unchanged data only every few minutes.
         this.publishHomeWidgetState();
@@ -2299,6 +2281,30 @@ class DashboardController {
   }
 
   /**
+   * How many of the glasses' microphones the continuous-capture windows call
+   * for (the most any asks for), where the glasses can stream them
+   * separately: G2 with the microphone channel in use. Otherwise 1, the
+   * mixed stream.
+   */
+  private continuousMics(): MicCount {
+    if (glassesTypeSetting.get() !== "g2" || !micControlSupported()) return 1;
+    let mics: MicCount = 1;
+    for (const options of this.continuousClients.values()) {
+      if ((options.mics ?? 1) > mics) mics = options.mics!;
+    }
+    return mics;
+  }
+
+  /**
+   * A recording as a capture of its own (see VoiceReplay), transcribed with
+   * the provider and processing settings a microphone capture would get.
+   * "My voice only" is left out: a recording is of whoever spoke.
+   */
+  private openVoiceReplay(path: string): VoiceReplay {
+    return new VoiceReplay(path, () => ({ ...this.voiceCaptureOptions(null), speakerVerification: undefined }));
+  }
+
+  /**
    * Continuous capture's claim on the mic (the Microphones app and EvenHub
    * mic apps stand down while it is held) follows whether the capture really
    * holds the mic, not merely whether a window asked: a start that never
@@ -2323,9 +2329,26 @@ class DashboardController {
     // Otherwise only Whisper server is told a language (its own setting).
     const choice = this.transcriptionChoice();
     const provider = choice?.provider ?? voiceProviderSetting.get();
+    // Separate microphones only come from connected glasses.
+    const mics = communicator ? this.continuousMics() : 1;
+    const micConfig = mics === 1 ? null : micArrayCaptureConfig(mics);
     return {
       communicator: communicator?.getNativeCommunicator() ?? null,
       usePhoneMic: communicator === null,
+      micArray: micConfig ? { configure: encodeMicControl("configure", micConfig) } : null,
+      // Stored in a recording of the capture (see Save Recording).
+      captureInfo: {
+        glasses: communicator ? glassesModelName() : null,
+        mics,
+        micConfig: micConfig && {
+          source: micConfig.source,
+          channelMask: micConfig.channelMask,
+          codec: micConfig.codec,
+          format: micConfig.format,
+          sampleRateHz: micConfig.sampleRateHz,
+          directionDetection: micConfig.beamform,
+        },
+      },
       provider,
       language: choice ? choice.language : provider === "whisper-server" ? whisperServerLanguageSetting.get() : "",
       elevenLabsApiKey: elevenLabsApiKeySetting.get(),
@@ -2508,6 +2531,16 @@ class DashboardController {
     frameTimings.logFrame(frameId, `TS input handler start: ${event.kind} ${eventLabel(event.kind, event.eventType)}`);
     let frameOwned = false;
     try {
+      if (event.kind === "sys-event" && event.eventType === OsEventTypeList.HEAD_DOWN_EVENT) {
+        // Only the Glanceboard cares (it ends a head-tilt showing); never
+        // shell input, so it can't count as activity or wake anything.
+        const glanceEvent = this.glance.eventForGesture("head-down");
+        if (glanceEvent) {
+          await this.glance.handleEvent(glanceEvent, frameId);
+          frameOwned = true;
+        }
+        return;
+      }
       const inputEvent = rawInputEventToInputEvent(event);
       if (!acceptInput(inputEvent)) return;
       // The gesture, plus which app is on screen and whether input goes to it,
@@ -2626,15 +2659,49 @@ class DashboardController {
     }
   }
 
+  /** Re-send the head-tilt angle when it changed (the setting, from either settings UI, or the Glanceboard toggle). */
+  private applyGlanceAngleIfChanged(): void {
+    const degrees = glanceAngleTriggerDegrees();
+    if (degrees === this.lastGlanceAngleDegrees) return;
+    this.lastGlanceAngleDegrees = degrees;
+    applyGlanceAngle();
+  }
+
+  /**
+   * Tell the keyboard bridge whether the session can host a keyboard: a G2
+   * on firmware with the bridge, connected and in use. While the glasses
+   * charge in their case the link stays up but nobody is typing, so the
+   * firmware is told to let the keyboard go.
+   */
+  private syncKeyboardLink(): void {
+    const up =
+      this.phase === "connected" &&
+      this.customFirmwareConfirmed &&
+      glassesTypeSetting.get() === "g2";
+    // Charging, or a disconnect the user asked for: the link is still up, so
+    // the DISABLE gets out ahead of everything the teardown sends.
+    if (up) keyboardService.linkReady();
+    else keyboardService.linkLost(this.phase === "charging" || this.phase === "disconnecting");
+  }
+
   /**
    * The Glanceboard event a sleep-time input means, or null when the shell
    * should see the input as usual. A display-wake carries the head-tilt
-   * gesture (HEAD_UP_EVENT) as a press; the double-tap display-wake stays the
-   * regular UI's wake.
+   * gesture (HEAD_UP_EVENT) as a tilt, which lasts until the head-down; the
+   * double-tap display-wake stays the regular UI's wake.
    */
   private glanceEventFor(inputEvent: InputEvent, event: RawInputEvent): GlanceEvent | null {
     if (inputEvent.type === "display-wake") {
-      return event.eventType === OsEventTypeList.HEAD_UP_EVENT ? this.glance.eventForGesture("head-tilt") : null;
+      if (event.eventType !== OsEventTypeList.HEAD_UP_EVENT) return null;
+      const glanceEvent = this.glance.eventForGesture("head-tilt");
+      if (glanceEvent?.type !== "tilt") return glanceEvent;
+      const maxMs = glanceTiltMaxMs({
+        capMs: glanceEvent.maxMs === undefined ? GLANCE_TILT_MAX_MS : glanceEvent.maxMs,
+        resumedSession: this.evenHubSessionSuspended || this.evenHubResumePromise !== null,
+        triggerDegrees: glassesHeadUpTrigger() ?? (glanceAngleTriggerDegrees() || null),
+        tapTimeoutMs: glanceTapTimeoutMs(),
+      });
+      return { type: "tilt", maxMs };
     }
     return this.glance.eventForGesture(inputEvent.type);
   }
@@ -2733,6 +2800,7 @@ class DashboardController {
         }
       },
       endTextSettingEdit: () => this.endTextSettingEdit(),
+      unhandledKey: (event) => keyboardService.handleUnhandledKey(event as KeyEvent),
     });
     this.appHosts.set(appId, host);
     return host;
@@ -2766,10 +2834,11 @@ class DashboardController {
     if (!this.openAppsRestored || this.suppressOpenAppsPersist) return;
     const open: string[] = [];
     for (const window of shell.getWindows()) {
-      if (window.appId === "launcher") continue;
+      if (window.appId === "launcher" || window.restoresApp === false) continue;
       if (!open.includes(window.appId)) open.push(window.appId);
     }
-    savePersistedOpenApps({ open, foreground: shell.foregroundWindow()?.appId ?? null });
+    const foreground = shell.foregroundWindow();
+    savePersistedOpenApps({ open, foreground: foreground && foreground.restoresApp !== false ? foreground.appId : null });
   }
 
   /**
@@ -3097,6 +3166,7 @@ class DashboardController {
   private setPhase(phase: ConnectionPhase): void {
     if (this.phase === phase) return;
     this.phase = phase;
+    this.syncKeyboardLink();
     if (phase !== "connected" && phase !== "charging") {
       shell.setBatteryLevels({ ring: null, ringCharging: null });
     }

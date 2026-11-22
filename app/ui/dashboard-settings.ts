@@ -947,7 +947,7 @@ export const useMicControlSetting = new ConfigSettingBoolean({
   storageKey: "developer.useMicControl",
   defaultValue: true,
   description:
-    "Use the custom firmware's per-temple mic-control channel for the Microphones app's array capture. When off, use the standard single mixed stream.",
+    "Use the custom firmware's per-temple mic-control channel for capturing the microphones separately (the Microphones app's array capture, and Transcribe's Microphones option). When off, use the standard single mixed stream.",
 });
 
 export const showBleBandwidthSetting = new ConfigSettingBoolean({
@@ -1017,17 +1017,26 @@ export const voiceProviderSetting = new ConfigSettingEnum<VoiceProvider>({
     ? ["onboard", "elevenlabs", "whisper", "soniox", "whisper-server"]
     : ["onboard", "onboard-whisper", "elevenlabs", "whisper", "soniox", "whisper-server"],
   formatValue: (value) => voiceProviderLabels[value] ?? value,
-  isDisabled: (value) => {
-    if (value === "elevenlabs") return elevenLabsApiKeySetting.get().trim().length === 0;
-    if (value === "whisper") return openAiApiKeySetting.get().trim().length === 0;
-    if (value === "soniox") return sonioxApiKeySetting.get().trim().length === 0;
-    if (value === "whisper-server") return !normalizeWhisperServerUrl(whisperServerUrlSetting.get());
-    return false;
-  },
+  // Whisper server stays selectable before it has a URL: its rows only appear
+  // in Settings once it is the selected provider.
+  isDisabled: (value) => value !== "whisper-server" && !isVoiceProviderSetUp(value),
   description: global.isIOS
-    ? "Speech-to-text engine for voice input. ElevenLabs, OpenAI, and Soniox are cloud services that need an API key (Settings > API Keys), with significantly better accuracy than on-device transcription. Whisper server is your own OpenAI-compatible Whisper (set its URL below). On-device uses your iPhone's speech language and never leaves the phone."
-    : "Speech-to-text engine for voice input. ElevenLabs, OpenAI, and Soniox are cloud services that need an API key, with significantly better accuracy than on-device transcription. Whisper server is your own OpenAI-compatible Whisper (set its URL below). The two On-device options need their voice model downloaded (below) and never leave the phone.",
+    ? "Speech-to-text engine for voice input. ElevenLabs, OpenAI, and Soniox are cloud services that need an API key (Settings > API Keys), with significantly better accuracy than on-device transcription. Whisper server is your own OpenAI-compatible Whisper; choosing it shows its settings below. On-device uses your iPhone's speech language and never leaves the phone."
+    : "Speech-to-text engine for voice input. ElevenLabs, OpenAI, and Soniox are cloud services that need an API key, with significantly better accuracy than on-device transcription. Whisper server is your own OpenAI-compatible Whisper; choosing it shows its settings below. The two On-device options need their voice model downloaded (below) and never leave the phone.",
 });
+
+/**
+ * Whether a transcription provider has what it needs to reach its service: an
+ * API key, or the Whisper server's URL. The on-device ones always do here
+ * (a missing model download is reported when a capture starts).
+ */
+export function isVoiceProviderSetUp(value: VoiceProvider): boolean {
+  if (value === "elevenlabs") return elevenLabsApiKeySetting.get().trim().length > 0;
+  if (value === "whisper") return openAiApiKeySetting.get().trim().length > 0;
+  if (value === "soniox") return sonioxApiKeySetting.get().trim().length > 0;
+  if (value === "whisper-server") return Boolean(normalizeWhisperServerUrl(whisperServerUrlSetting.get()));
+  return true;
+}
 
 const wakeWordActionLabels: Record<WakeWordAction, string> = {
   "voice-input": "Voice Input",
@@ -1054,7 +1063,9 @@ export const saveRecordingSetting = new ConfigSettingBoolean({
   label: "Save Recording",
   storageKey: "voice.saveRecording",
   defaultValue: false,
-  description: "Record the audio of Transcribe and Translate sessions as WAV files in Downloads (about 2 MB per minute), named after the app and the session's start time. Recordings are kept until you delete them.",
+  description: global.isIOS
+    ? "Record the audio of Transcribe and Translate sessions as Matroska audio (.mka) files in Downloads (about 2 MB per minute), named after the app and the session's start time. Recordings are kept until you delete them."
+    : "Record the audio of Transcribe and Translate sessions as Matroska audio (.mka) files in Downloads: about 2 MB per minute, or 10 MB with all four microphones. Named after the app and the session's start time, and kept until you delete them. Transcribe can replay one: pick it in the Files app.",
 });
 
 export const assistantSkipConfirmationSetting = new ConfigSettingBoolean({
@@ -1077,10 +1088,10 @@ export const assistantBackendSetting = new ConfigSettingEnum<AssistantBackendKin
   label: "Assistant backend",
   storageKey: "assistant.backend",
   defaultValue: "direct",
-  values: global.isIOS ? ["direct"] : ["direct", "external"],
+  values: ["direct", "external"],
   formatValue: (value) => assistantBackendLabels[value] ?? value,
   description:
-    global.isIOS ? "An LLM called from the phone: a cloud model with your OpenAI or Anthropic API key (Settings > API Keys) or your configured OpenAI-compatible API, or Apple Intelligence's on-device model." : "Who answers assistant queries: an LLM called from the phone (a cloud API with your key, or the downloaded on-phone model), or your own long-running agent (e.g. OpenClaw) reached through the faceclaw-agent-bridge plugin.",
+    `Who answers assistant queries: an LLM called from the phone (a cloud API with your key, or ${global.isIOS ? "Apple Intelligence's on-device model" : "the downloaded on-phone model"}), or your own long-running agent (e.g. OpenClaw) reached through the faceclaw-agent-bridge plugin.`,
 });
 
 export const assistantHermesUrlSetting = new ConfigSettingString({
@@ -1110,10 +1121,11 @@ export const assistantBridgeHostSetting = new ConfigSettingString({
   label: "Bridge host",
   storageKey: "assistant.bridgeHost",
   defaultValue: "",
-  editorTitle: "Agent bridge host (tailscale IP)",
+  editorTitle: "Agent bridge host (tailscale IP, or a wss:// URL)",
   glassesEditTitle: "Edit bridge host",
   description:
-    "Hostname or IP address (e.g. a Tailscale address) of the machine running the agent bridge.",
+    "Hostname or IP address (e.g. a Tailscale address) of the machine running the agent bridge, dialed without TLS on the Bridge port. A full wss:// (or ws://) address is used as written instead, for a bridge behind a TLS proxy such as `tailscale serve`." +
+    (global.isIOS ? " On iOS, App Transport Security blocks connections without TLS to most addresses, so use a wss:// address unless the app was built with an exception for your host." : ""),
 });
 
 export const assistantBridgePortSetting = new ConfigSettingString({
@@ -1123,7 +1135,7 @@ export const assistantBridgePortSetting = new ConfigSettingString({
   defaultValue: "8790",
   editorTitle: "Agent bridge port",
   glassesEditTitle: "Edit bridge port",
-  description: "TCP port the agent bridge listens on. The default is 8790.",
+  description: "TCP port the agent bridge listens on. The default is 8790. Not used when Bridge host is a full wss:// or ws:// address.",
 });
 
 export const assistantBridgeTokenSetting = new ConfigSettingString({
@@ -1350,9 +1362,26 @@ export const terminalNewConnectionSetting = new ConfigSettingString({
   label: "New connection",
   storageKey: "terminal.newConnectionDraft",
   defaultValue: "",
-  editorTitle: "g2mirror connection string (g2mirror://token@host)",
+  editorTitle: "Connection (ssh://user@host or g2mirror://token@host)",
   glassesEditTitle: "Add connection",
   normalize: (value) => (value ?? "").replace(/[\x00-\x1f]+/g, "").trim(),
+});
+
+/**
+ * Staging buffer for the Terminal app's SSH password prompt: the worker opens
+ * the phone's (masked) text editor on it, then moves what was typed into the
+ * platform keystore (app/native/ssh) and clears it as soon as the user
+ * confirms or cancels on the glasses. Not listed in the Settings app.
+ */
+export const terminalSshPasswordSetting = new ConfigSettingString({
+  id: "terminal-ssh-password",
+  label: "SSH password",
+  storageKey: "terminal.sshPasswordDraft",
+  defaultValue: "",
+  inputKind: "password",
+  editorTitle: "SSH password",
+  glassesEditTitle: "SSH password",
+  normalize: (value) => (value ?? "").replace(/[\r\n]+/g, ""),
 });
 
 /**
@@ -1734,9 +1763,18 @@ type SettingsMenuOptions<T> = {
   label?: string
 }
 
+type EnumSettingMenuOptions<T> = SettingsMenuOptions<T> & {
+  /**
+   * A live line under the picker's values, such as a sensor reading to pick
+   * by. open() runs as the picker opens, with a function that repaints it,
+   * and returns what to run when the picker closes.
+   */
+  pickerFooter?: { text: () => string; open: (repaint: () => void) => () => void }
+}
+
 export function enumSettingMenuItem<TValue extends string, TId extends string = string>(
   setting: ConfigSettingEnum<TValue, TId>,
-  opts?: SettingsMenuOptions<TValue>
+  opts?: EnumSettingMenuOptions<TValue>
 ): MenuItem {
   const label = opts?.label ?? setting.label;
   return {
@@ -1764,7 +1802,11 @@ export function enumSettingMenuItem<TValue extends string, TId extends string = 
           );
         },
       }));
-      openModalMenu(ctx, label, items, Math.max(0, setting.values.indexOf(current)));
+      const footer = opts?.pickerFooter;
+      openModalMenu(ctx, label, items, Math.max(0, setting.values.indexOf(current)), {
+        footer: footer?.text,
+        onClosed: footer?.open(() => ctx.actions.requestRender()),
+      });
     },
     render: ({ image, x, y, width }) => {
       drawRightValueMenuItem(image, getDefaultSmallFont(), x, y, width, label, setting.displayValue(setting.get()));

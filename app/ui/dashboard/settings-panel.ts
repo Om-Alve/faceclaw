@@ -28,6 +28,13 @@ export type SettingsSection = {
     height: number;
     ctx: LayerContext;
   }) => number | void;
+  /**
+   * Leave the section out of the list while this returns true. Re-read on
+   * every paint and input, for a section that only applies with some other
+   * setting (the paired glasses' type): the Settings window outlives changes
+   * to those.
+   */
+  hidden?: () => boolean;
 };
 
 const LEFT_W = 150;
@@ -66,7 +73,7 @@ export class SettingsPanelLayer implements Layer {
 
   constructor(private readonly sections: SettingsSection[]) {
     this.leftMenu = new Menu<SettingsSection>({
-      items: sections,
+      items: sections.filter((section) => !section.hidden?.()),
       wrap: true,
       rowGap: ROW_GAP,
       highlight: { radius: 6 },
@@ -108,13 +115,44 @@ export class SettingsPanelLayer implements Layer {
     return this.leftMenu.selectedItem ?? this.sections[0]!;
   }
 
+  /**
+   * Bring the left column in line with which sections are hidden now. The
+   * highlight stays on its section; if that one just went away it moves to
+   * the list's start, with focus back in the left column.
+   */
+  private syncSections(): void {
+    const visible = this.sections.filter((section) => !section.hidden?.());
+    const shown = this.leftMenu.items;
+    if (visible.length === shown.length && visible.every((section, index) => section === shown[index])) return;
+    const selected = this.leftMenu.selectedItem;
+    const index = selected ? visible.indexOf(selected) : -1;
+    this.leftMenu.setItems(visible, Math.max(0, index));
+    if (index < 0) {
+      this.focus = "left";
+      this.resetRight();
+    }
+  }
+
   /** Select a left-column section by label (deep link, e.g. from an app's menu). */
   focusSection(label: string): void {
-    const index = this.sections.findIndex((section) => section.label === label);
+    this.syncSections();
+    const index = this.leftMenu.items.findIndex((section) => section.label === label);
     if (index < 0) return;
     this.leftMenu.select(index);
     this.focus = "left";
     this.resetRight();
+  }
+
+  /**
+   * Bring both columns in line with what the sections offer now: which are
+   * hidden, and the highlighted one's rows (re-read, since they may come and
+   * go with other state). Returns those rows.
+   */
+  private syncItems(): MenuItem[] {
+    this.syncSections();
+    const items = this.section().items;
+    this.rightMenu.setItems(items);
+    return items;
   }
 
   paint(ctx: LayerContext): GrayImage {
@@ -123,9 +161,8 @@ export class SettingsPanelLayer implements Layer {
     const { width, height, padding } = viewport;
     const image = new GrayImage(width, height, 0);
     const appFocused = ctx.stack.isFocused();
+    const rightItems = this.syncItems();
     const section = this.section();
-    const rightItems = section.items;
-    this.rightMenu.setItems(rightItems);
 
     // Fixed content keeps the padding suggested for the window's edges. The
     // two lists scroll, so they run to the top and bottom edges themselves,
@@ -216,6 +253,10 @@ export class SettingsPanelLayer implements Layer {
   paintDescriptionOverlay(image: GrayImage, ctx: LayerContext): void {
     const font = getDefaultSmallFont();
     const { bottom: listBottom, rightX, rightW } = panelColumns(ctx.stack.getBaseSize());
+    // The overlay paints before the panel under it, so this is the frame's
+    // first look at the rows: without it, a row that came or went by itself
+    // (no input) would leave the previous selection's text here.
+    this.syncItems();
     const lines = this.descriptionLines(font, rightW);
     if (!lines.length) return;
     const top = listBottom - (lines.length * lineStep(font) + 10);
@@ -228,6 +269,7 @@ export class SettingsPanelLayer implements Layer {
   }
 
   async handleInput(event: InputEvent, ctx: LayerContext): Promise<void> {
+    this.syncSections();
     const scroll = scrollEventFor(event);
     if (this.focus === "left") {
       if (scroll) {
