@@ -103,14 +103,6 @@
     "../app/apps/t3code/t3-client.ts",
     "../app/apps/t3code/t3-transcript.ts",
     "../app/apps/t3code/t3-glance.ts",
-    "../app/apps/t3code/t3-launch.ts",
-    "../app/apps/herdr/protocol.ts",
-    "../app/apps/herdr/model.ts",
-    "../app/apps/herdr/client.ts",
-    "../app/apps/herdr/reader.ts",
-    "../app/apps/herdr/render.ts",
-    "../app/apps/herdr/prompt.ts",
-    "../app/apps/herdr/glance.ts",
-    "../app/apps/herdr/keys.ts"
+    "../app/apps/t3code/t3-launch.ts"
   ]
 }

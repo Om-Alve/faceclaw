@@ -7,7 +7,6 @@ import { SystemCardWidget, systemCardSettingsMenuItems } from "./system-card";
 import { T3CodeWidget } from "./t3code-widget";
 import { TerminalWidget } from "./terminal-widget";
 import { HealthWidget } from "./health-widget";
-import { HerdrWidget } from "./herdr-widget";
 
 /** Every widget a board slot can hold. */
 export const GLANCE_WIDGETS: readonly GlanceWidgetDefinition[] = [
@@ -15,7 +14,6 @@ export const GLANCE_WIDGETS: readonly GlanceWidgetDefinition[] = [
   { id: "calendar", label: "Calendar", tall: true, create: () => new CalendarWidget() },
   { id: "terminal", label: "Terminal", tall: true, create: () => new TerminalWidget() },
   { id: "t3code", label: "T3 Code", tall: true, create: () => new T3CodeWidget() },
-  { id: "herdr", label: "Herdr", tall: true, create: () => new HerdrWidget() },
   { id: "nightscout", label: "Nightscout", create: () => new NightscoutWidget() },
   { id: "compass", label: "Compass", create: () => new CompassWidget() },
   { id: "music", label: "Music", settingsMenuItems: musicSettingsMenuItems, create: () => new MusicWidget() },
