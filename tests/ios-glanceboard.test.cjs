@@ -198,6 +198,7 @@ function fixture() {
     '../graphics/plane': planes, '../graphics/image': images,
     '../ui/gestures': { makeInputEvent: event => event }, '../ui/layers': { noopLayerActions: {} },
     '../apps/files/text-viewer': {},
+    '../ui/shell/keyboard-typing': load('app/ui/shell/keyboard-typing.ts', { './shell': { shell } }),
     '../ui/shell/shell': { shell, rawInputEventToInputEvent: event => ({
       ringInput: event.ringInput, timestampMs: now,
       type: event.kind === 'display-wake' ? 'display-wake'

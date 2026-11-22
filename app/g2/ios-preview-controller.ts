@@ -1,5 +1,6 @@
 import { startRemoteInput } from "../remote/service"
 import type { KeyboardInputSession } from '../ui/shell/keyboard-input'
+import { typeIntoKeyboardDialog } from '../ui/shell/keyboard-typing'
 import { acceptInput, resetRingInputFilter } from "../ui/input-monitor";
 import { bindIosNotifications, iosNotificationsChanged, onIosNotificationPopup, readActiveNotifications } from '../native/notification-icons.ios'
 import { launcherEntries } from '../apps/launcher'
@@ -281,15 +282,7 @@ export class IosPreviewController {
       },
       acceptsText: () => !!shell.foregroundWindow()?.receiveTextInput,
       text: (text, submit) => { if (!shell.isScreenOn()) shell.wake('window'); shell.sendTextToForegroundWindow(text, { submit }); this.requestShellRender() },
-      type: keys => {
-        if (!shell.isScreenOn()) shell.wake('window')
-        const session = shell.startKeyboardInput()
-        if (!session) return false
-        if (session.visibility === 'phone') session.setVisibility('both')
-        session.type(keys)
-        this.requestShellRender()
-        return true
-      },
+      type: keys => typeIntoKeyboardDialog(keys, () => this.requestShellRender()),
       assistantAvailable: () => shell.isAssistantAvailable(),
       assistant: text => shell.sendToAssistant(text),
     })

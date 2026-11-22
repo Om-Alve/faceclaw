@@ -29,6 +29,7 @@ import { isPreviewOnlyMode } from "./onboarding-state";
 import { formatErrorMessage } from "../util/format-error";
 import { FACECLAW_VERSION } from "../version";
 import { screenHeight, screenWidth } from "../ui/shell/geometry";
+import { shell } from "../ui/shell/shell";
 
 /** The paired glasses' screen aspect (4:3 on the G2, 27:11 on the RayNeo iO). */
 function lensAspectRatio(): number {
@@ -137,10 +138,10 @@ export class MainViewModel extends RemoteControlsViewModel {
       this.displayPreview = snapshot.displayPreview;
       this.displayPreviewMessage = snapshot.displayPreviewMessage;
       this.phase = snapshot.phase;
-      const { case: caseBattery, caseCharging } = snapshot.batteries;
+      const { headset, headsetCharging, case: caseBattery, caseCharging } = shell.getBatteryLevels();
       // caseCharging is null unless the case's last report had the glasses docked.
-      this.glassesCard.update(snapshot.headsetBattery,
-        glassesBatteryStatus(snapshot.headsetBattery, snapshot.headsetCharging, snapshot.phase, caseCharging !== null));
+      this.glassesCard.update(headset,
+        glassesBatteryStatus(headset, headsetCharging === true, snapshot.phase, caseCharging !== null));
       this.caseCard.update(caseBattery, caseBatteryStatus(caseBattery, caseCharging, snapshot.phase));
       this.activeTextSettingId = snapshot.activeTextSettingId;
       this.activeTextEditorTitle = snapshot.activeTextEditorTitle;

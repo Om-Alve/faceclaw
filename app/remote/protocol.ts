@@ -10,9 +10,11 @@ export type TokenRecord = { id: string; name: string; hash: string; permissions:
 export type RemoteHost = {
   ready(): boolean;
   locked(): boolean;
-  input(gesture: RemoteGesture, source: 'watch' | 'ring'): Promise<void>;
+  input(gesture: Exclude<RemoteGesture, 'voice-toggle'>, source: 'watch' | 'ring'): Promise<void>;
   acceptsText(): boolean;
   text(text: string, submit: boolean): void;
+  /** Toggle voice capture (the voice-toggle gesture); false when it cannot start. Absent where the host has no voice toggle. */
+  voiceToggle?(): boolean;
   type(keys: string): boolean;
   assistantAvailable(): boolean;
   assistant(text: string): void;
@@ -97,7 +99,10 @@ export async function handleRequest(body: string, tokens: TokenStore, host: Remo
   // Gestures follow the normal lock-screen path. Text must never bypass it.
   if (request.action !== 'input' && host.locked()) return error('locked', 'The glasses are locked.');
   try {
-    if (request.action === 'input') await host.input(request.gesture, request.source ?? 'watch');
+    if (request.action === 'input' && request.gesture === 'voice-toggle') {
+      if (!host.voiceToggle) return error('unavailable', 'This device has no voice toggle.');
+      if (!host.voiceToggle()) return error('failed', 'Faceclaw could not deliver the request.');
+    } else if (request.action === 'input') await host.input(request.gesture, request.source ?? 'watch');
     else if (request.action === 'type') {
       if (!host.type(request.text)) return error('unavailable', 'The keyboard dialog cannot open now.');
     } else if (request.action === 'text') {

@@ -11,6 +11,7 @@ function fixture(permissions = ['input', 'text', 'assistant']) {
     () => crypto.randomBytes(32).toString('hex'), value => crypto.createHash('sha256').update(value).digest('hex'));
   const { token, record } = tokens.create('Test app', permissions);
   const host = { ready: () => true, locked: () => false, input: async (...args) => calls.push(args),
+    voiceToggle: () => { calls.push(['voiceToggle']); return true; },
     acceptsText: () => true, text: text => calls.push(['text', text]), type: keys => { calls.push(['type', keys]); return true; },
     assistantAvailable: () => true, assistant: text => calls.push(['assistant', text]) };
   const request = payload => handleRequest(JSON.stringify({ version: 1, token, ...payload }), tokens, host);
@@ -46,9 +47,17 @@ test('every supported gesture routes with the selected source, directions requir
   const f = fixture();
   for (const gesture of GESTURES) {
     assert.equal((await f.request({ action: 'input', gesture })).ok, true);
-    assert.deepEqual(f.calls.at(-1), [gesture, 'watch']);
+    assert.deepEqual(f.calls.at(-1), gesture === 'voice-toggle' ? ['voiceToggle'] : [gesture, 'watch']);
     assert.equal((await f.request({ action: 'input', gesture, source: 'ring' })).ok, !gesture.startsWith('swipe-'));
   }
+});
+test('voice-toggle reaches the host voice toggle, and fails where it cannot start or is absent', async () => {
+  const f = fixture();
+  f.host.voiceToggle = () => false;
+  assert.equal((await f.request({ action: 'input', gesture: 'voice-toggle' })).error, 'failed');
+  delete f.host.voiceToggle;
+  assert.equal((await f.request({ action: 'input', gesture: 'voice-toggle' })).error, 'unavailable');
+  assert.deepEqual(f.calls, []);
 });
 test('malformed and unauthorized requests have no side effects', async () => {
   const f = fixture();

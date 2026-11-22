@@ -2,7 +2,7 @@ import { startRemoteInput } from "../remote/service";
 import { acceptInput, resetRingInputFilter } from "../ui/input-monitor";
 import { Application, Dialogs, ImageSource } from "@nativescript/core";
 import { EvenAIStatus, EvenAIStatusName, EventSourceType, EventSourceTypeName, OsEventTypeList, OsEventTypeName, WatchGestureType, WatchGestureTypeName } from "./events";
-import { isValidMacAddress, loadDeviceAddresses, loadPairedGlassesIdentityForAddresses } from "./device-addresses";
+import { isValidMacAddress, loadDeviceAddresses } from "./device-addresses";
 import {
   ensureBlePermissions,
   ensureVoicePermissions,
@@ -53,8 +53,7 @@ const MIRROR_TOUCH_GESTURES: Record<Exclude<MirrorTouchKind, "tap">, WearRemoteI
   "swipe-right": "swipe-right",
 };
 import { GlanceHost } from "./glance-host";
-import { GlassesHardwareIdentity } from "./glasses-hardware-identity";
-import { publishHomeWidget } from "../native/home-widget";
+import { publishHomeWidgetState } from "./home-widget-state";
 import { mirrorToPanelFraction, phonePreviewCrop } from "./phone-preview-crop";
 import { type GlanceEvent } from "./glance-state";
 import { isPreviewOnlyMode } from "../phone-ui/onboarding-state";
@@ -83,8 +82,9 @@ import { type InProcessAppOptions, type InProcessWindow } from "../ui/shell/in-p
 import { loadPersistedOpenApps, savePersistedOpenApps } from "../ui/shell/open-apps-persistence";
 import { appViewportRect, isOnSwitcherEdge, screenHeight, screenWidth, sidebarStripVisible, windowEdges, type ScreenRect, type WindowHeightMode } from "../ui/shell/geometry";
 import { sameEdges } from "../ui/viewport";
-import { type ContinuousCaptureOptions, type LayerActions, type MicCount, type NotificationReplyRequest, type TextSettingsEditToggle, type TranscriptionChoice } from "../ui/layers";
+import { type ContinuousCaptureOptions, type LayerActions, type MicCount, type TextSettingsEditToggle, type TranscriptionChoice } from "../ui/layers";
 import { type KeyboardInputSession } from "../ui/shell/keyboard-input";
+import { typeIntoKeyboardDialog } from "../ui/shell/keyboard-typing";
 import { appSwitcherPositionSetting, glassesModelName, glassesTypeSetting, statusBarPositionSetting, statusBarVisibilitySetting, windowBorderSetting, getBrightnessPreferences, displayLayoutSetting, navigateDisplayLayoutSetting, terminalDisplayLayoutSetting, elevenLabsApiKeySetting, getStringSettingById, openAiApiKeySetting, nightscoutApiTokenSetting, firmwareDebugFlagsSetting, whisperServerApiKeySetting, whisperServerLanguageSetting, whisperServerModelSetting, whisperServerUrlSetting, lockScreenEnabledSetting, nightscoutSiteUrlSetting, onAnySettingChanged, previewColorSetting, effectiveRingConnectionMode, type RingConnectionMode, saveRecordingSetting, sonioxApiKeySetting, screenTimeoutSetting, screenTimeoutSettingToMs, shouldPopUpNewNotification, suspendEvenHubWhenScreenOffSetting, voiceProviderSetting, wakeWordActionSetting, type ConfigSettingString } from "../ui/dashboard-settings";
 import { isIgnoringBatteryOptimizations, requestIgnoreBatteryOptimizations } from "../native/battery-optimization";
 import {
@@ -159,13 +159,6 @@ export type DashboardSnapshot = {
    * nothing is paired, so "Disconnected" would be the wrong label.
    */
   previewMode: boolean;
-  /** Last battery level the glasses reported; null until one arrives. */
-  batteries: ReturnType<typeof shell.getBatteryLevels>;
-  headsetBattery: number | null;
-  /** Whether that last report said the glasses are charging. */
-  headsetCharging: boolean;
-  /** Whether the glasses are worn; null when nothing has reported wear yet. */
-  glassesWorn: boolean | null;
   /**
    * The foreground glasses window's EvenHub phone UI, when it can be opened
    * (the app-icon button under the mirror); null otherwise.
@@ -311,13 +304,6 @@ class DashboardController {
   // Last battery level the glasses reported, kept across disconnects so a
   // drop-off right after a low reading can be explained as a flat battery.
   private lastHeadsetBattery: number | null = null;
-  // Home widget: the paired serial's frame shape, decoded once per serial
-  // (emit() runs on every state change).
-  private homeWidgetSerial: string | null = null;
-  private homeWidgetFrame: string | null = null;
-  // Charging flag from the last battery report, so the phone can label a
-  // last-known level the same way the top bar does.
-  private lastHeadsetCharging = false;
   private readonly listeners = new Set<DashboardListener>();
 
   private communicator: FaceclawCommunicatorBridge | null = null;
@@ -432,11 +418,7 @@ class DashboardController {
       stopContinuousVoiceCapture: (client: string) => this.stopContinuousVoiceCapture(client),
       openVoiceReplay: (path: string) => this.openVoiceReplay(path),
       playBuzzerSequence: (payload: Uint8Array) => this.playBuzzerSequence(payload),
-      startNotificationReply: (request: NotificationReplyRequest) => {
-        const opened = shell.startNotificationReply(request);
-        if (opened) this.requestShellRender();
-        return opened;
-      },
+      startNotificationReply: (request) => shell.startNotificationReply(request),
     };
     this.sharedActions = sharedActions;
     // The always-available assistant tools (calendar, media, notifications,
@@ -531,25 +513,11 @@ class DashboardController {
     startRemoteInput({
       ready: () => this.phase === "connected" || this.phase === "charging",
       locked: () => this.glassesLocked,
-      input: (gesture, source) => {
-        if (gesture === "voice-toggle") {
-          return shell.toggleHeldVoiceInput()
-            ? Promise.resolve()
-            : Promise.reject(new Error("Voice input is unavailable"));
-        }
-        return this.injectSyntheticRingInput(gesture, source);
-      },
+      input: (gesture, source) => this.injectSyntheticRingInput(gesture, source),
+      voiceToggle: () => shell.toggleHeldVoiceInput(),
       acceptsText: () => !!shell.foregroundWindow()?.receiveTextInput,
       text: (text, submit) => { if (!shell.isScreenOn()) shell.wake("window"); shell.sendTextToForegroundWindow(text, { submit }); this.requestShellRender(); },
-      type: (keys) => {
-        if (!shell.isScreenOn()) shell.wake("window");
-        const session = shell.startKeyboardInput();
-        if (!session) return false;
-        if (session.visibility === "phone") session.setVisibility("both");
-        session.type(keys);
-        this.requestShellRender();
-        return true;
-      },
+      type: (keys) => typeIntoKeyboardDialog(keys, () => this.requestShellRender()),
       assistantAvailable: () => shell.isAssistantAvailable(),
       assistant: text => shell.sendToAssistant(text),
     });
@@ -1246,10 +1214,6 @@ class DashboardController {
       fontsMissingWarningVisible: this.fontsMissingWarningVisible,
       alarmReliabilityMessage: this.alarmReliabilityMessage,
       previewMode: this.isPreviewDisplayActive(),
-      batteries: shell.getBatteryLevels(),
-      headsetBattery: this.lastHeadsetBattery,
-      headsetCharging: this.lastHeadsetCharging,
-      glassesWorn: this.glassesWorn,
       evenHubPhoneUi: phoneUiButton(),
     };
   }
@@ -1704,7 +1668,6 @@ class DashboardController {
         // especially while the glasses remain reachable in their case.
         const hasBatteryLevel = Number.isInteger(state.battery) && state.battery >= 0 && state.battery <= 100;
         if (hasBatteryLevel) this.lastHeadsetBattery = state.battery;
-        this.lastHeadsetCharging = state.chargingStatus > 0;
         const ringBattery = state.ringBattery;
         const hasRingBattery = typeof ringBattery === "number" && Number.isInteger(ringBattery)
           && ringBattery >= 0 && ringBattery <= 100;
@@ -1842,7 +1805,7 @@ class DashboardController {
         syncGlanceAngleOriginal();
         // Keeps the home widget's report time fresh while the link is up; the
         // bridge republishes unchanged data only every few minutes.
-        this.publishHomeWidgetState();
+        publishHomeWidgetState(this.phase);
       }, SHELL_REFRESH_INTERVAL_MS);
       this.previewTimer = setInterval(() => this.updateCompositePreview(), PREVIEW_INTERVAL_MS);
       this.screenTimeoutTimer = setInterval(() => {
@@ -3437,42 +3400,7 @@ class DashboardController {
       listener(snapshot);
     }
     this.wearRemote?.schedulePublish();
-    this.publishHomeWidgetState();
-  }
-
-  /**
-   * Mirror the tile-relevant state into the Android 2x2 home widget. emit() is
-   * the single funnel for battery, case and phase changes; the bridge drops
-   * publishes that would not change the tile.
-   */
-  private publishHomeWidgetState(): void {
-    const levels = shell.getBatteryLevels();
-    const addresses = loadDeviceAddresses();
-    const connected = this.phase === "connected" || this.phase === "charging";
-    publishHomeWidget({
-      paired: isValidMacAddress(addresses.left) && isValidMacAddress(addresses.right),
-      connected,
-      // The case's own report says whether the glasses are docked (caseCharging
-      // is null otherwise), which also covers a full pair that never enters
-      // charging mode. Else the same test as updateGlassesPresence: "charging"
-      // is a live link from the case.
-      docked: levels.caseCharging !== null || this.phase === "charging" || levels.headsetCharging === true,
-      glasses: levels.headset,
-      glassesCharging: levels.headsetCharging,
-      caseBattery: levels.case,
-      caseCharging: levels.caseCharging,
-      frame: this.homeWidgetFrameFor(addresses),
-    });
-  }
-
-  /** Frame A/B/C of the paired glasses, decoded once per paired serial. */
-  private homeWidgetFrameFor(addresses: ReturnType<typeof loadDeviceAddresses>): string | null {
-    const serial = loadPairedGlassesIdentityForAddresses(addresses)?.serial ?? "";
-    if (serial !== this.homeWidgetSerial) {
-      this.homeWidgetSerial = serial;
-      this.homeWidgetFrame = GlassesHardwareIdentity.decode(serial)?.frame ?? null;
-    }
-    return this.homeWidgetFrame;
+    publishHomeWidgetState(this.phase);
   }
 }
 
