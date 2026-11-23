@@ -297,7 +297,8 @@ let nextViewSerial = 1;
 const TERMINAL_TOOLS: ToolSpec[] = [
   {
     name: "list_sessions",
-    description: "List the live g2mirror terminal sessions the glasses can see, across every connected host.",
+    description:
+      "List the live g2mirror terminal sessions the glasses can see, across every connected host, with what each session's program reports, such as blocked on a permission prompt.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     availability: "open",
   },
@@ -1037,6 +1038,7 @@ function publishSessionsSnapshot(): void {
           label: sessionLabel(session),
           activeUntilMs: (sessionActivity.get(recencyKey(connectionId, session.socket)) ?? -ACTIVITY_ACTIVE_MS) + ACTIVITY_ACTIVE_MS,
           openGlyph: viewGlyphForSocket(connectionId, session.socket),
+          status: session.status,
         })),
       };
     }),
@@ -1592,6 +1594,7 @@ function drawHubRow({ image, item, x, y, width, height, selected }: MenuDrawArgs
     active: Boolean(item.active),
     phase: hubAnimationPhase,
     value: selected ? 255 : 200,
+    status: item.sessionRow?.session.status,
   });
 }
 
@@ -2651,7 +2654,8 @@ function toolListSessions(): ToolResult {
     for (const session of sessions) {
       const glyph = viewGlyphForSocket(control.config.id, session.socket);
       const open = glyph ? ` [open in window ${glyph}]` : viewWindowIdForSocket(control.config.id, session.socket) ? " [open]" : "";
-      lines.push(`- ${sessionLabel(session)}${open}`);
+      const status = session.status ? ` [${[session.status.state, session.status.kind, session.status.msg].filter(Boolean).join(": ")}]` : "";
+      lines.push(`- ${sessionLabel(session)}${open}${status}`);
     }
     if (!sessions.length && multiHost) {
       lines.push("- (no live sessions)");

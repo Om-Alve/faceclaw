@@ -108,6 +108,8 @@
     "../app/apps/terminal/rex/control.ts",
     "../app/apps/terminal/rex/connection-string.ts",
     "../app/apps/terminal/rex/stream.ts",
-    "../app/apps/terminal/rex-client.ts"
+    "../app/apps/terminal/rex-client.ts",
+    "../app/apps/terminal/rex/status.ts",
+    "../app/apps/terminal/session-list.ts"
   ]
 }

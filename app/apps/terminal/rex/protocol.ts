@@ -22,6 +22,7 @@ export const RexMethod = {
   terminalFormat: "com.superlogical.terminal.format",
   terminalBlobRead: "com.superlogical.terminal.blob_read",
   terminalResize: "com.superlogical.terminal.resize",
+  terminalProgramStatus: "com.superlogical.terminal.program_status",
   dataConnect: "data.connect",
 } as const;
 
@@ -376,6 +377,11 @@ export function parseFormatPart(payload: unknown): RexTextPart {
 export function parseBlobPart(payload: unknown): RexTextPart {
   const result = object(payload, "blob");
   return { text: string(result, "data"), blobId: integer(result, "id"), complete: result.eof === true };
+}
+
+/** Parse a com.superlogical.terminal.program_status result into its records, root first. Throws on a malformed result. */
+export function parseProgramStatus(payload: unknown): RexProgramStatusRecord[] {
+  return list(object(payload, "program_status"), "records").map(parseProgramStatusRecord);
 }
 
 /** Parse a data.connect result into its one-time ticket. Throws on a malformed result. */

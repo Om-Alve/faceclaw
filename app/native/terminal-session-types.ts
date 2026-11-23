@@ -19,6 +19,16 @@ export type G2MirrorSession = {
   lastOutputAt: number | null;
   /** Window title the app last set (xterm OSC 0/2), or null if none observed. */
   title: string | null;
+  /** What the session's program reports it is doing. Only Rex sessions report one (apps/terminal/rex/status.ts). */
+  status?: SessionStatus;
+};
+
+export type SessionStatus = {
+  state: "blocked" | "error" | "done" | "working";
+  /** What a blocked program is waiting for. */
+  kind?: "permission" | "question" | "auth";
+  /** One line of plain text from the program. */
+  msg?: string;
 };
 
 export type G2MirrorPhase =

@@ -20,8 +20,14 @@
  * snapshots are read after input, on block events and on a timer, all through
  * refreshIn(). A dropped control connection reconnects inside RexControl, and
  * the view re-attaches and re-claims itself; the data connection outlives it.
+ *
+ * Every terminal block's program status (rex/status.ts) is read each time
+ * the control connection becomes ready and kept current from block events.
+ * A record that enters blocked, a bell or a desktop notification on a block
+ * this client is not viewing raises attention through onBell.
  */
 import type { G2MirrorHistoryReply, G2MirrorPhase, G2MirrorSession, G2MirrorState, TerminalClient } from "./terminal-client";
+import type { SessionStatus } from "../../native/terminal-session-types";
 import type { RexEndpoint } from "./rex/connection-string";
 import {
   RexCallError,
@@ -40,12 +46,14 @@ import {
   parseCreated,
   parseDataTicket,
   parseFormatPart,
+  parseProgramStatus,
   type RexBlockInfo,
   type RexClientInfo,
   type RexSessionView,
   type RexTextPart,
   type RexWindowView,
 } from "./rex/protocol";
+import { ProgramStatusTracker } from "./rex/status";
 import { RexStream, helloFrame, nextStepAfter, parseHandshakeReply, type DataEnd, type StreamAction } from "./rex/stream";
 import { encodeUtf8 } from "./tmux-client";
 
@@ -180,22 +188,25 @@ type Viewing = Extract<Pane, { kind: "owner" | "foreign" }>;
  * row's label is the session label, then the window label after ":", then the
  * block label after ".". Window and block labels Rex made up are left out,
  * but a window or block that has siblings keeps its position instead, so rows
- * stay distinct.
+ * stay distinct. A row carries its block's program status from `status`.
  */
-export function rexSessionRows(sessions: readonly RexSessionView[]): G2MirrorSession[] {
+export function rexSessionRows(sessions: readonly RexSessionView[], status?: ProgramStatusTracker): G2MirrorSession[] {
   const rows: G2MirrorSession[] = [];
   for (const session of sessions) {
     session.windows.forEach((window, windowIndex) => {
       window.blocks.forEach((block, blockIndex) => {
         if (block.creatorName !== TERMINAL_CREATOR) return;
-        rows.push({
+        const row: G2MirrorSession = {
           socket: block.blockId,
           pid: 0,
           cwdHint: "",
           lastBellAt: null,
           lastOutputAt: null,
           title: rowLabel(session, window, windowIndex, block, blockIndex),
-        });
+        };
+        const rowStatus = status?.rowStatus(block.blockId);
+        if (rowStatus) row.status = rowStatus;
+        rows.push(row);
       });
     });
   }
@@ -227,6 +238,14 @@ function launchCommand(preset: string): string[] | null {
   if (command === SHELL_PRESET || command === "") return null;
   if (!SAFE_LAUNCH_COMMAND.test(command)) throw new Error(`Launch preset "${preset}" has characters that can't be passed to Rex.`);
   return command.split(/\s+/);
+}
+
+function terminalTargets(sessions: readonly RexSessionView[]): Target[] {
+  return sessions.flatMap((session) =>
+    session.windows.flatMap((window) =>
+      window.blocks.filter((block) => block.creatorName === TERMINAL_CREATOR).map((block) => ({ sessionId: session.sessionId, blockId: block.blockId })),
+    ),
+  );
 }
 
 function findTarget(sessions: readonly RexSessionView[], blockId: string): Target | null {
@@ -264,6 +283,10 @@ function sameGrid(a: Grid, b: Grid): boolean {
   return a.cols === b.cols && a.rows === b.rows;
 }
 
+function sameStatus(a: SessionStatus | null, b: SessionStatus | null): boolean {
+  return a?.state === b?.state && a?.kind === b?.kind && a?.msg === b?.msg;
+}
+
 function isConnectionLoss(error: unknown): boolean {
   return error instanceof RexCallError && (error.failure.kind === "disconnected" || error.failure.kind === "not-ready");
 }
@@ -281,6 +304,7 @@ export class RexClient implements TerminalClient {
   private refreshTimer: { handle: unknown; at: number } | null = null;
   private feed: Feed = { kind: "none" };
   private notice = "";
+  private readonly status = new ProgramStatusTracker();
 
   private readonly stateListeners = new Set<(state: G2MirrorState) => void>();
   private readonly terminalDataListeners = new Set<(data: Uint8Array, kind: "snapshot" | "output") => void>();
@@ -313,7 +337,7 @@ export class RexClient implements TerminalClient {
     return {
       phase,
       status,
-      sessions: rexSessionRows(this.control.sessions()),
+      sessions: rexSessionRows(this.control.sessions(), this.status),
       attachedCommand: this.labelOf(attachedTarget(this.pane)),
       serverName: control.phase === "ready" ? this.options.endpoint.displayHost : "",
       retryable: control.phase !== "failed",
@@ -448,6 +472,7 @@ export class RexClient implements TerminalClient {
     const pane = this.pane;
     if (state.phase === "ready") {
       if (pane.kind === "attaching") this.attach(pane);
+      this.readAllStatus();
     } else if (pane.kind !== "none" && pane.kind !== "attaching") {
       const after = pane.kind === "attached" ? "attached" : pane.kind === "foreign" ? "foreign" : "owner";
       this.setPane({ kind: "attaching", target: pane.target, after });
@@ -483,6 +508,7 @@ export class RexClient implements TerminalClient {
   }
 
   private handleModel(): void {
+    this.status.retain(new Set(terminalTargets(this.control.sessions()).map((target) => target.blockId)));
     const target = this.pane.kind === "none" ? null : this.pane.target;
     if (target && !findTarget(this.control.sessions(), target.blockId)) {
       this.sessionGone("Pane closed.", "session closed");
@@ -499,10 +525,8 @@ export class RexClient implements TerminalClient {
   }
 
   private handleBlockEvent({ blockId, event }: RexBlockNotice): void {
+    this.updateStatus(blockId, (viewed) => this.status.apply(blockId, event, viewed));
     switch (event.name) {
-      case "bell":
-        for (const listener of [...this.bellListeners]) listener(blockId, this.options.now());
-        break;
       case "title_changed":
         for (const listener of [...this.titleListeners]) listener(blockId, event.title);
         break;
@@ -536,6 +560,36 @@ export class RexClient implements TerminalClient {
   private clientId(): string | null {
     const state = this.control.state();
     return state.phase === "ready" ? state.clientId : null;
+  }
+
+  // ---- program status ----
+
+  /** One failed read leaves the other blocks' status alone. */
+  private readAllStatus(): void {
+    for (const target of terminalTargets(this.control.sessions())) {
+      this.control
+        .call(RexMethod.terminalProgramStatus, { session_id: target.sessionId, block_id: target.blockId, args: {} })
+        .then((payload) => {
+          const records = parseProgramStatus(payload);
+          if (!findTarget(this.control.sessions(), target.blockId)) return;
+          this.updateStatus(target.blockId, (viewed) => this.status.read(target.blockId, records, viewed));
+        })
+        .catch((error) => {
+          if (!isConnectionLoss(error)) this.log(`rex: status read failed for ${target.blockId}: ${String(error)}`);
+        });
+    }
+  }
+
+  /**
+   * Runs one tracker change for the block, repaints the rows if its status
+   * changed, and raises attention through the bell path, which wakes the
+   * glasses and marks the block's view window as a bell does.
+   */
+  private updateStatus(blockId: string, change: (viewed: boolean) => boolean): void {
+    const before = this.status.rowStatus(blockId);
+    const raise = change(viewing(this.pane)?.target.blockId === blockId);
+    if (!sameStatus(before, this.status.rowStatus(blockId))) this.emitState();
+    if (raise) for (const listener of [...this.bellListeners]) listener(blockId, this.options.now());
   }
 
   // ---- ownership ----

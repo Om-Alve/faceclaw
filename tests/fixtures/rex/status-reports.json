@@ -1,0 +1,14 @@
+[
+  "state=working:app=claude-code:msg=V29ya2luZyBvbiBjYWbDqSDimJU=",
+  "state=working:id=agent-1:title=UmVmYWN0b3IgcGFyc2Vy:msg=UmVhZGluZyBmaWxlcw==",
+  "state=blocked:kind=permission:id=agent-2:title=Rml4IHRlc3Rz:msg=QXBwcm92ZSBlZGl0IHRvIG5hw692ZS50cz8g4pyFIOaXpeacrOiqng==",
+  "state=working:id=agent-2/check:msg=V2FpdGluZw==",
+  "state=blocked:kind=permission:id=agent-2:title=Rml4IHRlc3Rz:msg=QXBwcm92ZSBlZGl0IHRvIG5hw692ZS50cz8g4pyFIOaXpeacrOiqng==",
+  "state=working:id=agent-2:title=Rml4IHRlc3Rz:msg=RWRpdGluZyBuYcOvdmUudHM=",
+  "state=blocked:kind=permission:id=agent-2:title=Rml4IHRlc3Rz:msg=QXBwcm92ZSBlZGl0IHRvIG5hw692ZS50cz8g4pyFIOaXpeacrOiqng==",
+  "state=clear:id=agent-2",
+  "state=blocked:kind=permission:id=agent-2:title=Rml4IHRlc3Rz:msg=QXBwcm92ZSBlZGl0IHRvIG5hw692ZS50cz8g4pyFIOaXpeacrOiqng==",
+  "state=done:id=agent-1:title=UmVmYWN0b3IgcGFyc2Vy:msg=UGFyc2VyIHJlZmFjdG9yZWQ=",
+  "state=error:id=agent-2:title=Rml4IHRlc3Rz:msg=VGVzdHMgZmFpbGVk",
+  "state=clear"
+]
