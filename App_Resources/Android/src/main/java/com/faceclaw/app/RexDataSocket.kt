@@ -35,8 +35,8 @@ interface RexDataSocketListener {
 /**
  * One Rex data connection, `GET /api/data`. Rex sends the stream as binary
  * messages only, so text messages are not surfaced. The subprotocol comes from
- * the TypeScript caller (app/native/rex-data-socket.ts), which also binds the
- * data.connect ticket to it, so the string has one declaration.
+ * the TypeScript caller (REX_DATA_SUBPROTOCOL in app/apps/terminal/rex/protocol.ts),
+ * which also binds the data.connect ticket to it, so the string has one declaration.
  */
 class RexDataSocket(url: String, subprotocol: String, listener: RexDataSocketListener) {
     private val callbackHandler = Handler(Looper.myLooper() ?: Looper.getMainLooper())

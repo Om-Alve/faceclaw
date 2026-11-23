@@ -7,6 +7,8 @@
 
 export const REX_API_REVISION = 18;
 export const REX_CONTROL_SUBPROTOCOL = "rex.control.v1";
+/** The terminal stream's subprotocol, for the data socket and for data.connect, which binds the ticket to it. */
+export const REX_DATA_SUBPROTOCOL = "rex.data.terminal.v1";
 
 export const RexMethod = {
   bootstrap: "session.bootstrap",

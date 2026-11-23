@@ -6,11 +6,9 @@
  * arrive once close() has been called. Android only; iOS has no native side.
  */
 import { copyToJavaByteBuffer } from './java-direct-buffer'
+import { REX_DATA_SUBPROTOCOL } from '../apps/terminal/rex/protocol'
 
 declare const com: any
-
-/** The terminal stream's subprotocol. Pass the same value to data.connect, which binds the ticket to it. */
-export const REX_DATA_SUBPROTOCOL = 'rex.data.terminal.v1'
 
 export type RexDataSocketListener = {
   onOpen(): void
