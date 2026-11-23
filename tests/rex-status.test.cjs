@@ -69,8 +69,10 @@ test('the live event sequence ends with error, then nothing after clear', () => 
   assert.equal(tracker.rowStatus(BLOCK), null);
 });
 
-test('an unknown state reads as idle and an unknown kind as absent', () => {
-  assert.equal(trackerAfterRead(read.map((r) => ({ ...r, state: 'paused' }))).rowStatus(BLOCK), null);
+test('an unknown state shows no mark and raises nothing, and an unknown kind is left out', () => {
+  const paused = new ProgramStatusTracker();
+  assert.equal(paused.read(BLOCK, read.map((r) => ({ ...r, state: 'paused' })), NOT_VIEWING), false);
+  assert.equal(paused.rowStatus(BLOCK), null);
   const oddKind = read.map((r) => (r.state === 'blocked' ? { ...r, kind: 'telepathy' } : r));
   assert.deepEqual(trackerAfterRead(oddKind).rowStatus(BLOCK), { state: 'blocked', msg: AGENT_2_BLOCKED_MSG });
   const tracker = new ProgramStatusTracker();
