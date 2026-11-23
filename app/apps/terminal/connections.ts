@@ -1,4 +1,5 @@
 import { getStringSetting, setStringSetting } from "../../native/settings-store";
+import { parseRexConnectionString, type RexEndpoint } from "./rex/connection-string";
 
 /**
  * Terminal-app connection registry: the hosts the app knows about, stored as
@@ -120,12 +121,15 @@ export function parseSshConnectionString(url: string): ParsedSshConnection | nul
 
 export type ParsedAnyConnection =
   | ({ kind: "g2mirror" } & ParsedConnectionString)
-  | ({ kind: "ssh" } & ParsedSshConnection);
+  | ({ kind: "ssh" } & ParsedSshConnection)
+  | ({ kind: "rex" } & RexEndpoint);
 
 /** Parse any supported connection string; null if it's none of them. */
 export function parseAnyConnectionString(url: string): ParsedAnyConnection | null {
   const direct = parseConnectionString(url);
   if (direct) return { kind: "g2mirror", ...direct };
+  const rex = parseRexConnectionString(url);
+  if (rex) return { kind: "rex", ...rex };
   const ssh = parseSshConnectionString(url);
   return ssh ? { kind: "ssh", ...ssh } : null;
 }

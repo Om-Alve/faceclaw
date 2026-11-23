@@ -11,8 +11,15 @@ export const REX_CONTROL_SUBPROTOCOL = "rex.control.v1";
 export const RexMethod = {
   bootstrap: "session.bootstrap",
   view: "session.view",
+  attach: "session.attach",
+  create: "session.create",
+  ownBlock: "session.own_block",
+  disownBlock: "session.disown_block",
   blockEvent: "block.event",
   terminalWrite: "com.superlogical.terminal.write",
+  terminalFormat: "com.superlogical.terminal.format",
+  terminalBlobRead: "com.superlogical.terminal.blob_read",
+  terminalResize: "com.superlogical.terminal.resize",
 } as const;
 
 export type RexClientInfo = {
@@ -105,6 +112,9 @@ export type RexSessionView = {
 
 export type RexSessionSummary = { sessionId: string; label: string };
 export type RexBootstrap = { clientId: string; sessions: RexSessionSummary[] };
+export type RexCreated = { sessionId: string; windows: { windowId: string; blockIds: string[] }[] };
+/** One part of a terminal method's text result, such as format's content or a blob_read. */
+export type RexTextPart = { text: string; blobId: number | null; complete: boolean };
 
 export function buildHello(client: RexClientInfo, reconnectToken: string | null): RexHello {
   const hello: RexHello = {
@@ -340,4 +350,27 @@ export function parseBootstrap(payload: unknown): RexBootstrap {
     return { sessionId: string(session, "session_id"), label: string(session, "label") };
   });
   return { clientId: string(result, "client_id"), sessions };
+}
+
+/** Parse a session.create result. Throws on a malformed result. */
+export function parseCreated(payload: unknown): RexCreated {
+  const result = object(payload, "create");
+  const windows = list(result, "initial_windows").map((raw) => {
+    const window = object(raw, "window");
+    return { windowId: string(window, "window_id"), blockIds: list(window, "block_ids").map((id) => String(id)) };
+  });
+  return { sessionId: string(result, "session_id"), windows };
+}
+
+/** Parse a com.superlogical.terminal.format result. A reply without an id holds the whole output. Throws on a malformed result. */
+export function parseFormatPart(payload: unknown): RexTextPart {
+  const result = object(payload, "format");
+  const blobId = optionalInteger(result, "id") ?? null;
+  return { text: string(result, "content"), blobId, complete: blobId === null || result.eof === true };
+}
+
+/** Parse a com.superlogical.terminal.blob_read result. Throws on a malformed result. */
+export function parseBlobPart(payload: unknown): RexTextPart {
+  const result = object(payload, "blob");
+  return { text: string(result, "data"), blobId: integer(result, "id"), complete: result.eof === true };
 }

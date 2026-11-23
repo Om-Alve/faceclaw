@@ -66,6 +66,7 @@ import { encodeTerminalKey, terminalScrollbackKey } from "./terminal-keys";
 import { G2MirrorClient, type G2MirrorSession, type G2MirrorState } from "../../native/g2mirror-client";
 import type { TerminalClient } from "./terminal-client";
 import { TmuxClient, type OpenLineChannel } from "./tmux-client";
+import { createNativeRexClient } from "../../native/rex-native";
 import {
   copyToPhoneClipboard,
   describeSshFailure,
@@ -705,7 +706,7 @@ function closeWindow(windowId: string): void {
  * tmux control mode over SSH.
  */
 type ClientRecipe = {
-  kind: "g2mirror" | "ssh-g2mirror" | "tmux";
+  kind: "g2mirror" | "ssh-g2mirror" | "tmux" | "rex";
   /**
    * `role` "control" watches bells (tmux keeps the bell bookkeeping for that
    * client only). `onSshFailure` hears why an SSH channel failed.
@@ -724,6 +725,7 @@ function clientOptionsFor(connection: TerminalConnection): ClientRecipe | null {
       create: (cols, rows) => new G2MirrorClient({ secure, host, port, authToken, deviceName: DEVICE_NAME, cols, rows }),
     };
   }
+  if (parsed.kind === "rex") return { kind: "rex", create: (cols, rows) => createNativeRexClient(parsed, cols, rows) };
   const connectionId = connection.id;
   const label = connectionStringHostLabel(connection.url);
   // Read at every channel open, so a newly trusted key or saved password
