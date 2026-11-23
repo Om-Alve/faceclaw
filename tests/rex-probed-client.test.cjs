@@ -19,8 +19,8 @@ function fakeRexClient() {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
-    set(phase, status) {
-      state = { ...state, phase, status };
+    set(phase, status, rest = {}) {
+      state = { ...state, ...rest, phase, status };
       for (const listener of [...listeners]) listener(state);
     },
     start() {
@@ -85,6 +85,27 @@ test('a reachable server leaves the client to report its own progress', async ()
   assert.equal(client.state().status, 'Connecting to rex.tail1234.ts.net...');
   inner.set('connected', 'Connected to rex.tail1234.ts.net.');
   assert.equal(client.state().phase, 'connected');
+});
+
+test("a session's program status comes through unchanged", async () => {
+  const { inner, client, requests, seen } = probed();
+  client.start();
+  requests[0].resolve(200);
+  await settle();
+  const sessions = [
+    {
+      socket: 'b1',
+      pid: 0,
+      cwdHint: '~/code',
+      lastBellAt: null,
+      lastOutputAt: null,
+      title: null,
+      status: { state: 'blocked', kind: 'permission', msg: 'Allow Edit?' },
+    },
+  ];
+  inner.set('connected', 'Connected to rex.tail1234.ts.net.', { sessions });
+  assert.deepEqual(client.state().sessions, sessions);
+  assert.deepEqual(seen.at(-1).sessions, sessions);
 });
 
 test('connecting clears the failure, and a probe answered after that is ignored', async () => {
