@@ -20,6 +20,7 @@ export const RexMethod = {
   terminalFormat: "com.superlogical.terminal.format",
   terminalBlobRead: "com.superlogical.terminal.blob_read",
   terminalResize: "com.superlogical.terminal.resize",
+  dataConnect: "data.connect",
 } as const;
 
 export type RexClientInfo = {
@@ -373,4 +374,9 @@ export function parseFormatPart(payload: unknown): RexTextPart {
 export function parseBlobPart(payload: unknown): RexTextPart {
   const result = object(payload, "blob");
   return { text: string(result, "data"), blobId: integer(result, "id"), complete: result.eof === true };
+}
+
+/** Parse a data.connect result into its one-time ticket. Throws on a malformed result. */
+export function parseDataTicket(payload: unknown): string {
+  return string(object(payload, "data.connect"), "ticket");
 }
