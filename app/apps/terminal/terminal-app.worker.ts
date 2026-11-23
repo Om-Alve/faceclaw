@@ -1037,6 +1037,7 @@ function publishSessionsSnapshot(): void {
           label: sessionLabel(session),
           activeUntilMs: (sessionActivity.get(recencyKey(connectionId, session.socket)) ?? -ACTIVITY_ACTIVE_MS) + ACTIVITY_ACTIVE_MS,
           openGlyph: viewGlyphForSocket(connectionId, session.socket),
+          status: session.status,
         })),
       };
     }),
@@ -1592,6 +1593,7 @@ function drawHubRow({ image, item, x, y, width, height, selected }: MenuDrawArgs
     active: Boolean(item.active),
     phase: hubAnimationPhase,
     value: selected ? 255 : 200,
+    status: item.sessionRow?.session.status,
   });
 }
 

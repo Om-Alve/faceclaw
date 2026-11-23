@@ -139,6 +139,7 @@ export class TerminalWidget implements GlanceWidget {
           active: isSessionRowActive(row, nowMs),
           phase: this.phase,
           value: 200,
+          status: row.status,
         });
         y += step;
       }
