@@ -17,6 +17,7 @@ import { startRelay } from "./rex-relay.mjs";
 
 const OUT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "tests", "fixtures", "rex", "control-messages.json");
 const SESSION_LABEL = "lane-r1-fixtures";
+const NESTED_LABEL = "lane-r2-fixtures-nested";
 const API_REVISION = 18;
 const SUBPROTOCOL = "rex.control.v1";
 const PROMPT = "$";
@@ -26,6 +27,10 @@ const OWNED_SIZE = { columns: 100, rows: 30 };
 const FIXED_PID = 4242;
 const FIXED_TIME = "2026-01-01T00:00:00Z";
 const FIXED_HASH = "0".repeat(64);
+// Small enough that format splits the pane's content and blob_read returns the rest.
+const FORMAT_PART_BYTES = 256;
+const SHELL_FLAVOR = "com.superlogical.terminal.shell";
+const SHELL_OPTIONS = { shell: "none", command: ["/bin/sh"], login: false, cwd: "/tmp" };
 
 const BLOCK_EVENTS = [
   "bell",
@@ -52,6 +57,12 @@ const KEYS = [
   "event_block_owner_changed",
   "event_session_destroyed",
   ...BLOCK_EVENTS.map((name) => `event_block_${name}`),
+  "response_create",
+  "response_own_block",
+  "response_disown_block",
+  "response_format_vt_part",
+  "response_blob_read",
+  "response_view_nested",
 ];
 
 // Typed into the pane in one write: a bell, an OSC 9 notification, an OSC 0
@@ -141,7 +152,11 @@ function normalize(value) {
       .join("/home/user")
       .replace(wordPattern(host), "host")
       .replace(wordPattern(user), "user")
-      .replace(/\bWindow [0-9a-f]{8}\b/g, "Window 00000000");
+      // Rex makes a default label from the last 8 hex digits of the ID, so keep that link.
+      .replace(/\b(Window|Block) ([0-9a-f]{8})\b/g, (_, kind, suffix) => {
+        for (const [uuid, placeholder] of uuids) if (uuid.endsWith(suffix)) return `${kind} ${placeholder.slice(-8)}`;
+        return `${kind} 00000000`;
+      });
   const walk = (node, key) => {
     if (typeof node === "string") {
       if (key === "reconnect_token") return "<reconnect-token>";
@@ -160,6 +175,7 @@ function normalize(value) {
 async function main() {
   const relay = await startRelay({ port: 0, log: () => {} });
   let sessionId = null;
+  let nestedId = null;
   const control = await connect(relay.port, (message) => {
     events.push(message);
     for (const event of sessionId ? events.splice(0) : []) {
@@ -172,8 +188,9 @@ async function main() {
     await control.call("session.bootstrap", { event_scope: "all", attach_session_ids: [] });
     const created = await control.call("session.create", {
       label: SESSION_LABEL,
-      initial_windows: [{ layout: { block: { flavor: "com.superlogical.terminal.shell", options: { shell: "none", command: ["/bin/sh"], login: false, cwd: "/tmp" } } } }],
+      initial_windows: [{ layout: { block: { flavor: SHELL_FLAVOR, options: SHELL_OPTIONS } } }],
     });
+    recorded.response_create = created;
     sessionId = created.payload.session_id;
     const blockId = created.payload.initial_windows[0].block_ids[0];
     const block = (method, args = {}) => control.call(`com.superlogical.terminal.${method}`, { session_id: sessionId, block_id: blockId, args });
@@ -187,9 +204,9 @@ async function main() {
     recorded.response_bootstrap = bootstrap;
 
     await control.call("session.attach", { session_id: sessionId });
-    await control.call("session.own_block", { session_id: sessionId, block_ids: [blockId], mode: "take" });
+    recorded.response_own_block = await control.call("session.own_block", { session_id: sessionId, block_ids: [blockId], mode: "take" });
     await block("resize", OWNED_SIZE);
-    await control.call("session.disown_block", { session_id: sessionId, block_ids: [blockId] });
+    recorded.response_disown_block = await control.call("session.disown_block", { session_id: sessionId, block_ids: [blockId] });
     recorded.response_view = await control.call("session.view", { session_id: sessionId });
 
     await waitFor("the prompt", async () => (await block("format", { format: "text", trim: true })).payload.content.includes(PROMPT));
@@ -197,6 +214,9 @@ async function main() {
     await waitFor("the marker", async () => (await block("format", { format: "text", trim: true })).payload.content.includes("rex-fixture-ok\n"));
     recorded.response_format_text = await block("format", { format: "text", trim: true });
     recorded.response_format_vt = await block("format", { format: "vt", extra_cursor: true, extra_modes: true });
+    recorded.response_format_vt_part = await block("format", { format: "vt", max_bytes: FORMAT_PART_BYTES });
+    const part = recorded.response_format_vt_part.payload;
+    recorded.response_blob_read = await block("blob_read", { id: part.id, offset: Buffer.byteLength(part.content) });
     recorded.response_program_status = await waitFor("a status record", async () => {
       const status = await block("program_status");
       return status.payload.records.length ? status : null;
@@ -204,19 +224,32 @@ async function main() {
     recorded.response_error_method_not_found = await control.raw("com.superlogical.terminal.no_such_method", { session_id: sessionId, block_id: blockId, args: {} });
     recorded.response_error_bad_request = await control.raw("session.view", {});
 
+    // A second session with two windows, one split, and labels both generated and set.
+    const shell = (label) => ({ block: { flavor: SHELL_FLAVOR, options: SHELL_OPTIONS, ...(label ? { label } : {}) } });
+    const nested = await control.call("session.create", {
+      label: NESTED_LABEL,
+      initial_windows: [
+        { layout: shell() },
+        { window_label: "editor", layout: { split: { direction: "horizontal", before: shell("logs"), after: shell() } } },
+      ],
+    });
+    nestedId = nested.payload.session_id;
+    recorded.response_view_nested = await control.call("session.view", { session_id: nestedId });
+
     await block("write", { data: "exit\n" });
     await waitFor("child_exited", () => recorded.event_block_child_exited);
   } finally {
+    if (nestedId) await control.call("session.destroy", { session_id: nestedId });
     if (sessionId) await control.call("session.destroy", { session_id: sessionId });
   }
   await waitFor("session_destroyed", () => recorded.event_session_destroyed);
-  const leftover = (await control.call("session.list", {})).payload.sessions.filter((session) => session.label === SESSION_LABEL);
+  const leftover = (await control.call("session.list", {})).payload.sessions.filter((session) => session.label === SESSION_LABEL || session.label === NESTED_LABEL);
   control.close();
   await relay.close();
 
   const missing = KEYS.filter((key) => !recorded[key]);
   if (missing.length) throw new Error(`not recorded: ${missing.join(", ")}`);
-  if (leftover.length) throw new Error(`${leftover.length} ${SESSION_LABEL} session(s) left behind`);
+  if (leftover.length) throw new Error(`${leftover.length} throwaway session(s) left behind`);
   const fixtures = normalize(Object.fromEntries(KEYS.map((key) => [key, recorded[key]])));
   // Request IDs count the polls before each request and seqs count every event
   // the server sent, so both vary between runs. Renumber them in order.
@@ -230,7 +263,7 @@ async function main() {
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, `${JSON.stringify(fixtures, null, 2)}\n`);
   console.log(`wrote ${KEYS.length} fixtures to ${path.relative(process.cwd(), OUT)}: ${KEYS.join(" ")}`);
-  console.log(`leftover ${SESSION_LABEL} sessions: ${leftover.length}`);
+  console.log(`leftover throwaway sessions: ${leftover.length}`);
 }
 
 main().catch((error) => {

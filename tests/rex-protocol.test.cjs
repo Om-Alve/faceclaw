@@ -50,6 +50,36 @@ test('recorded format and program_status results carry the pane content', () => 
   assert.equal(record.msg, 'Approve?');
 });
 
+test('a recorded create result parses', () => {
+  const wire = fixtures.response_create.payload;
+  assert.deepEqual(protocol.parseCreated(parse(fixtures.response_create).outcome.payload), {
+    sessionId: wire.session_id,
+    windows: [{ windowId: wire.initial_windows[0].window_id, blockIds: wire.initial_windows[0].block_ids }],
+  });
+  assert.throws(() => protocol.parseCreated({ initial_windows: [] }));
+});
+
+test('a block owner is named by the client ID from the welcome', () => {
+  const blockId = fixtures.response_create.payload.initial_windows[0].block_ids[0];
+  assert.deepEqual(fixtures.response_own_block.payload.blocks, [{ block_id: blockId, owner: fixtures.welcome.client.id }]);
+  assert.deepEqual(fixtures.response_disown_block.payload.blocks, [{ block_id: blockId }]);
+});
+
+test('a format split by max_bytes joins with its blob_read into the whole output', () => {
+  const first = protocol.parseFormatPart(parse(fixtures.response_format_vt_part).outcome.payload);
+  assert.equal(first.complete, false);
+  assert.equal(first.blobId, fixtures.response_format_vt_part.payload.id);
+  const rest = protocol.parseBlobPart(parse(fixtures.response_blob_read).outcome.payload);
+  assert.equal(rest.complete, true);
+  assert.equal(rest.blobId, first.blobId);
+  const whole = first.text + rest.text;
+  assert.equal(Buffer.byteLength(whole), fixtures.response_format_vt_part.payload.total);
+  assert.match(whole, /^rex-fixture-ok\r$/m);
+
+  const unsplit = protocol.parseFormatPart(parse(fixtures.response_format_vt).outcome.payload);
+  assert.deepEqual([unsplit.blobId, unsplit.complete], [null, true]);
+});
+
 test('recorded error responses carry their codes', () => {
   for (const [key, code, status] of [
     ['response_error_method_not_found', 'method_not_found', 404],
