@@ -87,6 +87,7 @@ import { type KeyboardInputSession } from "../ui/shell/keyboard-input";
 import { typeIntoKeyboardDialog } from "../ui/shell/keyboard-typing";
 import { appSwitcherPositionSetting, glassesModelName, glassesTypeSetting, statusBarPositionSetting, statusBarVisibilitySetting, windowBorderSetting, getBrightnessPreferences, displayLayoutSetting, navigateDisplayLayoutSetting, terminalDisplayLayoutSetting, elevenLabsApiKeySetting, getStringSettingById, openAiApiKeySetting, nightscoutApiTokenSetting, firmwareDebugFlagsSetting, whisperServerApiKeySetting, whisperServerLanguageSetting, whisperServerModelSetting, whisperServerUrlSetting, lockScreenEnabledSetting, nightscoutSiteUrlSetting, onAnySettingChanged, previewColorSetting, effectiveRingConnectionMode, type RingConnectionMode, saveRecordingSetting, sonioxApiKeySetting, screenTimeoutSetting, screenTimeoutSettingToMs, shouldPopUpNewNotification, suspendEvenHubWhenScreenOffSetting, voiceProviderSetting, wakeWordActionSetting, type ConfigSettingString } from "../ui/dashboard-settings";
 import { isIgnoringBatteryOptimizations, requestIgnoreBatteryOptimizations } from "../native/battery-optimization";
+import { scanQrCode } from "../native/qr-scan";
 import {
   getInstalledEvenHubAppById,
   installedEvenHubPackageId,
@@ -2763,6 +2764,16 @@ class DashboardController {
         }
       },
       endTextSettingEdit: () => this.endTextSettingEdit(),
+      scanQrIntoSetting: (settingId) => {
+        const setting = getStringSettingById(settingId);
+        if (!setting) return;
+        scanQrCode().then(
+          (text) => {
+            if (text !== null) setting.set(text);
+          },
+          (error) => this.appendLog(`QR scan into ${settingId} failed: ${this.formatError(error)}`),
+        );
+      },
       unhandledKey: (event) => keyboardService.handleUnhandledKey(event as KeyEvent),
     });
     this.appHosts.set(appId, host);

@@ -67,6 +67,7 @@ import { G2MirrorClient, type G2MirrorSession, type G2MirrorState } from "../../
 import type { TerminalClient } from "./terminal-client";
 import { TmuxClient, type OpenLineChannel } from "./tmux-client";
 import { createProbedRexClient } from "../../native/rex-probe";
+import { parseRexPairingQr } from "./rex/pairing";
 import {
   copyToPhoneClipboard,
   describeSshFailure,
@@ -88,6 +89,7 @@ import {
   terminalDisplayLayoutSetting,
   terminalLaunchPresetsSetting,
   terminalNewConnectionSetting,
+  terminalScannedQrSetting,
   terminalSshPasswordSetting,
   terminalWakeOnBellSetting,
   textSettingMenuItem,
@@ -144,6 +146,8 @@ const RECONNECT_MAX_DELAY_MS = 60_000;
 // Storage key of terminalNewConnectionSetting (the Add-connection draft the
 // phone text editor types into); its changes just repaint the add screen.
 const NEW_CONNECTION_DRAFT_KEY = "terminal.newConnectionDraft";
+// Storage key of terminalScannedQrSetting, which the phone's QR scanner fills.
+const SCANNED_QR_KEY = "terminal.scannedQr";
 // Storage key of terminalLaunchPresetsSetting, edited from the window menu.
 const LAUNCH_PRESETS_KEY = "terminal.launchPresets";
 // Storage key of terminalSshPasswordSetting (the password page's draft).
@@ -575,6 +579,9 @@ onSettingsStoreChanged((key) => {
     case SSH_PASSWORD_DRAFT_KEY:
       // Live keystrokes from the phone editor; repaint the add/password screen.
       renderHubWindows();
+      return;
+    case SCANNED_QR_KEY:
+      takeScannedQr();
       return;
     case "terminal.autoReconnect":
       if (!terminalAutoReconnectSetting.get()) {
@@ -1880,6 +1887,10 @@ function hubConnectionItems(window: HubWindow): HubItem[] {
       onSelect: () => beginAddConnection(window),
     },
     {
+      label: "Scan QR",
+      onSelect: () => beginAddConnection(window, true),
+    },
+    {
       label: "This device's SSH key",
       onSelect: () => openClientKeyPage(window),
     },
@@ -2009,12 +2020,28 @@ function removeControl(control: ControlConnection): void {
 /**
  * Enter the Add-connection screen: clear the draft and ask the shell to open
  * the phone text editor on it. The user types (or voice-inputs) the
- * connection string, then clicks to save or double-clicks to cancel.
+ * connection string, then clicks to save or double-clicks to cancel. With
+ * scanQr, the phone's QR scanner opens over the editor (see takeScannedQr).
  */
-function beginAddConnection(window: HubWindow): void {
+function beginAddConnection(window: HubWindow, scanQr = false): void {
   terminalNewConnectionSetting.set("");
   setHubMode(window, "add");
   post({ type: "start-text-setting-edit", settingId: terminalNewConnectionSetting.id });
+  if (scanQr) post({ type: "scan-qr-into-setting", settingId: terminalScannedQrSetting.id });
+}
+
+/** A scanned Rex pairing code fills the Add-connection draft; anything else says why and changes nothing. */
+function takeScannedQr(): void {
+  const payload = terminalScannedQrSetting.get();
+  if (!payload) return;
+  terminalScannedQrSetting.set("");
+  const scan = parseRexPairingQr(payload);
+  for (const window of windows.values()) {
+    if (window.kind !== "hub" || window.mode !== "add") continue;
+    window.addError = scan.kind === "rejected" ? scan.message : "";
+    if (scan.kind === "address") terminalNewConnectionSetting.set(scan.connectionString);
+    scheduleRender(window);
+  }
 }
 
 function saveAddConnection(window: HubWindow): void {
