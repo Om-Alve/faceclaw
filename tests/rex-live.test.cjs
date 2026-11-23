@@ -1,14 +1,12 @@
 // Drives the real local Rex server through scripts/rex-relay.mjs. Skipped
-// unless REX_LIVE=1. REX_RELAY_PORT picks the relay port; it defaults to a
-// free one.
+// unless REX_LIVE=1. tests/helpers/rex-live.cjs names the environment it reads.
 //
-//   REX_LIVE=1 REX_RELAY_PORT=8792 node --test tests/rex-live.test.cjs
+//   REX_LIVE=1 node --test tests/rex-live.test.cjs
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const path = require('node:path');
-const { pathToFileURL } = require('node:url');
 
 const { RexControl } = require('../.test-build/app/apps/terminal/rex/control.js');
+const { timers, nodeSocket, startRelay } = require('./helpers/rex-live.cjs');
 
 const LIVE = process.env.REX_LIVE === '1';
 const SESSION_LABEL = 'lane-r1-live';
@@ -19,32 +17,6 @@ const FORMAT_BUDGET_MS = 20;
 const WAIT_MS = 5_000;
 const POLL_MS = 50;
 const P95 = 0.95;
-const CLOSE_ABNORMAL = 1006;
-
-const timers = { setTimeout: (callback, ms) => setTimeout(callback, ms), clearTimeout: (handle) => clearTimeout(handle) };
-
-function nodeSocket(url, subprotocol, handlers) {
-  const ws = new WebSocket(url, subprotocol);
-  let closed = false;
-  const close = (code, reason) => {
-    if (closed) return;
-    closed = true;
-    handlers.onClose(code, reason);
-  };
-  ws.onopen = () => handlers.onOpen();
-  ws.onmessage = (message) => handlers.onMessage(String(message.data));
-  // Node's WebSocket fires only error, never close, when a connect is refused.
-  ws.onerror = () => close(CLOSE_ABNORMAL, 'socket error');
-  ws.onclose = (event) => close(event.code, event.reason);
-  return {
-    send(text) {
-      if (ws.readyState !== WebSocket.OPEN) return false;
-      ws.send(text);
-      return true;
-    },
-    close: (code, reason) => ws.close(code, reason),
-  };
-}
 
 function newControl(port, log) {
   return new RexControl({
@@ -88,8 +60,7 @@ function summary(samples) {
 const ms = (value) => value.toFixed(2);
 
 test('a pane round trip and the perf probe through the relay', { skip: !LIVE && 'set REX_LIVE=1 to run against the local Rex server' }, async () => {
-  const { startRelay } = await import(pathToFileURL(path.join(__dirname, '..', 'scripts', 'rex-relay.mjs')).href);
-  const relay = await startRelay({ port: Number(process.env.REX_RELAY_PORT ?? 0), log: () => {} });
+  const relay = await startRelay();
   const control = newControl(relay.port, (line) => console.log(line));
   let sessionId = null;
   try {

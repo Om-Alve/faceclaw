@@ -11,7 +11,9 @@
 // Set REX_BIN to the rex CLI if `rex` is not on PATH and Rex.app is not in
 // /Applications.
 import { execFileSync } from "node:child_process";
+import fs from "node:fs";
 import net from "node:net";
+import path from "node:path";
 import { pathToFileURL } from "node:url";
 
 const LOOPBACK = "127.0.0.1";
@@ -32,22 +34,31 @@ const OPCODE_CONTINUATION = 0x0;
 const OPCODE_TEXT = 0x1;
 const FIRST_CONTROL_OPCODE = 0x8;
 
+const isExecutable = (file) => {
+  try {
+    fs.accessSync(file, fs.constants.X_OK);
+    return fs.statSync(file).isFile();
+  } catch {
+    return false;
+  }
+};
+
+/** The rex CLI: REX_BIN, else `rex` on PATH, else the one inside Rex.app. */
+export function rexCli() {
+  if (process.env.REX_BIN) return process.env.REX_BIN;
+  const onPath = (process.env.PATH ?? "").split(path.delimiter).filter(Boolean).map((dir) => path.join(dir, "rex")).find(isExecutable);
+  if (onPath) return onPath;
+  if (isExecutable(REX_APP_CLI)) return REX_APP_CLI;
+  throw new Error("rex CLI not found: set REX_BIN, put rex on PATH, or install Rex.app in /Applications");
+}
+
 /** The unix socket path of the primary listener that `rex server status` reports. */
 export function rexSocketPath() {
-  const candidates = [process.env.REX_BIN, "rex", REX_APP_CLI].filter(Boolean);
-  for (const bin of candidates) {
-    let status;
-    try {
-      status = JSON.parse(execFileSync(bin, ["server", "status", "--json"], { encoding: "utf8" }));
-    } catch {
-      continue;
-    }
-    const listener = (status.listeners ?? []).find((entry) => entry.primary && entry.transport === "unix");
-    const address = listener?.addresses?.[0];
-    if (address) return address;
-    throw new Error(`rex server status reported no unix listener: ${status.endpoint}`);
-  }
-  throw new Error("rex CLI not found; set REX_BIN");
+  const status = JSON.parse(execFileSync(rexCli(), ["server", "status", "--json"], { encoding: "utf8" }));
+  const listener = (status.listeners ?? []).find((entry) => entry.primary && entry.transport === "unix");
+  const address = listener?.addresses?.[0];
+  if (!address) throw new Error(`rex server status reported no unix listener: ${status.endpoint}`);
+  return address;
 }
 
 /** Start the relay. Resolves once it listens; `port` 0 picks a free port. */
@@ -193,9 +204,11 @@ function parsePort(argv) {
   return port;
 }
 
+// No top-level await, so tests/helpers/rex-live.cjs can require this module.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const relay = await startRelay({ port: parsePort(process.argv.slice(2)) });
-  const shutdown = () => relay.close().then(() => process.exit(0));
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
+  startRelay({ port: parsePort(process.argv.slice(2)) }).then((relay) => {
+    const shutdown = () => relay.close().then(() => process.exit(0));
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
+  });
 }

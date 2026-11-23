@@ -2,14 +2,11 @@
 // scripts/rex-relay.mjs, with a Node WebSocket as the data socket. Skipped
 // unless REX_LIVE=1. What the client delivers is applied to @xterm/headless
 // the way the Terminal worker applies it, and compared with `rex capture`.
-// REX_RELAY_PORT picks the relay port; REX_BIN the rex CLI, else `rex` on PATH.
+// tests/helpers/rex-live.cjs names the environment it reads.
 //
-//   REX_LIVE=1 REX_RELAY_PORT=8797 node --test tests/rex-client-stream-live.test.cjs
+//   REX_LIVE=1 node --test tests/rex-client-stream-live.test.cjs
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const path = require('node:path');
-const { execFileSync } = require('node:child_process');
-const { pathToFileURL } = require('node:url');
 const WebSocket = require('ws');
 const { Terminal } = require('@xterm/headless');
 
@@ -17,9 +14,9 @@ const { RexClient } = require('../.test-build/app/apps/terminal/rex-client.js');
 const { RESEED_QUIET_MS } = require('../.test-build/app/apps/terminal/rex/stream.js');
 const { REX_DATA_SUBPROTOCOL } = require('../.test-build/app/apps/terminal/rex/protocol.js');
 const { parseRexConnectionString } = require('../.test-build/app/apps/terminal/rex/connection-string.js');
+const { timers, nodeSocket, startRelay, rex, rexJson, controlConnection } = require('./helpers/rex-live.cjs');
 
 const LIVE = process.env.REX_LIVE === '1';
-const REX = process.env.REX_BIN ?? 'rex';
 const SESSION_LABEL = 'lane-r3-owner';
 const GLASSES = { cols: 58, rows: 11 };
 const SCROLLBACK_LINES = 10_000;
@@ -31,26 +28,8 @@ const SLOW_LINES = 30;
 const SLOW_LINE_S = 0.2;
 const FLOOD_DELIVERIES_BEFORE_DROP = 20;
 const FORMAT_METHOD = 'com.superlogical.terminal.format';
-const CLOSE_NORMAL = 1000;
 
-const timers = { setTimeout: (callback, ms) => setTimeout(callback, ms), clearTimeout: (handle) => clearTimeout(handle) };
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function nodeSocket(url, subprotocol, handlers) {
-  const ws = new WebSocket(url, subprotocol, { perMessageDeflate: false });
-  ws.on('open', () => handlers.onOpen());
-  ws.on('message', (data) => handlers.onMessage(data.toString()));
-  ws.on('close', (code, reason) => handlers.onClose(code, reason.toString()));
-  ws.on('error', () => {});
-  return {
-    send(text) {
-      if (ws.readyState !== WebSocket.OPEN) return false;
-      ws.send(text);
-      return true;
-    },
-    close: (code, reason) => ws.close(code, reason),
-  };
-}
 
 /** The Node stand-in for openRexDataSocket. Keeps each ws so the test can drop one without a close frame. */
 function nodeDataSockets() {
@@ -75,36 +54,6 @@ function nodeDataSockets() {
   return { open, opened };
 }
 
-/** A bare control connection that creates and destroys the lane session. */
-function helperConnection(port) {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/api/control`, 'rex.control.v1', { perMessageDeflate: false });
-    const pending = new Map();
-    let nextId = 1;
-    const helper = {
-      call: (method, payload) =>
-        new Promise((done, fail) => {
-          const id = String(nextId++);
-          pending.set(id, { done, fail });
-          ws.send(JSON.stringify({ type: 'request', id, method, payload }));
-        }),
-      close: () => ws.close(CLOSE_NORMAL),
-    };
-    ws.on('open', () => ws.send(JSON.stringify({ type: 'hello', api_revision: 18, api_min_revision: 18, client: { kind: 'app', name: 'lane-r3-helper', version: '1' } })));
-    ws.on('error', () => reject(new Error('helper connection failed')));
-    ws.on('message', (raw) => {
-      const message = JSON.parse(raw.toString());
-      if (message.type === 'welcome') resolve(helper);
-      else if (message.type === 'response') {
-        const entry = pending.get(message.id);
-        pending.delete(message.id);
-        if (message.error) entry.fail(new Error(`${message.error.code}: ${message.error.message}`));
-        else entry.done(message.payload);
-      }
-    });
-  });
-}
-
 async function waitFor(what, predicate, timeoutMs = WAIT_MS) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
@@ -123,11 +72,10 @@ function trimmedTail(lines, count) {
 }
 
 test('RexClient streams a real pane: echo as output, a flood, an idle minute, a RESUME and a kill', { skip: !LIVE && 'set REX_LIVE=1 to run against the local Rex server' }, async () => {
-  const { startRelay } = await import(pathToFileURL(path.join(__dirname, '..', 'scripts', 'rex-relay.mjs')).href);
   const relayLines = [];
-  const relay = await startRelay({ port: Number(process.env.REX_RELAY_PORT ?? 0), log: (line) => relayLines.push(line) });
+  const relay = await startRelay({ log: (line) => relayLines.push(line) });
   console.log(`relay on 127.0.0.1:${relay.port}`);
-  const helper = await helperConnection(relay.port);
+  const helper = await controlConnection(relay.port, 'lane-r3-helper');
   const data = nodeDataSockets();
   const clientLogs = [];
   const viewer = new RexClient({
@@ -167,7 +115,7 @@ test('RexClient streams a real pane: echo as output, a flood, an idle minute, a 
     });
     sessionId = session.session_id;
     const blockId = session.initial_windows[0].block_ids[0];
-    const capture = () => execFileSync(REX, ['capture', '-s', sessionId, '-b', blockId, '--trim'], { encoding: 'utf8' });
+    const capture = () => rex('capture', '-s', sessionId, '-b', blockId, '--trim');
     const settle = async () => {
       await waitFor('the stream to go quiet', () => deliveries.length && Date.now() - deliveries.at(-1).at >= QUIET_MS + RESEED_QUIET_MS);
       await applied;
@@ -246,7 +194,7 @@ test('RexClient streams a real pane: echo as output, a flood, an idle minute, a 
     console.log(`flood drop outcome: ${JSON.stringify(outcome)}`);
     await compare('after a drop in a fast flood');
 
-    execFileSync(REX, ['kill', sessionId]);
+    rex('kill', sessionId);
     console.log(`rex kill ${sessionId}`);
     await waitFor('the pane closed', () => viewer.state().status === 'Pane closed.');
     const dataEnd = clientLogs.find((line) => line.startsWith('rex data: ended'));
@@ -258,7 +206,7 @@ test('RexClient streams a real pane: echo as output, a flood, an idle minute, a 
     if (sessionId) await helper.call('session.attach', { session_id: sessionId }).then(() => helper.call('session.destroy', { session_id: sessionId })).catch((error) => console.log(`destroy: ${error.message}`));
     helper.close();
     await relay.close();
-    const left = JSON.parse(execFileSync(REX, ['ls', '--json'], { encoding: 'utf8' })).sessions.filter((session) => session.label === SESSION_LABEL);
+    const left = rexJson('ls', '--json').sessions.filter((session) => session.label === SESSION_LABEL);
     console.log(`lane sessions left: ${left.length}`);
     assert.equal(left.length, 0);
   }

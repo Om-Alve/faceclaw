@@ -1,20 +1,18 @@
 // Probes the real local Rex server through scripts/rex-relay.mjs, then stops
 // the relay and checks that a Rex client explains the failure in time.
-// Skipped unless REX_LIVE=1. REX_RELAY_PORT picks the relay port; REX_BIN the
-// rex CLI, else `rex` on PATH. A 403 needs Rex's Tailscale node, so it is not
-// covered here.
+// Skipped unless REX_LIVE=1. tests/helpers/rex-live.cjs names the environment
+// it reads. A 403 needs Rex's Tailscale node, so it is not covered here.
 //
-//   REX_LIVE=1 REX_RELAY_PORT=8798 node --test tests/rex-pairing-live.test.cjs
+//   REX_LIVE=1 node --test tests/rex-pairing-live.test.cjs
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
-const path = require('node:path');
-const { pathToFileURL } = require('node:url');
 
 const { RexClient } = require('../.test-build/app/apps/terminal/rex-client.js');
 const { parseRexConnectionString } = require('../.test-build/app/apps/terminal/rex/connection-string.js');
 const { probeRex } = require('../.test-build/app/apps/terminal/rex/pairing.js');
 const { RexProbedClient } = require('../.test-build/app/apps/terminal/rex/probed-client.js');
+const { timers, nodeSocket, startRelay } = require('./helpers/rex-live.cjs');
 
 const LIVE = process.env.REX_LIVE === '1';
 const FAILURE_MESSAGE_BUDGET_MS = 5000;
@@ -34,21 +32,6 @@ function nodeHead(url, timeoutMs) {
   });
 }
 
-function nodeSocket(url, subprotocol, handlers) {
-  const ws = new WebSocket(url, subprotocol);
-  ws.onopen = () => handlers.onOpen();
-  ws.onmessage = (message) => handlers.onMessage(String(message.data));
-  ws.onclose = (event) => handlers.onClose(event.code, event.reason);
-  return {
-    send(text) {
-      if (ws.readyState !== WebSocket.OPEN) return false;
-      ws.send(text);
-      return true;
-    },
-    close: (code, reason) => ws.close(code, reason),
-  };
-}
-
 function waitForState(client, predicate, timeoutMs) {
   return new Promise((resolve, reject) => {
     if (predicate(client.state())) return resolve(client.state());
@@ -66,8 +49,7 @@ function waitForState(client, predicate, timeoutMs) {
 }
 
 test('the probe tells a running Rex server from a stopped relay', { skip: !LIVE && 'set REX_LIVE=1 to run against the local Rex server' }, async () => {
-  const { startRelay } = await import(pathToFileURL(path.join(__dirname, '..', 'scripts', 'rex-relay.mjs')).href);
-  const relay = await startRelay({ port: Number(process.env.REX_RELAY_PORT ?? 0), log: () => {} });
+  const relay = await startRelay();
   const endpoint = parseRexConnectionString(`rex://127.0.0.1:${relay.port}`);
   console.log(`relay on 127.0.0.1:${relay.port}`);
 
@@ -80,7 +62,7 @@ test('the probe tells a running Rex server from a stopped relay', { skip: !LIVE 
     new RexClient({
       endpoint,
       createSocket: nodeSocket,
-      timers: { setTimeout: (callback, ms) => setTimeout(callback, ms), clearTimeout: (handle) => clearTimeout(handle) },
+      timers,
       now: () => Date.now(),
       cols: 58,
       rows: 11,
