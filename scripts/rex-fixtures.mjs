@@ -6,8 +6,9 @@
 //
 // It creates a throwaway session, drives one /bin/sh pane through every event
 // the fixtures need, and destroys the session. It keeps only messages about
-// that session and replaces IDs, tokens, names, paths, PIDs and times with
-// stable placeholders. It writes nothing unless it recorded every key.
+// that session, replaces IDs, tokens, names, paths, PIDs and times with stable
+// placeholders, and renumbers request IDs and seqs in order. It writes nothing
+// unless it recorded every key.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -217,6 +218,15 @@ async function main() {
   if (missing.length) throw new Error(`not recorded: ${missing.join(", ")}`);
   if (leftover.length) throw new Error(`${leftover.length} ${SESSION_LABEL} session(s) left behind`);
   const fixtures = normalize(Object.fromEntries(KEYS.map((key) => [key, recorded[key]])));
+  // Request IDs count the polls before each request and seqs count every event
+  // the server sent, so both vary between runs. Renumber them in order.
+  const messages = Object.values(fixtures);
+  const seqs = [...new Set(messages.map((message) => message.seq).filter((seq) => seq !== undefined))].sort((a, b) => a - b);
+  let responseId = 0;
+  for (const message of messages) {
+    if (message.type === "response") message.id = String(++responseId);
+    if (message.seq !== undefined) message.seq = seqs.indexOf(message.seq);
+  }
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, `${JSON.stringify(fixtures, null, 2)}\n`);
   console.log(`wrote ${KEYS.length} fixtures to ${path.relative(process.cwd(), OUT)}: ${KEYS.join(" ")}`);

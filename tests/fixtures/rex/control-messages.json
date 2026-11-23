@@ -59,8 +59,8 @@
   },
   "response_view": {
     "type": "response",
-    "id": "7",
-    "seq": 11,
+    "id": "2",
+    "seq": 5,
     "payload": {
       "revision": 3,
       "session_id": "session:00000000-0000-0000-0000-000000000005",
@@ -107,24 +107,24 @@
   },
   "response_format_text": {
     "type": "response",
-    "id": "16",
-    "seq": 17,
+    "id": "3",
+    "seq": 11,
     "payload": {
       "content": "sh-3.2$ printf '\\a'; printf '\\033]9;rex fixture\\a'; printf '\\033]0;rex-fixture-title\\a'; printf '\\03\n3]9;4;1;40\\a'; printf '\\033]7501;state=blocked:kind=permission:app=rex-fixture:msg=QXBwcm92ZT8=\\033\\\n\\'; sleep 0.2; echo rex-fixture-ok\nrex-fixture-ok\nsh-3.2$"
     }
   },
   "response_format_vt": {
     "type": "response",
-    "id": "17",
-    "seq": 17,
+    "id": "4",
+    "seq": 11,
     "payload": {
       "content": "sh-3.2$ printf '\\a'; printf '\\033]9;rex fixture\\a'; printf '\\033]0;rex-fixture-title\\a'; printf '\\03\r\n3]9;4;1;40\\a'; printf '\\033]7501;state=blocked:kind=permission:app=rex-fixture:msg=QXBwcm92ZT8=\\033\\\r\n\\'; sleep 0.2; echo rex-fixture-ok\r\nrex-fixture-ok\r\nsh-3.2$ \r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\u001b[5;9H"
     }
   },
   "response_program_status": {
     "type": "response",
-    "id": "18",
-    "seq": 17,
+    "id": "5",
+    "seq": 11,
     "payload": {
       "records": [
         {
@@ -144,8 +144,8 @@
   },
   "response_error_method_not_found": {
     "type": "response",
-    "id": "19",
-    "seq": 17,
+    "id": "6",
+    "seq": 11,
     "error": {
       "code": "method_not_found",
       "message": "method not found: \"no_such_method\"",
@@ -154,8 +154,8 @@
   },
   "response_error_bad_request": {
     "type": "response",
-    "id": "20",
-    "seq": 17,
+    "id": "7",
+    "seq": 11,
     "error": {
       "code": "bad_request",
       "message": "netapi: decoding args for \"session.view\": session_id is required",
@@ -177,7 +177,7 @@
   },
   "event_session_view_changed": {
     "type": "event",
-    "seq": 8,
+    "seq": 3,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -193,7 +193,7 @@
   },
   "event_block_owner_changed": {
     "type": "event",
-    "seq": 7,
+    "seq": 2,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -211,7 +211,7 @@
   },
   "event_session_destroyed": {
     "type": "event",
-    "seq": 26,
+    "seq": 14,
     "payload": {
       "type": "session_destroyed",
       "payload": {
@@ -221,7 +221,7 @@
   },
   "event_block_bell": {
     "type": "event",
-    "seq": 12,
+    "seq": 6,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -240,7 +240,7 @@
   },
   "event_block_title_changed": {
     "type": "event",
-    "seq": 14,
+    "seq": 8,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -265,7 +265,7 @@
   },
   "event_block_desktop_notification": {
     "type": "event",
-    "seq": 13,
+    "seq": 7,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -287,7 +287,7 @@
   },
   "event_block_progress_report": {
     "type": "event",
-    "seq": 15,
+    "seq": 9,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -309,7 +309,7 @@
   },
   "event_block_program_status_changed": {
     "type": "event",
-    "seq": 16,
+    "seq": 10,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -343,7 +343,7 @@
   },
   "event_block_program_status_removed": {
     "type": "event",
-    "seq": 18,
+    "seq": 12,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -367,7 +367,7 @@
   },
   "event_block_process_changed": {
     "type": "event",
-    "seq": 17,
+    "seq": 11,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -410,7 +410,7 @@
   },
   "event_block_size_changed": {
     "type": "event",
-    "seq": 9,
+    "seq": 4,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -443,7 +443,7 @@
   },
   "event_block_child_exited": {
     "type": "event",
-    "seq": 19,
+    "seq": 13,
     "payload": {
       "type": "session_event",
       "payload": {
