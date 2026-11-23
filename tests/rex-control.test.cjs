@@ -269,6 +269,21 @@ test('session_created and session_destroyed add and drop sessions', () => {
   assert.deepEqual(blockIds(h.control), ['block:b1']);
 });
 
+test('a session that vanishes while its view is fetched is dropped without a reconnect', () => {
+  const h = harness();
+  const models = [];
+  h.control.onModelChange((sessions) => models.push(sessions));
+  h.control.start();
+  h.handshake([session('session:a', 1, ['block:a1']), session('session:b', 1, ['block:b1'])]);
+  h.event(1, sessionEvent('session:a', 'session_view_changed', { revision: 2 }));
+  h.fail(h.viewRequest('session:a'), 'session_not_found', 404);
+  assert.equal(h.control.state().phase, 'ready');
+  assert.equal(h.current().closed, null);
+  assert.equal(h.sockets.length, 1);
+  assert.deepEqual(blockIds(h.control), ['block:b1']);
+  assert.deepEqual(blockIds({ sessions: () => models.at(-1) }), ['block:b1']);
+});
+
 test('block events reach listeners typed and routed by block id; unknown ones do not', () => {
   const h = harness();
   const notices = [];
