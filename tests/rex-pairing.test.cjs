@@ -65,12 +65,12 @@ test('the relay is probed over plain http', async () => {
 
 test('a Rex pairing QR gives its address, with or without a trailing slash', () => {
   for (const payload of ['https://rex.tail1234.ts.net', 'https://rex.tail1234.ts.net/']) {
-    assert.deepEqual(parseRexPairingQr(payload), { ok: true, connectionString: 'https://rex.tail1234.ts.net' }, payload);
+    assert.deepEqual(parseRexPairingQr(payload), { kind: 'address', connectionString: 'https://rex.tail1234.ts.net' }, payload);
   }
 });
 
 test('a non-Rex QR is rejected with a message and no address', () => {
   for (const payload of ['WIFI:T:WPA;S:home;P:secret;;', 'https://example.com/menu?table=4', 'rex://127.0.0.1:8792', '']) {
-    assert.deepEqual(parseRexPairingQr(payload), { ok: false, message: 'Not a Rex pairing code' }, payload);
+    assert.deepEqual(parseRexPairingQr(payload), { kind: 'rejected', message: 'Not a Rex pairing code' }, payload);
   }
 });

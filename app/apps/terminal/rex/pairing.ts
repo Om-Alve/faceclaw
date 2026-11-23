@@ -51,11 +51,13 @@ export function rexFailureNotice(endpoint: RexEndpoint, failure: Exclude<RexProb
   };
 }
 
-export type RexQrScan = { ok: true; connectionString: string } | { ok: false; message: string };
+// A string tag, not an ok boolean: the app compiles without strictNullChecks,
+// where a boolean-discriminated union does not narrow.
+export type RexQrScan = { kind: "address"; connectionString: string } | { kind: "rejected"; message: string };
 
 /** Accept the https:// address that `rex server tailscale pair` shows as a QR code. */
 export function parseRexPairingQr(payload: string): RexQrScan {
   const endpoint = parseRexConnectionString(payload);
-  if (endpoint?.scheme !== "https") return { ok: false, message: "Not a Rex pairing code" };
-  return { ok: true, connectionString: endpoint.connectionString };
+  if (endpoint?.scheme !== "https") return { kind: "rejected", message: "Not a Rex pairing code" };
+  return { kind: "address", connectionString: endpoint.connectionString };
 }
