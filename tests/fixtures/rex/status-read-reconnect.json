@@ -1,0 +1,51 @@
+{
+  "records": [
+    {
+      "state": "working",
+      "app": "claude-code",
+      "effective_app": "claude-code",
+      "msg": "Working on café ☕",
+      "updated_at": "2026-01-01T00:00:00.000Z",
+      "owner": {
+        "pid": 1000,
+        "name": "zsh"
+      }
+    },
+    {
+      "id": "agent-1",
+      "state": "working",
+      "effective_app": "claude-code",
+      "title": "Refactor parser",
+      "msg": "Reading files",
+      "updated_at": "2026-01-01T00:00:01.000Z",
+      "owner": {
+        "pid": 1000,
+        "name": "zsh"
+      }
+    },
+    {
+      "id": "agent-2",
+      "state": "blocked",
+      "kind": "permission",
+      "effective_app": "claude-code",
+      "title": "Fix tests",
+      "msg": "Approve edit to naïve.ts? ✅ 日本語",
+      "updated_at": "2026-01-01T00:00:02.000Z",
+      "owner": {
+        "pid": 1000,
+        "name": "zsh"
+      }
+    },
+    {
+      "id": "agent-2/check",
+      "state": "working",
+      "effective_app": "claude-code",
+      "msg": "Waiting",
+      "updated_at": "2026-01-01T00:00:03.000Z",
+      "owner": {
+        "pid": 1000,
+        "name": "zsh"
+      }
+    }
+  ]
+}

@@ -1,0 +1,226 @@
+[
+  {
+    "name": "program_status_changed",
+    "payload": {
+      "id": "",
+      "record": {
+        "state": "working",
+        "app": "claude-code",
+        "effective_app": "claude-code",
+        "msg": "Working on café ☕",
+        "updated_at": "2026-01-01T00:00:00.000Z",
+        "owner": {
+          "pid": 1000,
+          "name": "zsh"
+        }
+      },
+      "reason": "report"
+    }
+  },
+  {
+    "name": "program_status_changed",
+    "payload": {
+      "id": "agent-1",
+      "record": {
+        "id": "agent-1",
+        "state": "working",
+        "effective_app": "claude-code",
+        "title": "Refactor parser",
+        "msg": "Reading files",
+        "updated_at": "2026-01-01T00:00:01.000Z",
+        "owner": {
+          "pid": 1000,
+          "name": "zsh"
+        }
+      },
+      "reason": "report"
+    }
+  },
+  {
+    "name": "program_status_changed",
+    "payload": {
+      "id": "agent-2",
+      "record": {
+        "id": "agent-2",
+        "state": "blocked",
+        "kind": "permission",
+        "effective_app": "claude-code",
+        "title": "Fix tests",
+        "msg": "Approve edit to naïve.ts? ✅ 日本語",
+        "updated_at": "2026-01-01T00:00:02.000Z",
+        "owner": {
+          "pid": 1000,
+          "name": "zsh"
+        }
+      },
+      "reason": "report"
+    }
+  },
+  {
+    "name": "program_status_changed",
+    "payload": {
+      "id": "agent-2/check",
+      "record": {
+        "id": "agent-2/check",
+        "state": "working",
+        "effective_app": "claude-code",
+        "msg": "Waiting",
+        "updated_at": "2026-01-01T00:00:03.000Z",
+        "owner": {
+          "pid": 1000,
+          "name": "zsh"
+        }
+      },
+      "reason": "report"
+    }
+  },
+  {
+    "name": "program_status_changed",
+    "payload": {
+      "id": "agent-2",
+      "record": {
+        "id": "agent-2",
+        "state": "blocked",
+        "kind": "permission",
+        "effective_app": "claude-code",
+        "title": "Fix tests",
+        "msg": "Approve edit to naïve.ts? ✅ 日本語",
+        "updated_at": "2026-01-01T00:00:04.000Z",
+        "owner": {
+          "pid": 1000,
+          "name": "zsh"
+        }
+      },
+      "reason": "report"
+    }
+  },
+  {
+    "name": "program_status_changed",
+    "payload": {
+      "id": "agent-2",
+      "record": {
+        "id": "agent-2",
+        "state": "working",
+        "effective_app": "claude-code",
+        "title": "Fix tests",
+        "msg": "Editing naïve.ts",
+        "updated_at": "2026-01-01T00:00:05.000Z",
+        "owner": {
+          "pid": 1000,
+          "name": "zsh"
+        }
+      },
+      "reason": "report"
+    }
+  },
+  {
+    "name": "program_status_changed",
+    "payload": {
+      "id": "agent-2",
+      "record": {
+        "id": "agent-2",
+        "state": "blocked",
+        "kind": "permission",
+        "effective_app": "claude-code",
+        "title": "Fix tests",
+        "msg": "Approve edit to naïve.ts? ✅ 日本語",
+        "updated_at": "2026-01-01T00:00:06.000Z",
+        "owner": {
+          "pid": 1000,
+          "name": "zsh"
+        }
+      },
+      "reason": "report"
+    }
+  },
+  {
+    "name": "program_status_removed",
+    "payload": {
+      "ids": [
+        "agent-2",
+        "agent-2/check"
+      ],
+      "reason": "clear"
+    }
+  },
+  {
+    "name": "program_status_changed",
+    "payload": {
+      "id": "agent-2",
+      "record": {
+        "id": "agent-2",
+        "state": "blocked",
+        "kind": "permission",
+        "effective_app": "claude-code",
+        "title": "Fix tests",
+        "msg": "Approve edit to naïve.ts? ✅ 日本語",
+        "updated_at": "2026-01-01T00:00:07.000Z",
+        "owner": {
+          "pid": 1000,
+          "name": "zsh"
+        }
+      },
+      "reason": "report"
+    }
+  },
+  {
+    "name": "program_status_changed",
+    "payload": {
+      "id": "agent-1",
+      "record": {
+        "id": "agent-1",
+        "state": "done",
+        "effective_app": "claude-code",
+        "title": "Refactor parser",
+        "msg": "Parser refactored",
+        "updated_at": "2026-01-01T00:00:08.000Z",
+        "owner": {
+          "pid": 1000,
+          "name": "zsh"
+        }
+      },
+      "reason": "report"
+    }
+  },
+  {
+    "name": "program_status_changed",
+    "payload": {
+      "id": "agent-2",
+      "record": {
+        "id": "agent-2",
+        "state": "error",
+        "effective_app": "claude-code",
+        "title": "Fix tests",
+        "msg": "Tests failed",
+        "updated_at": "2026-01-01T00:00:09.000Z",
+        "owner": {
+          "pid": 1000,
+          "name": "zsh"
+        }
+      },
+      "reason": "report"
+    }
+  },
+  {
+    "name": "program_status_removed",
+    "payload": {
+      "ids": [
+        "",
+        "agent-1",
+        "agent-2"
+      ],
+      "reason": "clear"
+    }
+  },
+  {
+    "name": "desktop_notification",
+    "payload": {
+      "title": "",
+      "body": "Build finished"
+    }
+  },
+  {
+    "name": "bell",
+    "payload": {}
+  }
+]
