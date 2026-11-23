@@ -3,6 +3,12 @@ import type { RexEndpoint } from "./connection-string";
 import { probeRex, rexFailureNotice, type RexHttpHead, type RexProbeResult } from "./pairing";
 
 /**
+ * The probe request in flight. It is "stale" once the inner client has left
+ * connecting since the request went out, so its answer no longer counts.
+ */
+type ProbeRequest = "none" | "current" | "stale";
+
+/**
  * A Rex TerminalClient that says why it cannot connect. RexClient retries a
  * lost connection on its own and only ever reports that it is connecting,
  * since the native WebSocket hides the HTTP status of a refused upgrade. On
@@ -14,7 +20,7 @@ import { probeRex, rexFailureNotice, type RexHttpHead, type RexProbeResult } fro
 export class RexProbedClient implements TerminalClient {
   /** Set only while the inner client is connecting. */
   private failure: Exclude<RexProbeResult, "reachable"> | null = null;
-  private pendingProbe: Promise<RexProbeResult> | null = null;
+  private probeRequest: ProbeRequest = "none";
   private readonly stateListeners = new Set<(state: G2MirrorState) => void>();
 
   constructor(
@@ -27,7 +33,7 @@ export class RexProbedClient implements TerminalClient {
         this.probe();
       } else {
         this.failure = null;
-        this.pendingProbe = null;
+        if (this.probeRequest === "current") this.probeRequest = "stale";
       }
       this.emitState();
     });
@@ -51,19 +57,21 @@ export class RexProbedClient implements TerminalClient {
     this.probe();
   }
 
+  /** The inner client reports idle as it stops, which drops the failure and the probe's answer. */
   stop(): void {
-    this.failure = null;
-    this.pendingProbe = null;
     this.inner.stop();
   }
 
   private probe(): void {
-    if (this.pendingProbe || this.inner.state().phase !== "connecting") return;
-    const probe = probeRex(this.endpoint, this.head);
-    this.pendingProbe = probe;
-    void probe.then((result) => {
-      if (this.pendingProbe !== probe) return;
-      this.pendingProbe = null;
+    if (this.probeRequest !== "none" || this.inner.state().phase !== "connecting") return;
+    this.probeRequest = "current";
+    void probeRex(this.endpoint, this.head).then((result) => {
+      const stale = this.probeRequest === "stale";
+      this.probeRequest = "none";
+      if (stale) {
+        this.probe();
+        return;
+      }
       this.failure = result === "reachable" ? null : result;
       this.emitState();
     });

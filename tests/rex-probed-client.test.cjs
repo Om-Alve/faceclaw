@@ -149,4 +149,29 @@ test('stopping drops the failure and the probe in flight', async () => {
   requests[1].resolve(403);
   await settle();
   assert.deepEqual({ phase: client.state().phase, status: client.state().status }, { phase: 'idle', status: 'Not connected.' });
+  client.start();
+  assert.equal(client.state().status, 'Connecting to rex.tail1234.ts.net...');
+  assert.equal(requests.length, 3);
+});
+
+test('a reconnect while a probe is open sends no second probe', () => {
+  const { inner, client, requests } = probed();
+  client.start();
+  inner.set('connected', 'Connected to rex.tail1234.ts.net.');
+  inner.set('connecting', 'Reconnecting to rex.tail1234.ts.net...');
+  assert.equal(requests.length, 1);
+});
+
+test('a probe open across a connected spell is not reported, and a fresh probe answers', async () => {
+  const { inner, client, requests } = probed();
+  client.start();
+  inner.set('connected', 'Connected to rex.tail1234.ts.net.');
+  inner.set('connecting', 'Reconnecting to rex.tail1234.ts.net...');
+  requests[0].resolve(403);
+  await settle();
+  assert.equal(client.state().status, 'Reconnecting to rex.tail1234.ts.net...');
+  assert.equal(requests.length, 2);
+  requests[1].reject(new Error('timeout'));
+  await settle();
+  assert.equal(client.state().status, UNREACHABLE);
 });
