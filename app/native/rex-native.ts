@@ -1,9 +1,12 @@
 /**
  * RexClient on the phone: the control connection over openSocket, with the
- * Rex subprotocol in its one header slot, and the runtime's timers and clock.
+ * Rex subprotocol in its one header slot, the data connection over
+ * RexDataSocket.kt on Android, and the runtime's timers and clock. iOS has no
+ * binary socket, so it shows Rex panes from snapshots alone.
  * Kept out of terminal-app.worker.ts so the worker only registers the backend.
  */
 import { openSocket } from "./socket";
+import { openRexDataSocket } from "./rex-data-socket";
 import { RexClient } from "../apps/terminal/rex-client";
 import type { RexEndpoint } from "../apps/terminal/rex/connection-string";
 import type { RexSocketFactory } from "../apps/terminal/rex/control";
@@ -30,6 +33,7 @@ export function createNativeRexClient(endpoint: RexEndpoint, cols: number, rows:
     cols,
     rows,
     createSocket: openRexSocket,
+    openDataSocket: global.isAndroid ? openRexDataSocket : undefined,
     timers: {
       setTimeout: (callback, ms) => setTimeout(callback, ms),
       clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
