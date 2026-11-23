@@ -1362,9 +1362,17 @@ export const terminalNewConnectionSetting = new ConfigSettingString({
   label: "New connection",
   storageKey: "terminal.newConnectionDraft",
   defaultValue: "",
-  editorTitle: "Connection (ssh://user@host or g2mirror://token@host)",
+  editorTitle: "Connection (ssh://user@host, g2mirror://token@host or Rex's https:// address)",
   glassesEditTitle: "Add connection",
   normalize: (value) => (value ?? "").replace(/[\x00-\x1f]+/g, "").trim(),
+});
+
+/** What the phone's QR scanner read for the Terminal app's Scan QR; the worker takes and clears it. */
+export const terminalScannedQrSetting = new ConfigSettingString({
+  id: "terminal-scanned-qr",
+  label: "Scanned QR code",
+  storageKey: "terminal.scannedQr",
+  defaultValue: "",
 });
 
 /**

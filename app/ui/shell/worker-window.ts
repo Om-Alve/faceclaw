@@ -159,6 +159,15 @@ export type WorkerAppReply =
   | { type: "end-text-setting-edit" }
   | {
       /**
+       * Open the phone's QR scanner and store the text it reads in a string
+       * setting (by id, like start-text-setting-edit), which the worker
+       * watches. Nothing is stored when the user backs out.
+       */
+      type: "scan-qr-into-setting";
+      settingId: string;
+    }
+  | {
+      /**
        * Set or clear the app's top-bar tray icon. Pixels ride the JSON
        * postMessage roundtrip — acceptable because tray icons are small and
        * infrequently updated.
@@ -244,6 +253,8 @@ export type WorkerAppHostOptions = {
   startTextSettingEdit: (settingId: string) => void;
   /** Close the phone text editor opened by startTextSettingEdit. */
   endTextSettingEdit: () => void;
+  /** Scan a QR code on the phone into a string setting (by id). Absent where the host can't scan. */
+  scanQrIntoSetting?: (settingId: string) => void;
   /** A key a window was sent and handed back (the "key-unhandled" reply); a KeyEvent. */
   unhandledKey?: (event: unknown) => void;
 };
@@ -410,6 +421,9 @@ export class WorkerAppHost {
           break;
         case "end-text-setting-edit":
           this.options.endTextSettingEdit();
+          break;
+        case "scan-qr-into-setting":
+          this.options.scanQrIntoSetting?.(message.settingId);
           break;
         case "set-tray-icon": {
           let icon: GrayImage | null = null;

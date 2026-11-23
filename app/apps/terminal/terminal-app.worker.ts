@@ -66,7 +66,8 @@ import { encodeTerminalKey, terminalScrollbackKey } from "./terminal-keys";
 import { G2MirrorClient, type G2MirrorSession, type G2MirrorState } from "../../native/g2mirror-client";
 import type { TerminalClient } from "./terminal-client";
 import { TmuxClient, type OpenLineChannel } from "./tmux-client";
-import { createNativeRexClient } from "../../native/rex-native";
+import { createProbedRexClient } from "../../native/rex-probe";
+import { connectionStringToSave, parseRexPairingQr } from "./rex/pairing";
 import {
   copyToPhoneClipboard,
   describeSshFailure,
@@ -88,6 +89,7 @@ import {
   terminalDisplayLayoutSetting,
   terminalLaunchPresetsSetting,
   terminalNewConnectionSetting,
+  terminalScannedQrSetting,
   terminalSshPasswordSetting,
   terminalWakeOnBellSetting,
   textSettingMenuItem,
@@ -144,6 +146,8 @@ const RECONNECT_MAX_DELAY_MS = 60_000;
 // Storage key of terminalNewConnectionSetting (the Add-connection draft the
 // phone text editor types into); its changes just repaint the add screen.
 const NEW_CONNECTION_DRAFT_KEY = "terminal.newConnectionDraft";
+// Storage key of terminalScannedQrSetting, which the phone's QR scanner fills.
+const SCANNED_QR_KEY = "terminal.scannedQr";
 // Storage key of terminalLaunchPresetsSetting, edited from the window menu.
 const LAUNCH_PRESETS_KEY = "terminal.launchPresets";
 // Storage key of terminalSshPasswordSetting (the password page's draft).
@@ -576,6 +580,9 @@ onSettingsStoreChanged((key) => {
       // Live keystrokes from the phone editor; repaint the add/password screen.
       renderHubWindows();
       return;
+    case SCANNED_QR_KEY:
+      takeScannedQr();
+      return;
     case "terminal.autoReconnect":
       if (!terminalAutoReconnectSetting.get()) {
         cancelPendingReconnects();
@@ -726,7 +733,7 @@ function clientOptionsFor(connection: TerminalConnection): ClientRecipe | null {
       create: (cols, rows) => new G2MirrorClient({ secure, host, port, authToken, deviceName: DEVICE_NAME, cols, rows }),
     };
   }
-  if (parsed.kind === "rex") return { kind: "rex", create: (cols, rows) => createNativeRexClient(parsed, cols, rows) };
+  if (parsed.kind === "rex") return { kind: "rex", create: (cols, rows) => createProbedRexClient(parsed, cols, rows) };
   const connectionId = connection.id;
   const label = connectionStringHostLabel(connection.url);
   // Read at every channel open, so a newly trusted key or saved password
@@ -1880,6 +1887,10 @@ function hubConnectionItems(window: HubWindow): HubItem[] {
       onSelect: () => beginAddConnection(window),
     },
     {
+      label: "Scan QR",
+      onSelect: () => beginAddConnection(window, true),
+    },
+    {
       label: "This device's SSH key",
       onSelect: () => openClientKeyPage(window),
     },
@@ -2009,12 +2020,28 @@ function removeControl(control: ControlConnection): void {
 /**
  * Enter the Add-connection screen: clear the draft and ask the shell to open
  * the phone text editor on it. The user types (or voice-inputs) the
- * connection string, then clicks to save or double-clicks to cancel.
+ * connection string, then clicks to save or double-clicks to cancel. With
+ * scanQr, the phone's QR scanner opens over the editor (see takeScannedQr).
  */
-function beginAddConnection(window: HubWindow): void {
+function beginAddConnection(window: HubWindow, scanQr = false): void {
   terminalNewConnectionSetting.set("");
   setHubMode(window, "add");
   post({ type: "start-text-setting-edit", settingId: terminalNewConnectionSetting.id });
+  if (scanQr) post({ type: "scan-qr-into-setting", settingId: terminalScannedQrSetting.id });
+}
+
+/** A scanned Rex pairing code fills the Add-connection draft; anything else says why and changes nothing. */
+function takeScannedQr(): void {
+  const payload = terminalScannedQrSetting.get();
+  if (!payload) return;
+  terminalScannedQrSetting.set("");
+  const scan = parseRexPairingQr(payload);
+  for (const window of windows.values()) {
+    if (window.kind !== "hub" || window.mode !== "add") continue;
+    window.addError = scan.kind === "rejected" ? scan.message : "";
+    if (scan.kind === "address") terminalNewConnectionSetting.set(scan.connectionString);
+    scheduleRender(window);
+  }
 }
 
 function saveAddConnection(window: HubWindow): void {
@@ -2027,7 +2054,13 @@ function saveAddConnection(window: HubWindow): void {
     return;
   }
   const connections = loadConnections();
-  connections.push({ id: `c${Date.now()}`, url, serverName: null, enabled: true, hostKeys: [] });
+  const saved = connectionStringToSave(url, connections.map((connection) => connection.url));
+  if (saved === null) {
+    window.addError = "Already added.";
+    scheduleRender(window);
+    return;
+  }
+  connections.push({ id: `c${Date.now()}`, url: saved, serverName: null, enabled: true, hostKeys: [] });
   saveConnections(connections);
   endAddConnection(window);
   setHubMode(window, "connections");
