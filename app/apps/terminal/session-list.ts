@@ -115,8 +115,8 @@ const BLOCKED_MSG_MIN_CHARS = 4;
  * shapes rather than a font glyph so both states read in every UI font),
  * then the open view window's glyph in its own column, then the label,
  * truncated (never wrapped) to fit `width`. A row with a status ends in its
- * mark, and a blocked row shows its message, dimmer, after the label when
- * there is room left.
+ * mark, unless the row is too narrow for the label beside it, and a blocked
+ * row shows its message, dimmer, after the label when there is room left.
  */
 export function drawSessionRow(
   image: GrayImage,
@@ -153,9 +153,11 @@ export function drawSessionRow(
   const textRight = status ? x + width - STATUS_MARK_SIZE - STATUS_GAP : x + width;
   const shown = truncateText(font, label, Math.max(0, textRight - labelX));
   image.drawText(font, labelX, y, shown, value);
-  if (!status) return;
+  const labelRight = labelX + font.measureText(shown);
+  // truncateText keeps a few characters however narrow the room, so the label can reach the mark.
+  if (!status || labelRight > textRight) return;
   drawStatusMark(image, x + width - STATUS_MARK_SIZE, y + Math.max(0, ((font.lineHeight - STATUS_MARK_SIZE) / 2) | 0), status.state, value);
-  const msgX = labelX + font.measureText(shown) + STATUS_GAP;
+  const msgX = labelRight + STATUS_GAP;
   const msgWidth = textRight - msgX;
   if (status.state === "blocked" && status.msg && msgWidth >= font.measureText("W".repeat(BLOCKED_MSG_MIN_CHARS))) {
     image.drawText(font, msgX, y, truncateText(font, status.msg, msgWidth), Math.max(0, value - STATUS_DIM));
