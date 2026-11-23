@@ -19,14 +19,23 @@ const FORMAT_BUDGET_MS = 20;
 const WAIT_MS = 5_000;
 const POLL_MS = 50;
 const P95 = 0.95;
+const CLOSE_ABNORMAL = 1006;
 
 const timers = { setTimeout: (callback, ms) => setTimeout(callback, ms), clearTimeout: (handle) => clearTimeout(handle) };
 
 function nodeSocket(url, subprotocol, handlers) {
   const ws = new WebSocket(url, subprotocol);
+  let closed = false;
+  const close = (code, reason) => {
+    if (closed) return;
+    closed = true;
+    handlers.onClose(code, reason);
+  };
   ws.onopen = () => handlers.onOpen();
   ws.onmessage = (message) => handlers.onMessage(String(message.data));
-  ws.onclose = (event) => handlers.onClose(event.code, event.reason);
+  // Node's WebSocket fires only error, never close, when a connect is refused.
+  ws.onerror = () => close(CLOSE_ABNORMAL, 'socket error');
+  ws.onclose = (event) => close(event.code, event.reason);
   return {
     send(text) {
       if (ws.readyState !== WebSocket.OPEN) return false;
