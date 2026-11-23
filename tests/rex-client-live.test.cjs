@@ -1,21 +1,18 @@
 // Drives RexClient against the real local Rex server through
 // scripts/rex-relay.mjs. Skipped unless REX_LIVE=1. A second plain control
 // connection stands in for the Mac: it owns the pane at its own size first, so
-// handing the pane back is observable. REX_RELAY_PORT picks the relay port;
-// REX_BIN the rex CLI, else `rex` on PATH.
+// handing the pane back is observable. tests/helpers/rex-live.cjs names the
+// environment it reads.
 //
-//   REX_LIVE=1 REX_RELAY_PORT=8792 node --test tests/rex-client-live.test.cjs
+//   REX_LIVE=1 node --test tests/rex-client-live.test.cjs
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const path = require('node:path');
-const { execFileSync } = require('node:child_process');
-const { pathToFileURL } = require('node:url');
 
 const { RexClient, REX_OTHER_OWNER_NOTICE } = require('../.test-build/app/apps/terminal/rex-client.js');
 const { parseRexConnectionString } = require('../.test-build/app/apps/terminal/rex/connection-string.js');
+const { timers, nodeSocket, startRelay, rexJson, controlConnection } = require('./helpers/rex-live.cjs');
 
 const LIVE = process.env.REX_LIVE === '1';
-const REX = process.env.REX_BIN ?? 'rex';
 const SESSION_LABEL = 'lane-r2-owner';
 const GLASSES = { cols: 58, rows: 11 };
 const MAC = { columns: 120, rows: 40 };
@@ -24,23 +21,6 @@ const WAIT_MS = 10_000;
 const POLL_MS = 100;
 // Enough of a line to show the prompt and the command without the palette the snapshot starts with.
 const ECHO_TAIL_CHARS = 24;
-
-const timers = { setTimeout: (callback, ms) => setTimeout(callback, ms), clearTimeout: (handle) => clearTimeout(handle) };
-
-function nodeSocket(url, subprotocol, handlers) {
-  const ws = new WebSocket(url, subprotocol);
-  ws.onopen = () => handlers.onOpen();
-  ws.onmessage = (message) => handlers.onMessage(String(message.data));
-  ws.onclose = (event) => handlers.onClose(event.code, event.reason);
-  return {
-    send(text) {
-      if (ws.readyState !== WebSocket.OPEN) return false;
-      ws.send(text);
-      return true;
-    },
-    close: (code, reason) => ws.close(code, reason),
-  };
-}
 
 function newClient(port) {
   return new RexClient({
@@ -54,45 +34,13 @@ function newClient(port) {
   });
 }
 
-/** A bare control connection, the way Rex.app on the Mac would hold a pane. */
-function macConnection(port) {
-  return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`ws://127.0.0.1:${port}/api/control`, 'rex.control.v1');
-    const pending = new Map();
-    const ownerEvents = [];
-    let nextId = 1;
-    const mac = {
-      id: null,
-      ownerEvents,
-      call: (method, payload) =>
-        new Promise((done, fail) => {
-          const id = String(nextId++);
-          pending.set(id, { done, fail });
-          ws.send(JSON.stringify({ type: 'request', id, method, payload }));
-        }),
-      close: () => ws.close(1000),
-    };
-    ws.onopen = () => ws.send(JSON.stringify({ type: 'hello', api_revision: 18, api_min_revision: 18, client: { kind: 'app', name: 'mac-standin', version: '1' } }));
-    ws.onerror = () => reject(new Error('mac connection failed'));
-    ws.onmessage = (message) => {
-      const parsed = JSON.parse(String(message.data));
-      if (parsed.type === 'welcome') {
-        mac.id = parsed.client.id;
-        resolve(mac);
-      } else if (parsed.type === 'response') {
-        const entry = pending.get(parsed.id);
-        pending.delete(parsed.id);
-        if (parsed.error) entry.fail(new Error(`${parsed.error.code}: ${parsed.error.message}`));
-        else entry.done(parsed.payload);
-      } else if (parsed.type === 'event' && parsed.payload.type === 'session_event' && parsed.payload.payload.event.type === 'block_owner_changed') {
-        ownerEvents.push(parsed.payload.payload.event.payload);
-      }
-    };
+/** A bare control connection, the way Rex.app on the Mac would hold a pane, with the owner changes it hears. */
+async function macConnection(port) {
+  const ownerEvents = [];
+  const mac = await controlConnection(port, 'mac-standin', (message) => {
+    if (message.payload.type === 'session_event' && message.payload.payload.event.type === 'block_owner_changed') ownerEvents.push(message.payload.payload.event.payload);
   });
-}
-
-function rexJson(...args) {
-  return JSON.parse(execFileSync(REX, args, { encoding: 'utf8' }));
+  return { ...mac, ownerEvents };
 }
 
 const terminalSize = (sessionId, blockId) => rexJson('api', 'call', '-s', sessionId, 'com.superlogical.terminal.size', JSON.stringify({ block_id: blockId, args: {} }));
@@ -129,8 +77,7 @@ async function waitFor(what, predicate) {
 const showSize = (label, size, mac) => console.log(`${label}: ${size.columns}x${size.rows} owner=${size.owner === mac.id ? 'mac' : size.owner}`);
 
 test('RexClient lists, views, types into and gives back a real pane', { skip: !LIVE && 'set REX_LIVE=1 to run against the local Rex server' }, async () => {
-  const { startRelay } = await import(pathToFileURL(path.join(__dirname, '..', 'scripts', 'rex-relay.mjs')).href);
-  const relay = await startRelay({ port: Number(process.env.REX_RELAY_PORT ?? 0), log: () => {} });
+  const relay = await startRelay();
   console.log(`relay on 127.0.0.1:${relay.port}`);
   const mac = await macConnection(relay.port);
   const hub = newClient(relay.port);

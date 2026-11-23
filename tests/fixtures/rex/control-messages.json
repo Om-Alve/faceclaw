@@ -60,7 +60,7 @@
   "response_view": {
     "type": "response",
     "id": "2",
-    "seq": 6,
+    "seq": 4,
     "payload": {
       "revision": 3,
       "session_id": "session:00000000-0000-0000-0000-000000000005",
@@ -108,7 +108,7 @@
   "response_format_text": {
     "type": "response",
     "id": "3",
-    "seq": 12,
+    "seq": 10,
     "payload": {
       "content": "sh-3.2$ printf '\\a'; printf '\\033]9;rex fixture\\a'; printf '\\033]0;rex-fixture-title\\a'; printf '\\03\n3]9;4;1;40\\a'; printf '\\033]7501;state=blocked:kind=permission:app=rex-fixture:msg=QXBwcm92ZT8=\\033\\\n\\'; sleep 0.2; echo rex-fixture-ok\nrex-fixture-ok\nsh-3.2$"
     }
@@ -116,7 +116,7 @@
   "response_format_vt": {
     "type": "response",
     "id": "4",
-    "seq": 12,
+    "seq": 10,
     "payload": {
       "content": "sh-3.2$ printf '\\a'; printf '\\033]9;rex fixture\\a'; printf '\\033]0;rex-fixture-title\\a'; printf '\\03\r\n3]9;4;1;40\\a'; printf '\\033]7501;state=blocked:kind=permission:app=rex-fixture:msg=QXBwcm92ZT8=\\033\\\r\n\\'; sleep 0.2; echo rex-fixture-ok\r\nrex-fixture-ok\r\nsh-3.2$ \r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\u001b[5;9H"
     }
@@ -124,7 +124,7 @@
   "response_program_status": {
     "type": "response",
     "id": "5",
-    "seq": 12,
+    "seq": 10,
     "payload": {
       "records": [
         {
@@ -145,7 +145,7 @@
   "response_error_method_not_found": {
     "type": "response",
     "id": "6",
-    "seq": 12,
+    "seq": 10,
     "error": {
       "code": "method_not_found",
       "message": "method not found: \"no_such_method\"",
@@ -155,7 +155,7 @@
   "response_error_bad_request": {
     "type": "response",
     "id": "7",
-    "seq": 12,
+    "seq": 10,
     "error": {
       "code": "bad_request",
       "message": "netapi: decoding args for \"session.view\": session_id is required",
@@ -177,7 +177,7 @@
   },
   "event_session_view_changed": {
     "type": "event",
-    "seq": 4,
+    "seq": 3,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -193,7 +193,7 @@
   },
   "event_block_owner_changed": {
     "type": "event",
-    "seq": 3,
+    "seq": 2,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -211,7 +211,7 @@
   },
   "event_session_destroyed": {
     "type": "event",
-    "seq": 16,
+    "seq": 13,
     "payload": {
       "type": "session_destroyed",
       "payload": {
@@ -221,7 +221,7 @@
   },
   "event_block_bell": {
     "type": "event",
-    "seq": 7,
+    "seq": 5,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -240,7 +240,7 @@
   },
   "event_block_title_changed": {
     "type": "event",
-    "seq": 9,
+    "seq": 7,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -265,7 +265,7 @@
   },
   "event_block_desktop_notification": {
     "type": "event",
-    "seq": 8,
+    "seq": 6,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -287,7 +287,7 @@
   },
   "event_block_progress_report": {
     "type": "event",
-    "seq": 10,
+    "seq": 8,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -309,7 +309,7 @@
   },
   "event_block_program_status_changed": {
     "type": "event",
-    "seq": 11,
+    "seq": 9,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -343,7 +343,7 @@
   },
   "event_block_program_status_removed": {
     "type": "event",
-    "seq": 14,
+    "seq": 11,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -367,7 +367,7 @@
   },
   "event_block_process_changed": {
     "type": "event",
-    "seq": 12,
+    "seq": 10,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -410,7 +410,7 @@
   },
   "event_block_size_changed": {
     "type": "event",
-    "seq": 5,
+    "seq": 4,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -443,7 +443,7 @@
   },
   "event_block_child_exited": {
     "type": "event",
-    "seq": 15,
+    "seq": 12,
     "payload": {
       "type": "session_event",
       "payload": {
@@ -482,7 +482,7 @@
   "response_own_block": {
     "type": "response",
     "id": "9",
-    "seq": 2,
+    "seq": 1,
     "payload": {
       "blocks": [
         {
@@ -495,7 +495,7 @@
   "response_disown_block": {
     "type": "response",
     "id": "10",
-    "seq": 5,
+    "seq": 4,
     "payload": {
       "blocks": [
         {
@@ -507,7 +507,7 @@
   "response_format_vt_part": {
     "type": "response",
     "id": "11",
-    "seq": 12,
+    "seq": 10,
     "payload": {
       "content": "sh-3.2$ printf '\\a'; printf '\\033]9;rex fixture\\a'; printf '\\033]0;rex-fixture-title\\a'; printf '\\03\r\n3]9;4;1;40\\a'; printf '\\033]7501;state=blocked:kind=permission:app=rex-fixture:msg=QXBwcm92ZT8=\\033\\\r\n\\'; sleep 0.2; echo rex-fixture-ok\r",
       "id": 1,
@@ -517,7 +517,7 @@
   "response_blob_read": {
     "type": "response",
     "id": "12",
-    "seq": 12,
+    "seq": 10,
     "payload": {
       "id": 1,
       "data": "\nrex-fixture-ok\r\nsh-3.2$ \r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n",
@@ -528,7 +528,7 @@
   "response_view_nested": {
     "type": "response",
     "id": "13",
-    "seq": 13,
+    "seq": 10,
     "payload": {
       "revision": 2,
       "session_id": "session:00000000-0000-0000-0000-000000000009",

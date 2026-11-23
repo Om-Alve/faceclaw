@@ -73,3 +73,17 @@ test('a long message is cut to the room left before the mark', () => {
   assert.ok(msg.text.endsWith('...'));
   assert.ok(msg.x + msg.text.length * CHAR_WIDTH <= ROW_RIGHT - MARK_SIZE);
 });
+
+test('however narrow the row, the mark never overlaps the label', () => {
+  const labelX = sessionLabelX(fakeFont(), ROW.x);
+  const narrowest = labelX - ROW.x;
+  const wideEnough = narrowest + 'work'.length * CHAR_WIDTH + 2 * MARK_SIZE;
+  for (let width = narrowest; width <= wideEnough; width++) {
+    for (const state of STATES) {
+      const { drawn, lit } = draw({ width, label: 'work', status: { state } });
+      const labelRight = labelX + drawn[0].text.length * CHAR_WIDTH;
+      assert.ok(lit.every(([x]) => x >= labelRight), `${state} mark clear of "${drawn[0].text}" at width ${width}`);
+      if (width === wideEnough) assert.ok(lit.length > 0, `${state} mark drawn at width ${width}`);
+    }
+  }
+});

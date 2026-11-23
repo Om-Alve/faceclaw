@@ -93,9 +93,9 @@ function connect(port, onEvent) {
     let nextId = 1;
     const conn = {
       raw: (method, payload) =>
-        new Promise((done) => {
+        new Promise((done, fail) => {
           const id = String(nextId++);
-          pending.set(id, done);
+          pending.set(id, { done, fail });
           ws.send(JSON.stringify({ type: "request", id, method, payload }));
         }),
       call: async (method, payload) => {
@@ -106,12 +106,20 @@ function connect(port, onEvent) {
       close: () => ws.close(1000),
     };
     ws.onopen = () => ws.send(JSON.stringify({ type: "hello", api_revision: API_REVISION, api_min_revision: API_REVISION, client: { kind: "cli", name: "faceclaw-rex-fixtures", version: "1" } }));
-    ws.onerror = () => reject(new Error("control connection failed"));
+    // Node's WebSocket can fire error without close, or close without error.
+    const lost = () => {
+      const error = new Error("control connection lost");
+      reject(error);
+      for (const request of pending.values()) request.fail(error);
+      pending.clear();
+    };
+    ws.onerror = lost;
+    ws.onclose = lost;
     ws.onmessage = (message) => {
       const parsed = JSON.parse(String(message.data));
       if (parsed.type === "welcome") resolve({ ...conn, welcome: parsed });
       else if (parsed.type === "response") {
-        pending.get(parsed.id)?.(parsed);
+        pending.get(parsed.id)?.done(parsed);
         pending.delete(parsed.id);
       } else if (parsed.type === "event") onEvent(parsed);
     };
@@ -251,14 +259,16 @@ async function main() {
   if (missing.length) throw new Error(`not recorded: ${missing.join(", ")}`);
   if (leftover.length) throw new Error(`${leftover.length} throwaway session(s) left behind`);
   const fixtures = normalize(Object.fromEntries(KEYS.map((key) => [key, recorded[key]])));
-  // Request IDs count the polls before each request and seqs count every event
-  // the server sent, so both vary between runs. Renumber them in order.
+  // Request IDs count the polls before each request, and seqs count every event
+  // the server sent, other sessions' too, so both vary between runs. Renumber
+  // IDs in order, and each seq as the number of recorded events at or below it,
+  // which keeps where a response falls among this session's recorded events.
   const messages = Object.values(fixtures);
-  const seqs = [...new Set(messages.map((message) => message.seq).filter((seq) => seq !== undefined))].sort((a, b) => a - b);
+  const eventSeqs = messages.filter((message) => message.type === "event").map((message) => message.seq);
   let responseId = 0;
   for (const message of messages) {
     if (message.type === "response") message.id = String(++responseId);
-    if (message.seq !== undefined) message.seq = seqs.indexOf(message.seq);
+    if (message.seq !== undefined) message.seq = eventSeqs.filter((seq) => seq <= message.seq).length;
   }
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, `${JSON.stringify(fixtures, null, 2)}\n`);

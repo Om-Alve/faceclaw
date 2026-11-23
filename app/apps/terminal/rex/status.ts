@@ -8,24 +8,28 @@ import type { RexBlockEvent, RexProgramStatusRecord } from "./protocol";
 
 type SessionState = SessionStatus["state"];
 type BlockedKind = NonNullable<SessionStatus["kind"]>;
-type ProgramState = "idle" | SessionState;
 
-const PROGRAM_STATES: readonly ProgramState[] = ["idle", "working", "done", "blocked", "error"];
 const BLOCKED_KINDS: readonly BlockedKind[] = ["permission", "question", "auth"];
 /** Highest first: the row shows the first state any record of the block is in. */
 const ROW_STATE_PRIORITY: readonly SessionState[] = ["blocked", "error", "done", "working"];
 const ROOT_RECORD_ID = "";
 
-/** One record. `id` is "" for the root record and "a/b" for a child of "a". Rex sends `msg` already decoded from the report's base64. */
-type ProgramStatusRecord = { id: string; state: ProgramState; kind?: BlockedKind; msg?: string };
+/**
+ * One record. `id` is "" for the root record and "a/b" for a child of "a".
+ * `state` is left out for idle and for a state this client does not know,
+ * which the API asks to read as idle. Rex sends `msg` already decoded from
+ * the report's base64.
+ */
+type ProgramStatusRecord = { id: string; state?: SessionState; kind?: BlockedKind; msg?: string };
 
 function oneOf<T extends string>(values: readonly T[], value: string | undefined): T | undefined {
   return values.find((candidate) => candidate === value);
 }
 
-/** An unknown state reads as idle and an unknown kind as absent, as the API asks. */
 function programStatusRecord(id: string, raw: RexProgramStatusRecord): ProgramStatusRecord {
-  const record: ProgramStatusRecord = { id, state: oneOf(PROGRAM_STATES, raw.state) ?? "idle" };
+  const record: ProgramStatusRecord = { id };
+  const state = oneOf(ROW_STATE_PRIORITY, raw.state);
+  if (state) record.state = state;
   const kind = oneOf(BLOCKED_KINDS, raw.kind);
   if (kind) record.kind = kind;
   if (raw.msg) record.msg = raw.msg;

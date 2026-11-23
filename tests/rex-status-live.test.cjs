@@ -1,22 +1,18 @@
 // Drives RexClient's program status against the real local Rex server through
 // scripts/rex-relay.mjs. Skipped unless REX_LIVE=1. The pane is driven with
 // the rex CLI, which talks to the server's socket directly, so it keeps
-// working while the relay is down. REX_RELAY_PORT picks the relay port;
-// REX_BIN the rex CLI, else `rex` on PATH.
+// working while the relay is down. tests/helpers/rex-live.cjs names the
+// environment it reads.
 //
-//   REX_LIVE=1 REX_RELAY_PORT=8799 node --test tests/rex-status-live.test.cjs
+//   REX_LIVE=1 node --test tests/rex-status-live.test.cjs
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const path = require('node:path');
-const { execFileSync } = require('node:child_process');
-const { pathToFileURL } = require('node:url');
 
 const { RexClient } = require('../.test-build/app/apps/terminal/rex-client.js');
 const { parseRexConnectionString } = require('../.test-build/app/apps/terminal/rex/connection-string.js');
+const { timers, nodeSocket, startRelay, rex, rexJson } = require('./helpers/rex-live.cjs');
 
 const LIVE = process.env.REX_LIVE === '1';
-const REX = process.env.REX_BIN ?? 'rex';
-const PORT = Number(process.env.REX_RELAY_PORT ?? 0);
 const SESSION_LABEL = 'lane-r4-owner';
 const PROGRAM_STATUS = 'com.superlogical.terminal.program_status';
 const BLOCKED_MSG = 'Allow edit to lane-r4.txt? ✅ naïve';
@@ -26,33 +22,28 @@ const WAIT_MS = 15_000;
 const POLL_MS = 10;
 const QUIET_MS = 500;
 
-const timers = { setTimeout: (callback, ms) => setTimeout(callback, ms), clearTimeout: (handle) => clearTimeout(handle) };
 const b64 = (text) => Buffer.from(text, 'utf8').toString('base64');
-const rexJson = (...args) => JSON.parse(execFileSync(REX, args, { encoding: 'utf8' }));
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** A Node WebSocket that also counts the program_status responses it receives, by block. */
+/** nodeSocket that also counts the program_status responses it receives, by block. */
 function tappedSocketFactory(statusReads) {
   return (url, subprotocol, handlers) => {
-    const ws = new WebSocket(url, subprotocol);
     const asked = new Map();
-    ws.onopen = () => handlers.onOpen();
-    ws.onmessage = (message) => {
-      const text = String(message.data);
-      const parsed = JSON.parse(text);
-      if (parsed.type === 'response' && asked.has(parsed.id)) statusReads.push(asked.get(parsed.id));
-      handlers.onMessage(text);
-    };
-    ws.onclose = (event) => handlers.onClose(event.code, event.reason);
+    const socket = nodeSocket(url, subprotocol, {
+      ...handlers,
+      onMessage: (text) => {
+        const parsed = JSON.parse(text);
+        if (parsed.type === 'response' && asked.has(parsed.id)) statusReads.push(asked.get(parsed.id));
+        handlers.onMessage(text);
+      },
+    });
     return {
       send(text) {
-        if (ws.readyState !== WebSocket.OPEN) return false;
         const request = JSON.parse(text);
         if (request.method === PROGRAM_STATUS) asked.set(request.id, request.payload.block_id);
-        ws.send(text);
-        return true;
+        return socket.send(text);
       },
-      close: (code, reason) => ws.close(code, reason),
+      close: socket.close,
     };
   };
 }
@@ -68,8 +59,7 @@ async function waitFor(what, predicate) {
 }
 
 test('a Rex pane that reports blocked shows on its row and raises attention once, across a relay restart', { skip: !LIVE && 'set REX_LIVE=1 to run against the local Rex server' }, async () => {
-  const { startRelay } = await import(pathToFileURL(path.join(__dirname, '..', 'scripts', 'rex-relay.mjs')).href);
-  let relay = await startRelay({ port: PORT, log: () => {} });
+  let relay = await startRelay();
   console.log(`relay on 127.0.0.1:${relay.port}`);
   const statusReads = [];
   const hub = new RexClient({
@@ -117,7 +107,7 @@ test('a Rex pane that reports blocked shows on its row and raises attention once
     await relay.close();
     await waitFor('the hub to see the relay go', () => hub.state().phase === 'connecting');
     console.log(`relay stopped; phase=${hub.state().phase}; row status=${JSON.stringify(row()?.status ?? null)}`);
-    relay = await startRelay({ port: relay.port, log: () => {} });
+    relay = await startRelay({ port: relay.port });
     const readsBefore = statusReads.filter((id) => id === blockId).length;
     await waitFor('the hub back and the lane pane re-read', () => hub.state().phase === 'connected' && statusReads.filter((id) => id === blockId).length > readsBefore);
     await sleep(QUIET_MS);
@@ -137,7 +127,7 @@ test('a Rex pane that reports blocked shows on its row and raises attention once
     await relay.close();
     if (sessionId) {
       try {
-        execFileSync(REX, ['api', 'call', '-s', sessionId, 'session.destroy']);
+        rex('api', 'call', '-s', sessionId, 'session.destroy');
       } catch (error) {
         console.log(`destroy ${sessionId}: ${error.message}`);
       }
