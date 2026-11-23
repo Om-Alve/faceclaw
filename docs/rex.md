@@ -50,16 +50,19 @@ On Linux, if `rex server install` set up the server, systemd starts it. Add `--t
 
 	The code holds only the server's `https://` address. If the command says that Tailscale HTTPS is not ready yet, wait a few seconds and run it again.
 
-2. In Faceclaw, open Terminal and add a connection.
-3. Choose **Scan QR** and scan the code.
+2. In Faceclaw, open Terminal and choose **Manage Connections**.
+3. Choose **Scan QR** and scan the code with the phone. The address fills in.
+4. Click to save.
 
-To type the address instead, enter the `https://` address that `rex server tailscale pair` prints under the code.
+To type the address instead, choose **Add connection** and enter the `https://` address that `rex server tailscale pair` prints under the code. Terminal saves a server only once, however its address is spelled.
 
 ## Fix a failed connection
 
 If Terminal shows `Rex refused this device`, the phone's Tailscale account is not the account that owns the Rex node. Sign the phone in to that account. To let in every account that your tailnet's access rules allow, run `rex server tailscale off`, then `rex server tailscale on --allow-tailnet-members`.
 
 If Terminal shows `Can't reach` and the host name, turn on Tailscale on the phone. Then check that the `tailscale` line of `rex server status` shows `running`.
+
+Terminal shows the failure on the line under the server's name and keeps trying to connect. To try again at once, select that line.
 
 ## Connect over USB for development
 
