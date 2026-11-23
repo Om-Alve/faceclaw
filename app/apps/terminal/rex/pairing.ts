@@ -55,6 +55,18 @@ export function rexFailureNotice(endpoint: RexEndpoint, failure: Exclude<RexProb
 // where a boolean-discriminated union does not narrow.
 export type RexQrScan = { kind: "address"; connectionString: string } | { kind: "rejected"; message: string };
 
+/**
+ * What to save for a connection string the user added: a Rex address in its
+ * canonical spelling, anything else as typed. Null when the same Rex server
+ * is already saved under any spelling, so its panes are not listed twice.
+ */
+export function connectionStringToSave(input: string, saved: readonly string[]): string | null {
+  const endpoint = parseRexConnectionString(input);
+  if (!endpoint) return input;
+  const known = saved.some((url) => parseRexConnectionString(url)?.connectionString === endpoint.connectionString);
+  return known ? null : endpoint.connectionString;
+}
+
 /** Accept the https:// address that `rex server tailscale pair` shows as a QR code. */
 export function parseRexPairingQr(payload: string): RexQrScan {
   const endpoint = parseRexConnectionString(payload);

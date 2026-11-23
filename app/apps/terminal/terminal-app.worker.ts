@@ -67,7 +67,7 @@ import { G2MirrorClient, type G2MirrorSession, type G2MirrorState } from "../../
 import type { TerminalClient } from "./terminal-client";
 import { TmuxClient, type OpenLineChannel } from "./tmux-client";
 import { createProbedRexClient } from "../../native/rex-probe";
-import { parseRexPairingQr } from "./rex/pairing";
+import { connectionStringToSave, parseRexPairingQr } from "./rex/pairing";
 import {
   copyToPhoneClipboard,
   describeSshFailure,
@@ -2054,7 +2054,13 @@ function saveAddConnection(window: HubWindow): void {
     return;
   }
   const connections = loadConnections();
-  connections.push({ id: `c${Date.now()}`, url, serverName: null, enabled: true, hostKeys: [] });
+  const saved = connectionStringToSave(url, connections.map((connection) => connection.url));
+  if (saved === null) {
+    window.addError = "Already added.";
+    scheduleRender(window);
+    return;
+  }
+  connections.push({ id: `c${Date.now()}`, url: saved, serverName: null, enabled: true, hostKeys: [] });
   saveConnections(connections);
   endAddConnection(window);
   setHubMode(window, "connections");

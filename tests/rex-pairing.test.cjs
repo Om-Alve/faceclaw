@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { parseRexConnectionString } = require('../.test-build/app/apps/terminal/rex/connection-string.js');
-const { probeRex, rexFailureNotice, parseRexPairingQr } = require('../.test-build/app/apps/terminal/rex/pairing.js');
+const { probeRex, rexFailureNotice, parseRexPairingQr, connectionStringToSave } = require('../.test-build/app/apps/terminal/rex/pairing.js');
 
 const FAILURE_MESSAGE_BUDGET_MS = 5000;
 
@@ -73,4 +73,14 @@ test('a non-Rex QR is rejected with a message and no address', () => {
   for (const payload of ['WIFI:T:WPA;S:home;P:secret;;', 'https://example.com/menu?table=4', 'rex://127.0.0.1:8792', '']) {
     assert.deepEqual(parseRexPairingQr(payload), { kind: 'rejected', message: 'Not a Rex pairing code' }, payload);
   }
+});
+
+test('a Rex server is saved once, in its canonical spelling', () => {
+  assert.equal(connectionStringToSave('HTTPS://Rex.Tail1234.ts.net:443/', []), 'https://rex.tail1234.ts.net');
+  assert.equal(connectionStringToSave('https://rex.tail1234.ts.net', ['https://REX.tail1234.ts.net/']), null);
+  assert.equal(connectionStringToSave('rex://127.0.0.1:8792', ['https://rex.tail1234.ts.net']), 'rex://127.0.0.1:8792');
+});
+
+test('non-Rex connection strings are saved as typed, duplicates included', () => {
+  assert.equal(connectionStringToSave('ssh://om@mac', ['ssh://om@mac']), 'ssh://om@mac');
 });
