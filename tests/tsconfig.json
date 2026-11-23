@@ -105,6 +105,7 @@
     "../app/apps/t3code/t3-glance.ts",
     "../app/apps/t3code/t3-launch.ts",
     "../app/apps/terminal/rex/protocol.ts",
-    "../app/apps/terminal/rex/control.ts"
+    "../app/apps/terminal/rex/control.ts",
+    "../app/apps/terminal/rex/connection-string.ts"
   ]
 }
