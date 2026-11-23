@@ -66,7 +66,7 @@ import { encodeTerminalKey, terminalScrollbackKey } from "./terminal-keys";
 import { G2MirrorClient, type G2MirrorSession, type G2MirrorState } from "../../native/g2mirror-client";
 import type { TerminalClient } from "./terminal-client";
 import { TmuxClient, type OpenLineChannel } from "./tmux-client";
-import { createNativeRexClient } from "../../native/rex-native";
+import { createProbedRexClient } from "../../native/rex-probe";
 import {
   copyToPhoneClipboard,
   describeSshFailure,
@@ -726,7 +726,7 @@ function clientOptionsFor(connection: TerminalConnection): ClientRecipe | null {
       create: (cols, rows) => new G2MirrorClient({ secure, host, port, authToken, deviceName: DEVICE_NAME, cols, rows }),
     };
   }
-  if (parsed.kind === "rex") return { kind: "rex", create: (cols, rows) => createNativeRexClient(parsed, cols, rows) };
+  if (parsed.kind === "rex") return { kind: "rex", create: (cols, rows) => createProbedRexClient(parsed, cols, rows) };
   const connectionId = connection.id;
   const label = connectionStringHostLabel(connection.url);
   // Read at every channel open, so a newly trusted key or saved password
