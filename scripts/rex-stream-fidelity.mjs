@@ -13,12 +13,12 @@ import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import WebSocket from "ws";
 import * as live from "./rex-stream-fixtures.mjs";
+import { startRelay } from "./rex-relay.mjs";
 
 const require = createRequire(import.meta.url);
 const rex = require("../.test-build/app/apps/terminal/rex/stream.js");
 const { Terminal } = require("@xterm/headless");
 
-const RELAY_PORT = 8793;
 const DATA_SUBPROTOCOL = "rex.data.terminal.v1";
 const GLASSES = { columns: 58, rows: 11 };
 const RESIZED = { columns: 40, rows: 8 };
@@ -49,8 +49,9 @@ const VT_SEED_ARGS = {
 const log = (line) => console.log(line);
 
 class Viewer {
-  constructor(lane) {
+  constructor(lane, port) {
     this.lane = lane;
+    this.port = port;
     this.term = null;
     this.stream = null;
     this.nonce = null;
@@ -78,7 +79,7 @@ class Viewer {
 
   /** Opens a data connection, sends `first`, and resolves with the parsed handshake reply. */
   open(first) {
-    const socket = new WebSocket(`ws://127.0.0.1:${RELAY_PORT}/api/data`, DATA_SUBPROTOCOL, { perMessageDeflate: false });
+    const socket = new WebSocket(`ws://127.0.0.1:${this.port}/api/data`, DATA_SUBPROTOCOL, { perMessageDeflate: false });
     socket.binaryType = "nodebuffer";
     this.socket = socket;
     let reply = null;
@@ -201,8 +202,8 @@ async function checkpoint(viewer, label) {
 }
 
 async function main() {
-  const relay = await live.startRelay(RELAY_PORT);
-  const control = await live.openControl(RELAY_PORT, "faceclaw-rex-stream-fidelity");
+  const relay = await startRelay({ port: 0, log: () => {} });
+  const control = await live.openControl(relay.port, "faceclaw-rex-stream-fidelity");
   let lane = null;
   let failures = 0;
   const check = async (viewer, label) => {
@@ -218,7 +219,7 @@ async function main() {
     await lane.terminal("write", { data: "for i in $(seq 1 120); do echo busy $i; sleep 0.01; done\n" });
     await live.sleep(POLL_MS);
 
-    const viewer = new Viewer(lane);
+    const viewer = new Viewer(lane, relay.port);
     await viewer.hello();
     await check(viewer, "busy output overlapping the seed");
     log(`seeds so far ${viewer.seeds} (more than 1 means the overlap re-seeded)`);

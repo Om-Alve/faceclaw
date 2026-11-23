@@ -4,18 +4,16 @@
 //
 //   node scripts/rex-stream-fixtures.mjs
 //
-// Talks to the local Rex server through a loopback relay to its unix socket.
+// Talks to the local Rex server through scripts/rex-relay.mjs.
 // Strings that name this machine or its user are overwritten in place with
 // same-length placeholders, so recorded byte counts stay exact.
 import fs from "node:fs";
-import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import WebSocket from "ws";
+import { startRelay } from "./rex-relay.mjs";
 
-const REX_SOCKET = process.env.REX_SOCKET || path.join(os.homedir(), "Library/Application Support/rex/server.sock");
-const RELAY_PORT = 8793;
 const API_REVISION = 18;
 const DATA_SUBPROTOCOL = "rex.data.terminal.v1";
 const CONTROL_SUBPROTOCOL = "rex.control.v1";
@@ -44,21 +42,6 @@ const CLEAR_ALL = "printf '\\033[H\\033[2J\\033[3J'\n";
 const FIXTURE_DIR = fileURLToPath(new URL("../tests/fixtures/rex/", import.meta.url));
 
 export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/** Loopback TCP relay to the Rex unix socket; ws cannot dial a socket path with spaces. */
-export function startRelay(port = RELAY_PORT) {
-  const server = net.createServer((client) => {
-    const upstream = net.connect(REX_SOCKET);
-    client.pipe(upstream);
-    upstream.pipe(client);
-    client.on("error", () => upstream.destroy());
-    upstream.on("error", () => client.destroy());
-  });
-  return new Promise((resolve, reject) => {
-    server.once("error", reject);
-    server.listen(port, "127.0.0.1", () => resolve(server));
-  });
-}
 
 /** A control connection with request/response calls and a throwaway session it owns. */
 export async function openControl(port, clientName) {
@@ -241,8 +224,9 @@ async function recordScenario(port, lane, act) {
 }
 
 async function record() {
-  const relay = await startRelay();
-  const control = await openControl(RELAY_PORT, "faceclaw-rex-stream-fixtures");
+  const relay = await startRelay({ port: 0, log: () => {} });
+  const port = relay.port;
+  const control = await openControl(port, "faceclaw-rex-stream-fixtures");
   const secrets = identifyingStrings();
   let lane = null;
   const timeout = setTimeout(() => {
@@ -253,13 +237,13 @@ async function record() {
     lane = { control, ...(await createLaneTerminal(control, `${SESSION_LABEL_PREFIX}fixtures`)) };
     const { terminal } = lane;
 
-    const output = await recordScenario(RELAY_PORT, lane, () =>
+    const output = await recordScenario(port, lane, () =>
       terminal("write", { data: "printf '\\033[31mred\\033[0m and progress 10%%\\r progress 99%%\\n'; seq 1 5\n" }),
     );
     writeFixture("output", { grid: GRID, nonce: output.welcome.nonce, connections: [fixtureConnection(output, secrets)] });
 
     let spoofNonces = null;
-    const spoof = await recordScenario(RELAY_PORT, lane, (connection) => {
+    const spoof = await recordScenario(port, lane, (connection) => {
       const nonce = BigInt(connection.welcome.nonce);
       spoofNonces = [(nonce + 1n).toString(), `${nonce}0`];
       const apcs = spoofNonces.map((wrong) => `\\033_rex1;${wrong};{\\"type\\":\\"resize\\",\\"cols\\":7,\\"rows\\":3}\\033\\\\`).join("");
@@ -267,7 +251,7 @@ async function record() {
     });
     writeFixture("spoof", { grid: GRID, nonce: spoof.welcome.nonce, spoofNonces, connections: [fixtureConnection(spoof, secrets)] });
 
-    const resize = await recordScenario(RELAY_PORT, lane, async (connection) => {
+    const resize = await recordScenario(port, lane, async (connection) => {
       await terminal("write", { data: "seq 1 3\n" });
       await quiet(connection);
       await terminal("resize", RESIZED_GRID);
@@ -280,13 +264,13 @@ async function record() {
 
     await terminal("write", { data: "for i in $(seq 1 60); do echo busy $i; sleep 0.01; done\n" });
     const busyTicket = await control.call("data.connect", { session_id: lane.sessionId, block_id: lane.blockId, data_ref_id: "terminal", subprotocol: DATA_SUBPROTOCOL });
-    const busy = await openData(RELAY_PORT, helloMessage(busyTicket.ticket)).ready;
+    const busy = await openData(port, helloMessage(busyTicket.ticket)).ready;
     await quiet(busy);
     busy.closedByServer = Boolean(busy.close);
     await closeData(busy);
     writeFixture("busy", { grid: GRID, nonce: busy.welcome.nonce, connections: [fixtureConnection(busy, secrets)] });
 
-    const first = await connectHello(RELAY_PORT, lane);
+    const first = await connectHello(port, lane);
     await quiet(first);
     await terminal("write", { data: TRICKLE });
     await waitForBytes(first, first.bytes + RESUME_AFTER_BYTES);
@@ -294,7 +278,7 @@ async function record() {
     first.ws.terminate();
     await sleep(OFFLINE_MS);
     const resumeBytes = first.bytes;
-    const second = await openData(RELAY_PORT, resumeMessage(first.welcome.token, resumeBytes)).ready;
+    const second = await openData(port, resumeMessage(first.welcome.token, resumeBytes)).ready;
     if (!second.welcome) throw new Error(`RESUME refused: ${Buffer.from(second.reply).toString("hex")}`);
     if (second.welcome.nonce !== first.welcome.nonce) throw new Error("resumed WELCOME changed the nonce");
     await quiet(second);
@@ -308,7 +292,7 @@ async function record() {
       connections: [fixtureConnection(first, secrets), fixtureConnection(second, secrets)],
     });
 
-    const exit = await recordScenario(RELAY_PORT, lane, () => terminal("write", { data: "exit 3\n" }));
+    const exit = await recordScenario(port, lane, () => terminal("write", { data: "exit 3\n" }));
     writeFixture("exit", { grid: GRID, nonce: exit.welcome.nonce, connections: [fixtureConnection(exit, secrets)] });
   } finally {
     clearTimeout(timeout);
