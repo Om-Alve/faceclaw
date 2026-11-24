@@ -6,6 +6,8 @@ import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.location.LocationRequest
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -31,6 +33,8 @@ class FaceclawLocationTracker(context: Context) : LocationListener {
          * first frame: the route starts there and arrival fires immediately.
          */
         private const val MAX_SEED_AGE_MS = 60L * 1000L
+
+        private const val MIN_INTERVAL_MS = 500L
 
         /** Age via the monotonic clock, so a wall-clock change can't make an old fix look fresh. */
         private fun ageMs(location: Location): Long {
@@ -97,8 +101,18 @@ class FaceclawLocationTracker(context: Context) : LocationListener {
 
         try {
             running = true
-            manager.requestLocationUpdates(provider, Math.max(500L, intervalMs), 0f, this,
-                callbackHandler.looper)
+            val minIntervalMs = Math.max(MIN_INTERVAL_MS, intervalMs)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                // The legacy overload defaults the fused provider to balanced
+                // power (~100 m); navigation needs GPS-grade fixes once they exist.
+                val request = LocationRequest.Builder(minIntervalMs)
+                    .setQuality(LocationRequest.QUALITY_HIGH_ACCURACY)
+                    .build()
+                manager.requestLocationUpdates(provider, request, { callbackHandler.post(it) }, this)
+            } else {
+                manager.requestLocationUpdates(provider, minIntervalMs, 0f, this,
+                    callbackHandler.looper)
+            }
             // Seed with the freshest cached fix so the UI has a position
             // before the first live fix (GPS cold starts can take a while),
             // but only if it's recent enough to still be where the user is.
@@ -135,8 +149,17 @@ class FaceclawLocationTracker(context: Context) : LocationListener {
         return best
     }
 
+    /**
+     * Prefer the fused provider: it answers within a second or two from Wi-Fi and
+     * cell, then refines with GPS. Raw GPS alone can take minutes from a cold
+     * start, longer than navigation waits for its first fix.
+     */
     private fun chooseProvider(): String? {
         try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                    locationManager!!.isProviderEnabled(LocationManager.FUSED_PROVIDER)) {
+                return LocationManager.FUSED_PROVIDER
+            }
             if (locationManager!!.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
                 return LocationManager.GPS_PROVIDER
             }
