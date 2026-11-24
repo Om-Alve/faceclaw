@@ -1,0 +1,465 @@
+{
+  "welcome": {
+    "type": "welcome",
+    "protocol": "rex.control.v1",
+    "limits": {
+      "max_message_bytes": 1048576
+    },
+    "client": {
+      "id": "client:00000000-0000-0000-0000-000000000001",
+      "reconnect_token": "<reconnect-token>"
+    },
+    "api_revision": 18,
+    "api_server_revision": 18
+  },
+  "response_bootstrap": {
+    "type": "response",
+    "id": "1",
+    "seq": 0,
+    "payload": {
+      "client_id": "client:00000000-0000-0000-0000-000000000002",
+      "server_status": {
+        "pid": 4242,
+        "instance_id": "00000000-0000-0000-0000-000000000003",
+        "host_id": "00000000-0000-0000-0000-000000000004",
+        "started_at": "2026-01-01T00:00:00Z",
+        "exit_empty": false,
+        "session_count": 1,
+        "tailscale": {
+          "state": "disabled",
+          "allow_tailnet_members": false
+        },
+        "api_revision": 18,
+        "config": {
+          "generation": 2,
+          "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "listeners": [
+          {
+            "endpoint": "unix:///home/user/Library/Application%20Support/rex/server.sock",
+            "addresses": [
+              "/home/user/Library/Application Support/rex/server.sock"
+            ],
+            "transport": "unix",
+            "admission": "peer_credentials",
+            "primary": true
+          }
+        ]
+      },
+      "attach_all": {
+        "sessions": [
+          {
+            "session_id": "session:00000000-0000-0000-0000-000000000005",
+            "label": "lane-r1-fixtures"
+          }
+        ]
+      },
+      "selected_session": null
+    }
+  },
+  "response_view": {
+    "type": "response",
+    "id": "2",
+    "seq": 5,
+    "payload": {
+      "revision": 3,
+      "session_id": "session:00000000-0000-0000-0000-000000000005",
+      "label": "lane-r1-fixtures",
+      "active_window_id": "window:00000000-0000-0000-0000-000000000006",
+      "windows": [
+        {
+          "window_id": "window:00000000-0000-0000-0000-000000000006",
+          "label": "Window 00000000",
+          "focused_block_id": "block:00000000-0000-0000-0000-000000000007",
+          "layers": [
+            {
+              "layer_id": "layer:00000000-0000-0000-0000-000000000008",
+              "kind": "tiled",
+              "bounds": [
+                0,
+                0,
+                1,
+                1
+              ],
+              "layout": {
+                "rect": [
+                  0,
+                  0,
+                  1,
+                  1
+                ],
+                "block_id": "block:00000000-0000-0000-0000-000000000007"
+              },
+              "blocks": [
+                {
+                  "block_id": "block:00000000-0000-0000-0000-000000000007",
+                  "label": "shell",
+                  "creator_name": "com.superlogical.terminal",
+                  "flavor": "com.superlogical.terminal.shell",
+                  "host_id": "00000000-0000-0000-0000-000000000004"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "response_format_text": {
+    "type": "response",
+    "id": "3",
+    "seq": 11,
+    "payload": {
+      "content": "sh-3.2$ printf '\\a'; printf '\\033]9;rex fixture\\a'; printf '\\033]0;rex-fixture-title\\a'; printf '\\03\n3]9;4;1;40\\a'; printf '\\033]7501;state=blocked:kind=permission:app=rex-fixture:msg=QXBwcm92ZT8=\\033\\\n\\'; sleep 0.2; echo rex-fixture-ok\nrex-fixture-ok\nsh-3.2$"
+    }
+  },
+  "response_format_vt": {
+    "type": "response",
+    "id": "4",
+    "seq": 11,
+    "payload": {
+      "content": "sh-3.2$ printf '\\a'; printf '\\033]9;rex fixture\\a'; printf '\\033]0;rex-fixture-title\\a'; printf '\\03\r\n3]9;4;1;40\\a'; printf '\\033]7501;state=blocked:kind=permission:app=rex-fixture:msg=QXBwcm92ZT8=\\033\\\r\n\\'; sleep 0.2; echo rex-fixture-ok\r\nrex-fixture-ok\r\nsh-3.2$ \r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\u001b[5;9H"
+    }
+  },
+  "response_program_status": {
+    "type": "response",
+    "id": "5",
+    "seq": 11,
+    "payload": {
+      "records": [
+        {
+          "state": "blocked",
+          "kind": "permission",
+          "app": "rex-fixture",
+          "effective_app": "rex-fixture",
+          "msg": "Approve?",
+          "updated_at": "2026-01-01T00:00:00Z",
+          "owner": {
+            "pid": 4242,
+            "name": "bash"
+          }
+        }
+      ]
+    }
+  },
+  "response_error_method_not_found": {
+    "type": "response",
+    "id": "6",
+    "seq": 11,
+    "error": {
+      "code": "method_not_found",
+      "message": "method not found: \"no_such_method\"",
+      "status": 404
+    }
+  },
+  "response_error_bad_request": {
+    "type": "response",
+    "id": "7",
+    "seq": 11,
+    "error": {
+      "code": "bad_request",
+      "message": "netapi: decoding args for \"session.view\": session_id is required",
+      "status": 400
+    }
+  },
+  "event_session_created": {
+    "type": "event",
+    "seq": 1,
+    "payload": {
+      "type": "session_created",
+      "payload": {
+        "session": {
+          "session_id": "session:00000000-0000-0000-0000-000000000005",
+          "label": "lane-r1-fixtures"
+        }
+      }
+    }
+  },
+  "event_session_view_changed": {
+    "type": "event",
+    "seq": 3,
+    "payload": {
+      "type": "session_event",
+      "payload": {
+        "session_id": "session:00000000-0000-0000-0000-000000000005",
+        "event": {
+          "type": "session_view_changed",
+          "payload": {
+            "revision": 2
+          }
+        }
+      }
+    }
+  },
+  "event_block_owner_changed": {
+    "type": "event",
+    "seq": 2,
+    "payload": {
+      "type": "session_event",
+      "payload": {
+        "session_id": "session:00000000-0000-0000-0000-000000000005",
+        "event": {
+          "type": "block_owner_changed",
+          "payload": {
+            "block_id": "block:00000000-0000-0000-0000-000000000007",
+            "owner": "client:00000000-0000-0000-0000-000000000001",
+            "reason": "take"
+          }
+        }
+      }
+    }
+  },
+  "event_session_destroyed": {
+    "type": "event",
+    "seq": 14,
+    "payload": {
+      "type": "session_destroyed",
+      "payload": {
+        "session_id": "session:00000000-0000-0000-0000-000000000005"
+      }
+    }
+  },
+  "event_block_bell": {
+    "type": "event",
+    "seq": 6,
+    "payload": {
+      "type": "session_event",
+      "payload": {
+        "session_id": "session:00000000-0000-0000-0000-000000000005",
+        "event": {
+          "type": "block_event",
+          "payload": {
+            "block_id": "block:00000000-0000-0000-0000-000000000007",
+            "creator_name": "com.superlogical.terminal",
+            "name": "bell",
+            "payload": {}
+          }
+        }
+      }
+    }
+  },
+  "event_block_title_changed": {
+    "type": "event",
+    "seq": 8,
+    "payload": {
+      "type": "session_event",
+      "payload": {
+        "session_id": "session:00000000-0000-0000-0000-000000000005",
+        "event": {
+          "type": "block_event",
+          "payload": {
+            "block_id": "block:00000000-0000-0000-0000-000000000007",
+            "creator_name": "com.superlogical.terminal",
+            "name": "title_changed",
+            "payload": {
+              "title": "rex-fixture-title",
+              "owner": {
+                "pid": 4242,
+                "name": "bash"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "event_block_desktop_notification": {
+    "type": "event",
+    "seq": 7,
+    "payload": {
+      "type": "session_event",
+      "payload": {
+        "session_id": "session:00000000-0000-0000-0000-000000000005",
+        "event": {
+          "type": "block_event",
+          "payload": {
+            "block_id": "block:00000000-0000-0000-0000-000000000007",
+            "creator_name": "com.superlogical.terminal",
+            "name": "desktop_notification",
+            "payload": {
+              "title": "",
+              "body": "rex fixture"
+            }
+          }
+        }
+      }
+    }
+  },
+  "event_block_progress_report": {
+    "type": "event",
+    "seq": 9,
+    "payload": {
+      "type": "session_event",
+      "payload": {
+        "session_id": "session:00000000-0000-0000-0000-000000000005",
+        "event": {
+          "type": "block_event",
+          "payload": {
+            "block_id": "block:00000000-0000-0000-0000-000000000007",
+            "creator_name": "com.superlogical.terminal",
+            "name": "progress_report",
+            "payload": {
+              "state": "set",
+              "progress": 40
+            }
+          }
+        }
+      }
+    }
+  },
+  "event_block_program_status_changed": {
+    "type": "event",
+    "seq": 10,
+    "payload": {
+      "type": "session_event",
+      "payload": {
+        "session_id": "session:00000000-0000-0000-0000-000000000005",
+        "event": {
+          "type": "block_event",
+          "payload": {
+            "block_id": "block:00000000-0000-0000-0000-000000000007",
+            "creator_name": "com.superlogical.terminal",
+            "name": "program_status_changed",
+            "payload": {
+              "id": "",
+              "record": {
+                "state": "blocked",
+                "kind": "permission",
+                "app": "rex-fixture",
+                "effective_app": "rex-fixture",
+                "msg": "Approve?",
+                "updated_at": "2026-01-01T00:00:00Z",
+                "owner": {
+                  "pid": 4242,
+                  "name": "bash"
+                }
+              },
+              "reason": "report"
+            }
+          }
+        }
+      }
+    }
+  },
+  "event_block_program_status_removed": {
+    "type": "event",
+    "seq": 12,
+    "payload": {
+      "type": "session_event",
+      "payload": {
+        "session_id": "session:00000000-0000-0000-0000-000000000005",
+        "event": {
+          "type": "block_event",
+          "payload": {
+            "block_id": "block:00000000-0000-0000-0000-000000000007",
+            "creator_name": "com.superlogical.terminal",
+            "name": "program_status_removed",
+            "payload": {
+              "ids": [
+                ""
+              ],
+              "reason": "child_exited"
+            }
+          }
+        }
+      }
+    }
+  },
+  "event_block_process_changed": {
+    "type": "event",
+    "seq": 11,
+    "payload": {
+      "type": "session_event",
+      "payload": {
+        "session_id": "session:00000000-0000-0000-0000-000000000005",
+        "event": {
+          "type": "block_event",
+          "payload": {
+            "block_id": "block:00000000-0000-0000-0000-000000000007",
+            "creator_name": "com.superlogical.terminal",
+            "name": "process_changed",
+            "payload": {
+              "generation": 2,
+              "foreground": {
+                "pid": 4242,
+                "user_id": 501,
+                "user": "user",
+                "name": "sleep",
+                "path": "/bin/sleep",
+                "invoked_path": "/bin/sleep",
+                "argv0": "sleep",
+                "cwd": "/private/tmp"
+              },
+              "ancestors": [
+                {
+                  "pid": 4242,
+                  "user_id": 501,
+                  "user": "user",
+                  "name": "bash",
+                  "path": "/bin/bash",
+                  "invoked_path": "/bin/bash",
+                  "argv0": "/bin/sh",
+                  "cwd": "/private/tmp"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "event_block_size_changed": {
+    "type": "event",
+    "seq": 4,
+    "payload": {
+      "type": "session_event",
+      "payload": {
+        "session_id": "session:00000000-0000-0000-0000-000000000005",
+        "event": {
+          "type": "block_event",
+          "payload": {
+            "block_id": "block:00000000-0000-0000-0000-000000000007",
+            "creator_name": "com.superlogical.terminal",
+            "name": "size_changed",
+            "payload": {
+              "columns": 100,
+              "rows": 30,
+              "cell_width_px": 8,
+              "cell_height_px": 16,
+              "owner": "client:00000000-0000-0000-0000-000000000001",
+              "principal": {
+                "kind": "peer",
+                "transport": "unix",
+                "display": "uid 501",
+                "uid": 501,
+                "gid": 20,
+                "pid": 4242
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "event_block_child_exited": {
+    "type": "event",
+    "seq": 13,
+    "payload": {
+      "type": "session_event",
+      "payload": {
+        "session_id": "session:00000000-0000-0000-0000-000000000005",
+        "event": {
+          "type": "block_event",
+          "payload": {
+            "block_id": "block:00000000-0000-0000-0000-000000000007",
+            "creator_name": "com.superlogical.terminal",
+            "name": "child_exited",
+            "payload": {
+              "exit_code": 0
+            }
+          }
+        }
+      }
+    }
+  }
+}
