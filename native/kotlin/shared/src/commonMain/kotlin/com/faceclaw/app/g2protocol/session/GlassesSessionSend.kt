@@ -206,6 +206,14 @@ internal fun GlassesSessionCore.driveSession(): Long {
                 // bandwidth benchmark measures its own selected window instead.
                 val windowHasRoom = inFlightMessages.size <
                         maxOf(1, if (benchmarkActive) benchmarkWindowSize else connectionOptions.WINDOW_SIZE)
+                // Small private messages may go past it (CfwMessageWindow.admitsSmallMessage).
+                val head = pendingMessages.firstOrNull()
+                val headFits = windowHasRoom || (!benchmarkActive && head != null
+                        && CfwMessageWindow.admitsSmallMessage(inFlightMessages, head))
+                // A blank frame waiting out the fade-out is not ready yet.
+                val blankHoldMs = if (shutdownRequested || benchmarkActive || !fixedLayoutCreated) 0L
+                        else blankFrameHoldMsLocked(now)
+                val frameToEnqueue = blankHoldMs == 0L && desiredFingerprintSnapshot() != lastEnqueuedFingerprint
                 // A frame ready to send right now: don't inject a fresh
                 // heartbeat in front of it (the image's own ack resets the
                 // firmware heartbeat timer, so the heartbeat is redundant).
@@ -223,9 +231,8 @@ internal fun GlassesSessionCore.driveSession(): Long {
                         && !hasPendingOrInflightKindLocked("heartbeat")
                         && (benchmarkActive
                             || (now >= imageRetryAfterMs
-                                && (hasPendingImageLocked()
-                                    || desiredFingerprintSnapshot() != lastEnqueuedFingerprint)))
-                noteImageStallLocked(now, windowHasRoom)
+                                && (hasPendingImageLocked() || frameToEnqueue)))
+                noteImageStallLocked(now, windowHasRoom, headFits)
                 val heartbeatStep = if (messageToPrewrite == null) heartbeatStepLocked(imageWaiting) else HeartbeatStep.NONE
                 if (heartbeatStep == HeartbeatStep.HOLD) {
                     return ConnectionOptions.IDLE_SLEEP_MS.toLong()
@@ -237,15 +244,15 @@ internal fun GlassesSessionCore.driveSession(): Long {
                     return@withLock
                 }
 
-                if (messageToPrewrite == null && sessionReady && windowHasRoom && !pendingMessages.isEmpty()
-                        && CfwMessageWindow.canSend(inFlightMessages, pendingMessages.firstOrNull()!!)) {
+                if (messageToPrewrite == null && sessionReady && headFits && head != null
+                        && CfwMessageWindow.canSend(inFlightMessages, head)) {
                     messageToWrite = pendingMessages.removeFirst()
                     logLine("sending pending message: " + messageToWrite.label)
                 } else if (messageToPrewrite == null && !shutdownRequested && !benchmarkActive
                         && fixedLayoutCreated
                         && windowHasRoom && !hasPendingImageLocked()
                         && now >= imageRetryAfterMs
-                        && desiredFingerprintSnapshot() != lastEnqueuedFingerprint) {
+                        && frameToEnqueue) {
                     // Enqueue the next frame's delta against lastEnqueuedPacked
                     // (what the shadow will be), so it can pipeline behind an
                     // image still awaiting its ack.
@@ -259,7 +266,7 @@ internal fun GlassesSessionCore.driveSession(): Long {
                 } else if (messageToPrewrite == null && (!pendingMessages.isEmpty() || !inFlightMessages.isEmpty())) {
                     return ConnectionOptions.IDLE_SLEEP_MS.toLong()
                 } else if (messageToPrewrite == null) {
-                    return 250
+                    return if (blankHoldMs > 0L) minOf(250L, blankHoldMs) else 250
                 }
             }
         }
@@ -343,6 +350,10 @@ internal enum class HeartbeatStep {
 
 internal fun GlassesSessionCore.heartbeatStepLocked(imageWaiting: Boolean): HeartbeatStep {
     if (!isG2) return HeartbeatStep.NONE
+    if (customFirmwareDetected) {
+        maintainCfwKeepaliveLocked(imageWaiting)
+        return HeartbeatStep.NONE
+    }
     val now = now()
     val heartbeatEligible = !shutdownRequested && fixedLayoutCreated
     val heartbeatPending = heartbeatEligible && hasPendingOrInflightKindLocked("heartbeat")
@@ -370,6 +381,28 @@ internal fun GlassesSessionCore.heartbeatStepLocked(imageWaiting: Boolean): Hear
 
     return HeartbeatStep.NONE
 }
+
+/**
+ * On Faceclaw firmware every private message resets the stock EvenHub keepalive on both lenses,
+ * and its ACK counts as a heartbeat ACK (resolveAckLocked). So rather than the stock heartbeat,
+ * whose ACK takes ~170 ms and which holds back all other traffic while it is out, a session with
+ * no private traffic for HEARTBEAT_READY_MS queues a no-op private message. It goes through the
+ * ordinary window, behind anything already queued, and its ACK deadline doubles as the liveness
+ * check. A frame waiting to go out would reset the keepalive itself, so the no-op waits for it,
+ * up to HEARTBEAT_URGENT_MS.
+ */
+internal fun GlassesSessionCore.maintainCfwKeepaliveLocked(imageWaiting: Boolean) {
+    if (shutdownRequested || !fixedLayoutCreated || hasPendingOrInflightKindLocked(CFW_KEEPALIVE_KIND)) return
+    val elapsedMs = now() - lastHeartbeatAckedAtMs
+    if (elapsedMs < ConnectionOptions.HEARTBEAT_READY_MS) return
+    if (imageWaiting && elapsedMs < ConnectionOptions.HEARTBEAT_URGENT_MS) return
+    pendingMessages.addLast(messageBuilder.customMessage(CFW_KEEPALIVE_KIND,
+        byteArrayOf(CFW_MSG_DIAGNOSTICS.toByte(), CFW_DIAGNOSTICS_NOOP.toByte()), CFW_KEEPALIVE_KIND, -1,
+        connectionOptions.sendImagesToLeft))
+    logLine("queue keepalive")
+}
+
+private const val CFW_KEEPALIVE_KIND = "keepalive"
 
 internal fun GlassesSessionCore.createHeartbeatMessage(): OutboundMessage {
     val message = messageBuilder.heartbeat()
@@ -454,6 +487,8 @@ internal fun GlassesSessionCore.writeMessage(message: OutboundMessage): Boolean 
             nextTransportSeq++
         )
     }
+    // Before the write: an ACK can arrive while it is still returning.
+    screenRecorder?.messageWriting(now(), message, frames)
     val result = link.writeFrames(
         writeAddress,
         if (isIo) RayNeoIoBle.WRITE_CHAR_UUID else if (isG1) G1Ble.FC_CHAR_UUID else BleProtocol.WRITE_CHAR_UUID,
@@ -461,6 +496,7 @@ internal fun GlassesSessionCore.writeMessage(message: OutboundMessage): Boolean 
         if (isIo || isG1) GattWriteMode.WITHOUT_RESPONSE else ConnectionOptions.WRITE_MODE,
         ConnectionOptions.WRITE_TIMEOUT_MS
     )
+    screenRecorder?.messageWritten(now(), message, result)
 
     monitor.withLock {
         val sentAtMs = now()
@@ -503,6 +539,7 @@ internal fun GlassesSessionCore.prewriteMessage(message: OutboundMessage): Boole
 
     val writeAddress = if (message.isLeftArmMessage) leftAddress else rightAddress
     val prefixFrames = frames.subList(0, frames.size - 1)
+    screenRecorder?.rawWrite(now(), message.isLeftArmMessage, "prewrite of " + message.label, prefixFrames)
     val result = link.writeFrames(
         writeAddress,
         BleProtocol.WRITE_CHAR_UUID,
@@ -537,6 +574,7 @@ internal fun GlassesSessionCore.spoilPrewrittenMessage(reason: String): Boolean 
 
     val writeAddress = if (message.isLeftArmMessage) leftAddress else rightAddress
     logLine("spoiling prewritten " + message.label + ": " + reason)
+    screenRecorder?.rawWrite(now(), message.isLeftArmMessage, "spoiled prewrite of " + message.label, listOf(finalFrame))
     val result = link.writeFrames(
         writeAddress,
         BleProtocol.WRITE_CHAR_UUID,
@@ -612,6 +650,10 @@ internal fun GlassesSessionCore.resolveAckLocked(sid: Int, magic: Int, pb: ByteA
 
 internal fun GlassesSessionCore.resolveAckLocked(message: OutboundMessage, pb: ByteArray?) {
     logLine("Got ACK for " + message.label + "(sid=" + message.sid + ", id=" + message.magic + ")")
+    screenRecorder?.messageAcked(now(), message)
+    // Every private message resets the stock EvenHub keepalive on each lens that runs it (g2flash
+    // zlib_glue.c image_worker_locked), so its ACK serves as a heartbeat ACK.
+    if (message.sid == CfwTransport.SID && customFirmwareDetected) lastHeartbeatAckedAtMs = now()
     inFlightMessages.remove(message)
     message.ackPayload = pb?.copyOf() ?: ByteArray(0)
     magicPool.release(message.sid, message.magic, message.label, "ack")
@@ -687,11 +729,8 @@ internal fun GlassesSessionCore.enqueueCreateLayoutLocked() {
     brightnessSentLevel = -1
     brightnessAlsStartedAt = -2000
     brightnessPolicy.resetSamples()
-    // New session: re-assert the firmware-debug-flags overlay once
-    // the layout is ready (the mode-7 send is gated on this having reset).
-    firmwareDebugFlagsLastSent = -1
     if (customFirmwareDetected) {
-        enqueueEnterEvenHubLocked()
+        enqueueSessionStartLocked()
         return
     }
     val message = messageBuilder.createLayout()
@@ -716,7 +755,7 @@ internal fun GlassesSessionCore.enqueueCreateLayoutLocked() {
 }
 
 /**
- * The custom-firmware replacement for the stock create layout (CFW mode 31).
+ * The custom-firmware replacement for the stock create layout: a session start (CFW mode 34).
  * A reconnect can find the page from the previous session still up, and stock
  * firmware never ACKs a repeated create; the CFW ACKs whatever state the
  * glasses were in. A lost message goes through the CFW replay window like any
@@ -724,14 +763,41 @@ internal fun GlassesSessionCore.enqueueCreateLayoutLocked() {
  * settings query that sets customFirmwareDetected is ahead of this in the
  * queue on every session.
  */
-private fun GlassesSessionCore.enqueueEnterEvenHubLocked() {
-    val message = messageBuilder.enterEvenHub(connectionOptions.sendImagesToLeft)
+private fun GlassesSessionCore.enqueueSessionStartLocked() {
+    val message = sessionStartMessageLocked()
     message.onAck = MessageCallback {
         fixedLayoutCreated = true
         displayedFingerprint = ""
     }
     pendingMessages.addLast(message)
-    logLine("queue enter EvenHub")
+    logLine("queue " + message.label)
+}
+
+/**
+ * The session start (mode 34, g2flash docs/session-start.md): the glasses run the stock
+ * Dashboard prelude and then put up the EvenHub page, in that order, and it carries the
+ * passive-ALS control and the brightness that maintainBrightnessLocked and the first frame
+ * would otherwise each send after it. The brightness follows the desired frame's
+ * visibility; the glasses start a wake's fade-in at the next PRESENT, so it waits for that frame.
+ */
+private fun GlassesSessionCore.sessionStartMessageLocked(): OutboundMessage {
+    val interval = alsPassiveIntervalLocked()
+    val als = alsPassivePayload(interval)
+    val visible = !isBlankedFingerprint(desiredFingerprintSnapshot())
+    val target = brightnessPolicy.target
+    val brightness = brightnessPayload(target, visible, brightnessPolicy.fadeMs)
+    val payload = byteArrayOf(CFW_MSG_SESSION_START.toByte(), als.size.toByte()) + als +
+        byteArrayOf(brightness.size.toByte()) + brightness
+    brightnessAlsStartedAt = now()
+    brightnessSentLevel = target
+    brightnessSentVisible = visible
+    val message = messageBuilder.customMessage("enter-evenhub", payload,
+        "session start brightness=$target visible=$visible", -1, connectionOptions.sendImagesToLeft)
+    message.onTimeout = MessageCallback {
+        brightnessSentLevel = -1
+        brightnessSentVisible = null
+    }
+    return message
 }
 
 internal fun GlassesSessionCore.enqueueStartupProbeLocked() {
@@ -860,12 +926,15 @@ internal fun GlassesSessionCore.enqueueDesiredImageLocked() {
         else BmpUtil.pack4bppFromGray8(graySnapshot, width, height)
     frameTimings.spanEnd(frameId, "pack-4bpp")
     // Visibility belongs to this immutable composite, not the latest UI request.
-    enqueueBrightnessLocked(!fingerprint.startsWith("blanked:"))
+    blankFrameHeldUntilMs = 0L
+    enqueueBrightnessLocked(!isBlankedFingerprint(fingerprint))
     if (isG1 && packedFrame.size > 0) {
         g1EnqueueFrameLocked(packedFrame, width, height, scene, fingerprint, paintMs, frameId)
         return
     }
     if (customFirmwareDetected && packedFrame.size > 0) {
+        screenRecorder?.observeStockText(draws)
+        frameTimings.spanStart(frameId, "plan")
         val rendered = try {
             scenePlanner.plan(packedFrame, width, height, draws, scene, nextImageFrameId,
                 connectionOptions.TEXTURE_CACHE_FRAMES, connectionOptions.INCREMENTAL_FRAMES,
@@ -874,11 +943,14 @@ internal fun GlassesSessionCore.enqueueDesiredImageLocked() {
             // Planning depends only on this frame, so reconnecting would fail
             // the same way (#42). Drop the frame (the planner and resource
             // cache are as they were) and wait for the scene to change.
+            frameTimings.spanEnd(frameId, "plan")
             lastEnqueuedFingerprint = fingerprint
             logLine("frame plan failed; frame dropped: " + safeMessage(e))
             finishFrame(frameId, "discarded: frame plan failed")
             return
         }
+        frameTimings.spanEnd(frameId, "plan")
+        frameTimings.log(frameId, "plan: " + rendered.timing)
         if (rendered.bakedLayers > 0 || rendered.bakedSelections) {
             val baked = "shell over resource budget: baked " + rendered.bakedLayers + "/" + scene.layers.size +
                 " layers" + (if (rendered.bakedSelections) " and retained drawings" else "") + " into the frame"
@@ -887,7 +959,7 @@ internal fun GlassesSessionCore.enqueueDesiredImageLocked() {
         }
         nextImageFrameId = rendered.nextFid
         val commands = rendered.commands
-        for (i in 0 until commands.size - 1) enqueueResourceCommandLocked(commands[i])
+        for (i in 0 until commands.size - 1) enqueueResourceCommandLocked(commands[i], frameId)
         val plan = BleImageOptimizer.TileImagePlan(
             0, DASHBOARD_TILE, packedFrame, width, height, nextMapSessionId(), commands[commands.size - 1])
         finishEnqueueDesiredImageLocked(plan, fingerprint, paintMs, frameId)
@@ -988,7 +1060,7 @@ internal fun GlassesSessionCore.finishEnqueueDesiredImageLocked(
  * unknown; forget everything phone-side (glyphs re-upload lazily) and let
  * the accompanying image update's own timeout drive the frame resync.
  */
-internal fun GlassesSessionCore.enqueueResourceCommandLocked(payload: ByteArray) {
+internal fun GlassesSessionCore.enqueueResourceCommandLocked(payload: ByteArray, frameId: Int = 0) {
     val message = messageBuilder.imagePayload(
         "resources",
         DASHBOARD_TILE,
@@ -996,6 +1068,7 @@ internal fun GlassesSessionCore.enqueueResourceCommandLocked(payload: ByteArray)
         payload,
         "resource command " + payload.size + "B",
         connectionOptions.sendImagesToLeft)
+    message.frameId = frameId
     message.onTimeout = MessageCallback {
         resourceCache.reset()
         logLine("resource command ack timeout; resource cache state reset")
@@ -1018,6 +1091,7 @@ internal fun GlassesSessionCore.enqueueCustomImageLocked(
             "image " + plan.tile.name + "#" + messageNumber, plan.tileIndex, leftArm)
     message.cfwRequiredLenses = requiredLenses
     message.setImageUpdatePosition(updateId, messageNumber, messageCount)
+    message.frameId = imageUpdateFrameIdLocked(updateId)
     message.onAck = MessageCallback {
         imageRetryAfterMs = 0
         // Firmware >= 2.2.4.34 resets its heartbeat timer when it receives
@@ -1161,7 +1235,7 @@ internal fun GlassesSessionCore.createBatteryQueryMessageLocked(): OutboundMessa
     val message = messageBuilder.batteryQuery()
     message.onAck = MessageCallback {
         val ring = BleProtocol.parseRingBattery(message.ackPayload)
-        // Old firmware and missing/malformed extensions must clear any prior reading.
+        // A missing or malformed extension must clear any prior reading.
         ringBattery = if (ring == null) -1 else ring.battery
         ringCharging = if (ring == null) -1 else ring.charging
         if (ringBattery >= 0) releaseRingFromGlassesLocked("glasses report the ring connected")
@@ -1182,7 +1256,6 @@ internal fun GlassesSessionCore.createBatteryQueryMessageLocked(): OutboundMessa
         val firmwareInfo = BleProtocol.parseSettingsFirmwareInfo(message.ackPayload)
         if (firmwareInfo != null) {
             customFirmwareDetected = firmwareInfo.isFaceclawFirmware()
-            faceclawFirmwareRevision = firmwareInfo.faceclawRevision()
             emitFirmwareInfo(firmwareInfo)
             if (sessionReady && !firmwareInfo.isCompatible(requiredFirmwareRevision)) {
                 // Halting tears down the link, which belongs on the worker thread
@@ -1268,9 +1341,10 @@ internal fun GlassesSessionCore.endChargingModeLocked(why: String) {
  * packet, with no hint whether we were blocked on a heartbeat, the
  * BLE window, or another message queued ahead. Deduped on (frame, reason),
  * so a frame stalled for seconds gets one line per state change rather
- * than one per loop pass.
+ * than one per loop pass. [headFits]: the window would take the next queued
+ * message (see driveSession).
  */
-internal fun GlassesSessionCore.noteImageStallLocked(now: Long, windowHasRoom: Boolean) {
+internal fun GlassesSessionCore.noteImageStallLocked(now: Long, windowHasRoom: Boolean, headFits: Boolean) {
     var frameId: Int
     desiredTilesLock.locked {
         frameId = desiredFrameId
@@ -1283,7 +1357,7 @@ internal fun GlassesSessionCore.noteImageStallLocked(now: Long, windowHasRoom: B
         // be queued behind other traffic.
         val queuedImage = firstPendingImageLocked()
         frameId = if (queuedImage == null) 0 else imageUpdateFrameIdLocked(queuedImage.imageUpdateId)
-        reason = if (queuedImage == null) null else describeWriteBlockerLocked(now, windowHasRoom, queuedImage)
+        reason = if (queuedImage == null) null else describeWriteBlockerLocked(now, headFits, queuedImage)
     }
     if (frameId == 0 || reason == null) {
         stallFrameId = 0
@@ -1342,9 +1416,10 @@ internal fun GlassesSessionCore.describeWriteBlockerLocked(now: Long, windowHasR
     // heartbeatStepLocked is a barrier: while one is due it holds back every
     // other write, so a frame queued at the wrong moment waits a heartbeat
     // round trip. Reported explicitly because it is otherwise invisible --
-    // heartbeats belong to no frame.
+    // heartbeats belong to no frame. (Faceclaw firmware's keepalive is an
+    // ordinary queued message instead.)
     val heartbeatElapsedMs = now - lastHeartbeatAckedAtMs
-    if (fixedLayoutCreated && !shutdownRequested
+    if (fixedLayoutCreated && !shutdownRequested && !customFirmwareDetected
             && heartbeatElapsedMs >= ConnectionOptions.HEARTBEAT_READY_MS) {
         return "heartbeat due (" + heartbeatElapsedMs + "ms since the last one acked)"
     }
@@ -1416,6 +1491,7 @@ internal fun GlassesSessionCore.hasPendingMagicLocked(sid: Int, magic: Int): Boo
 }
 
 internal fun GlassesSessionCore.handleAckTimeoutLocked(message: OutboundMessage) {
+    screenRecorder?.messageTimedOut(now(), message)
     consecutiveAckTimeouts += 1
     ConnectionCounters.increment("g2.ack-timeout")
 
@@ -1462,7 +1538,12 @@ internal fun GlassesSessionCore.clearMessagesOfKindLocked(kind: String) {
     }
 }
 
-internal fun GlassesSessionCore.clearAllMessagesLocked(reason: String) {
+/**
+ * Drop every queued and unacknowledged message. [keepResources]: the glasses' resources are
+ * known to be intact (the clears themselves still forget them if they drop display commands);
+ * otherwise, as on a new connection, the model is reset.
+ */
+internal fun GlassesSessionCore.clearAllMessagesLocked(reason: String, keepResources: Boolean = false) {
     brightnessSentVisible = null
     brightnessSentLevel = -1
     brightnessAlsStartedAt = -2000
@@ -1477,7 +1558,7 @@ internal fun GlassesSessionCore.clearAllMessagesLocked(reason: String) {
     // Queued resource commands (if any) were dropped with the rest, and the
     // session churn behind a full clear may have freed the on-glasses
     // cache; forget it phone-side so glyphs re-upload lazily.
-    resourceCache.reset()
+    if (!keepResources) resourceCache.reset()
 }
 
 /**
@@ -1512,7 +1593,8 @@ internal fun GlassesSessionCore.clearAllMessagesPreservingWakeLeaseLocked(reason
     clearInFlightMessagesLocked(reason)
     lastEnqueuedPacked = ByteArray(0)
     lastEnqueuedFingerprint = ""
-    resourceCache.reset()
+    // The glasses keep their resources across the plugin task's restart; the clears above
+    // already reset the model if they dropped any commands.
 }
 
 /** Any image update whose fragments are still queued (not yet sent). */
@@ -1526,20 +1608,43 @@ internal fun GlassesSessionCore.hasPendingImageLocked(): Boolean {
 }
 
 internal fun GlassesSessionCore.clearPendingMessagesLocked(reason: String) {
+    var droppedDisplayCommand = false
     while (!pendingMessages.isEmpty()) {
         val message = pendingMessages.removeFirst()
+        droppedDisplayCommand = droppedDisplayCommand || isDisplayCommand(message)
         discardPrewriteIfMatchesLocked(message)
         discardImageUpdateStatsLocked(message.imageUpdateId, "pending messages cleared: $reason")
         magicPool.release(message.sid, message.magic, message.label, "cleared pending: $reason")
     }
+    if (droppedDisplayCommand) forgetResourceCacheLocked("display commands dropped: $reason")
 }
 
 internal fun GlassesSessionCore.clearInFlightMessagesLocked(reason: String) {
+    var droppedDisplayCommand = false
     while (!inFlightMessages.isEmpty()) {
         val message = inFlightMessages.removeFirst()
+        droppedDisplayCommand = droppedDisplayCommand || isDisplayCommand(message)
         discardImageUpdateStatsLocked(message.imageUpdateId, "inflight messages cleared: $reason")
         magicPool.release(message.sid, message.magic, message.label, "cleared inflight: $reason")
     }
+    if (droppedDisplayCommand) forgetResourceCacheLocked("display commands dropped: $reason")
+}
+
+/**
+ * A planned draw-protocol command: an upload, eviction, surface creation, draw, root change or
+ * present. The phone's model of the glasses' resources already counts every one as done, so
+ * dropping one unsent (or unacknowledged) leaves that model wrong.
+ */
+private fun isDisplayCommand(message: OutboundMessage): Boolean =
+    message.sid == CfwTransport.SID && (message.kind == "resources" || message.kind == "image")
+
+/**
+ * Forget what the glasses hold (resources, root list, screen pixels): the next frame evicts
+ * every resource ID and repaints in full.
+ */
+internal fun GlassesSessionCore.forgetResourceCacheLocked(reason: String) {
+    if (resourceCache.residentCount() > 0) logLine("resource cache state reset: $reason")
+    resourceCache.reset()
 }
 
 internal fun GlassesSessionCore.discardPrewriteIfMatchesLocked(message: OutboundMessage?) {

@@ -210,6 +210,14 @@ class ProtocolTest {
         assertTrue(CfwMessageWindow.canSend(listOf(message(sid = 1)), eviction))
         assertTrue(CfwMessageWindow.canSend(listOf(earlier), upload))
         assertTrue(CfwMessageWindow.canSend(listOf(eviction), upload))
+        // Commands naming no resource replay harmlessly after it: the root clear before every
+        // eviction, presents and controls. A root naming a list, draws and uploads still wait.
+        val screenRoot = message(input = DrawProtocol.root(DrawProtocol.SCREEN))
+        val present = message(input = byteArrayOf(CFW_MSG_PRESENT.toByte()))
+        val brightness = message(input = byteArrayOf(CFW_MSG_BRIGHTNESS.toByte(), 1, 50, 1, 0, 0))
+        assertTrue(CfwMessageWindow.canSend(listOf(screenRoot, present, brightness), eviction))
+        for (unsafe in listOf(DrawProtocol.root(7), byteArrayOf(CFW_MSG_DRAW_CALLS.toByte(), 0, 0), byteArrayOf(21, 1, 0), byteArrayOf()))
+            assertFalse(CfwMessageWindow.canSend(listOf(screenRoot, message(input = unsafe)), eviction), unsafe.toList().toString())
     }
 
     @Test
@@ -243,6 +251,23 @@ class ProtocolTest {
         assertEquals(listOf(head, tail), CfwMessageWindow.replayWindow(window, 100))
         head.cfwRetryPending = true
         assertNull(CfwMessageWindow.acknowledgedHead(window))
+    }
+
+    @Test
+    fun smallPrivateMessagesExtendTheWindow() {
+        val small = { message(input = ByteArray(3)) }
+        val full = List(3) { small() }
+        // Past the plain window, small private messages still fit, up to the extended count.
+        assertTrue(CfwMessageWindow.admitsSmallMessage(full, small()))
+        assertTrue(CfwMessageWindow.admitsSmallMessage(List(CfwMessageWindow.SMALL_MESSAGE_WINDOW - 1) { small() }, small()))
+        assertFalse(CfwMessageWindow.admitsSmallMessage(List(CfwMessageWindow.SMALL_MESSAGE_WINDOW) { small() }, small()))
+        // A larger message waits for the plain window; one already in flight doesn't hold back small ones.
+        val bulk = message(input = ByteArray(CfwMessageWindow.SMALL_MESSAGE_BYTES + 1))
+        assertFalse(CfwMessageWindow.admitsSmallMessage(full, bulk))
+        assertTrue(CfwMessageWindow.admitsSmallMessage(full.drop(1) + bulk, small()))
+        // Stock messages, in flight or next, keep the plain window.
+        assertFalse(CfwMessageWindow.admitsSmallMessage(full, message(sid = 1)))
+        assertFalse(CfwMessageWindow.admitsSmallMessage(full.drop(1) + message(sid = 1), small()))
     }
 
     @Test

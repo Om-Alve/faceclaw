@@ -309,15 +309,12 @@ class GlassesSessionCore(
      * here.
      */
     internal var customFirmwareDetected = false
-    /**
-     * The revision that read reported ("Faceclaw/<n>"), or -1 for none yet or other firmware.
-     * Only for features newer than the required revision; see [releaseArmLinks].
-     */
-    internal var faceclawFirmwareRevision = -1
     /** [releaseArmLinks] ran for this start(): close() repeats disconnect(), and one request is enough. */
     private var armLinksReleased = false
     internal val brightnessPolicy = BrightnessPolicy()
     internal var brightnessSentVisible: Boolean? = null
+    /** When a screen-off's blank frame may be sent, or 0 while none is held: see blankFrameHoldMsLocked. */
+    internal var blankFrameHeldUntilMs = 0L
     internal var brightnessSentLevel = -1
     internal var brightnessAlsStartedAt = -2000L
     internal var brightnessDemoPolling = false
@@ -511,6 +508,8 @@ class GlassesSessionCore(
     // lost a store race to a newer one are discarded (their content is already
     // included in the newer composite).
     internal var lastStoredCompositeSeq = 0L
+    /** Frames left to the next composite (see leaveToNextComposite); guarded by desiredTilesLock. */
+    private val mergedFrameIds = ArrayList<Int>()
 
     // Wire submissions need screenGray + the shell scene, never preview pixels.
     // Preview/screenshot/recording callers render those explicitly on demand.
@@ -521,7 +520,7 @@ class GlassesSessionCore(
     // firmware frees the cache with the fb lease, and after any resync the
     // cheap safe assumption is an empty cache (glyphs re-upload lazily).
     internal val resourceCache = ResourceCacheState()
-    internal val scenePlanner = ScenePlanner(resourceCache)
+    internal val scenePlanner = ScenePlanner(resourceCache, platform)
     internal var desiredShellScene: ShellScene = ShellScene.EMPTY
 
     internal val pendingMessages = ArrayDeque<OutboundMessage>()
@@ -537,13 +536,37 @@ class GlassesSessionCore(
 
     internal fun now(): Long = platform.elapsedRealtimeMs()
 
-    internal fun logLine(line: String) = host.log(SessionLogLevel.INFO, TAG, line, null)
+    internal fun logLine(line: String) {
+        screenRecorder?.log(now(), "I", line)
+        host.log(SessionLogLevel.INFO, TAG, line, null)
+    }
 
     internal fun logDebug(line: String) = host.log(SessionLogLevel.DEBUG, TAG, line, null)
 
-    internal fun logWarn(line: String, error: Throwable? = null) = host.log(SessionLogLevel.WARN, TAG, line, error)
+    internal fun logWarn(line: String, error: Throwable? = null) {
+        screenRecorder?.log(now(), "W", line)
+        host.log(SessionLogLevel.WARN, TAG, line, error)
+    }
 
-    internal fun logError(line: String) = host.log(SessionLogLevel.ERROR, TAG, line, null)
+    internal fun logError(line: String) {
+        screenRecorder?.log(now(), "E", line)
+        host.log(SessionLogLevel.ERROR, TAG, line, null)
+    }
+
+    // ---------------------------------------------------------------------
+    // Screen recording (GlassesSessionRecording.kt)
+
+    /** The recording in progress, or null. Its hooks read this without the monitor. */
+    @Volatile internal var screenRecorder: ScreenRecorder? = null
+
+    /** See [beginScreenRecording]. */
+    fun startScreenRecording() = beginScreenRecording()
+
+    /** See [captureScreenRecordingFrame]. */
+    fun recordScreenFrame() = captureScreenRecordingFrame()
+
+    /** See [endScreenRecording]. */
+    fun stopScreenRecording(): ScreenRecorder? = endScreenRecording()
 
     // ---------------------------------------------------------------------
     // Lifecycle
@@ -567,6 +590,7 @@ class GlassesSessionCore(
         }
         val active = monitor.withLock { running }
         if (!active) return false
+        screenRecorder?.rawWrite(now(), armIndex(address) == 0, "raw packet", listOf(packet))
         return try {
             val result = if (isG1) {
                 link.writeFrames(address, G1Ble.ANCS_CHAR_UUID, listOf(packet), GattWriteMode.WITH_RESPONSE, ConnectionOptions.WRITE_TIMEOUT_MS)
@@ -660,8 +684,9 @@ class GlassesSessionCore(
     fun disconnect() {
         /* On the normal path DashboardController already sent mode 11 after
          * quiescing its producers. Also cover direct/early close callers here;
-         * a successful cleanup must remain the final BLE message. Older CFWs
-         * fall back to the standalone framebuffer-lease release. */
+         * a successful cleanup must remain the final BLE message. When it
+         * cannot be sent (no page is up), fall back to the standalone
+         * framebuffer-lease release. */
         if (!cfwCleanupDelivered && !sendCfwCleanup() && isG2) {
             releaseFaceclawFramebufferLease()
         }
@@ -716,14 +741,14 @@ class GlassesSessionCore(
      * Both arms are offered and the link asks only the one the system keeps (on iOS, the arm
      * it shares notifications with); an arm this session already let go of (a failed session
      * cancels both) is covered too, the link reattaching to what the system still holds. This
-     * is the session's last write, after the cleanup message. An arm whose firmware is too
-     * old for the request, or was never identified by this session, is left alone: it would
-     * not act on it.
+     * is the session's last write, after the cleanup message. An arm this session never
+     * identified, or a G1 arm whose firmware is too old for the request, is left alone: it
+     * would not act on it.
      */
     private fun releaseArmLinks() {
         if (isIo || !link.keepsLinkAfterDisconnect()) return
         val characteristic = if (isG1) G1Ble.CTRL_CHAR_UUID else BleProtocol.WRITE_CHAR_UUID
-        val needed = if (isG1) "g1v0 " + G1Ble.LINK_RELEASE_FIRMWARE else "Faceclaw/" + BleProtocol.LINK_RELEASE_FIRMWARE_REVISION
+        val needed = if (isG1) "g1v0 " + G1Ble.LINK_RELEASE_FIRMWARE else "Faceclaw's firmware"
         for (arm in intArrayOf(1, 0)) {
             val address = if (arm == 1) rightAddress else leftAddress
             val side = if (arm == 1) "right" else "left"
@@ -747,9 +772,9 @@ class GlassesSessionCore(
     }
 
     /**
-     * What an arm (0 left, 1 right) last said it runs, "" if it never did, and the request
-     * that makes that firmware hang up, or null when it has none: relay op 3 on a G2
-     * (Faceclaw/41), the `HANGUP` control request on a G1 (g1v0 0.5.67).
+     * What a G1 arm (0 left, 1 right) last said it runs ("" if it never did, and for a G2), and
+     * the request that makes the arm's firmware hang up, or null when it has none: relay op 3
+     * on a G2 running Faceclaw's firmware, the `HANGUP` control request on a G1 (g1v0 0.5.67).
      */
     private fun linkReleaseRequestLocked(arm: Int): Pair<String, ByteArray?> {
         if (isG1) {
@@ -760,15 +785,14 @@ class GlassesSessionCore(
             } else null
             return "g1v0 $version" to request
         }
-        val revision = faceclawFirmwareRevision
-        if (revision < 0) return "" to null
-        return "Faceclaw/$revision" to
-            (if (revision >= BleProtocol.LINK_RELEASE_FIRMWARE_REVISION) BleProtocol.linkReleaseCommand() else null)
+        return "" to (if (customFirmwareDetected) BleProtocol.linkReleaseCommand() else null)
     }
 
     fun close() {
         disconnect()
         for (transport in cfwTransports) transport.close()
+        // A recording its owner never stopped must not go on collecting frame timings.
+        endScreenRecording()
     }
 
     /** The platform's screen-on/off/user-present signal: refresh the lock state and wake the worker. */
@@ -1637,23 +1661,46 @@ class GlassesSessionCore(
     /** See SurfaceCompositor.setPreviewAnimationListener; runs on the redraw scheduler's thread. */
     fun setPreviewAnimationListener(listener: (() -> Unit)?) = compositor.setPreviewAnimationListener(listener)
 
+    /** Stereo depth for a full-screen surface; applies from its next frame. */
+    fun setSurfaceDepth(id: String, depth: Int) = compositor.setSurfaceDepth(id, depth)
+
     /**
      * Show or hide a compositor surface, immediately submitting the resulting
      * frame. Recompositing here (rather than waiting for the next surface
      * update) is what makes a just-foregrounded window's retained frame
      * actually appear — otherwise a static window (e.g. the terminal hub) whose
      * frame landed while briefly hidden would stay blank until its next repaint.
+     *
+     * merge leaves that submit to a compositor call the caller already has
+     * queued behind this one, here and in submitSurfaceFrame and
+     * submitShellScene. A window switch hides one surface, shows another, and
+     * submits the new window's frame and the shell's in one go; each as a
+     * frame of its own had the glasses draw the old window blanked out, at the
+     * cost of a full present, before the frame that mattered. The caller must
+     * follow a merged call with an unmerged one.
      */
-    /** Stereo depth for a full-screen surface; applies from its next frame. */
-    fun setSurfaceDepth(id: String, depth: Int) = compositor.setSurfaceDepth(id, depth)
-
-    fun setSurfaceVisible(id: String, visible: Boolean) {
+    fun setSurfaceVisible(id: String, visible: Boolean, merge: Boolean = false) {
+        if (merge) {
+            compositor.setSurfaceVisible(id, visible)
+            logLine("surface $id visible=$visible, left to the next composite")
+            return
+        }
         // Its own frame: this recomposite is a real screen update with real
         // latency, and without one it would show up in other frames' logs only
         // as an anonymous "superseded by frame#0".
         val frameId = frameTimings.startFrame(
                 "compositor:visible $id=$visible")
         compositor.setSurfaceVisible(id, visible)
+        storeDesiredComposite(compositor.composite(), 0, frameId)
+    }
+
+    /**
+     * Submit the compositor's current state as a frame: for a caller whose
+     * merged calls (see [setSurfaceVisible]) lost the call that was to
+     * composite for them.
+     */
+    fun submitComposite() {
+        val frameId = frameTimings.startFrame("compositor:flush")
         storeDesiredComposite(compositor.composite(), 0, frameId)
     }
 
@@ -1682,9 +1729,16 @@ class GlassesSessionCore(
         compositor.removeSurface(id)
     }
 
-    /** Stage an immutable shell snapshot alongside the retained app screen. */
-    fun submitShellScene(bytes: ByteReader, paintMs: Int, frameId: Int) {
+    /**
+     * Stage an immutable shell snapshot alongside the retained app screen.
+     * merge: see [setSurfaceVisible].
+     */
+    fun submitShellScene(bytes: ByteReader, paintMs: Int, frameId: Int, merge: Boolean = false) {
         compositor.setShellScene(bytes)
+        if (merge) {
+            leaveToNextComposite(frameId)
+            return
+        }
         val composite = compositor.composite()
         storeDesiredComposite(composite, paintMs, frameId)
     }
@@ -1701,7 +1755,7 @@ class GlassesSessionCore(
      * identifies the surface's full content after the update. glyphs carries
      * the frame's glyph draws (see SurfaceCompositor's glyph overload for the
      * buffer format), or null when the submitter has no glyph metadata; the
-     * pixels alone remain fully correct.
+     * pixels alone remain fully correct. merge: see [setSurfaceVisible].
      */
     fun submitSurfaceFrame(
             pixels8bpp: ByteReader,
@@ -1713,12 +1767,19 @@ class GlassesSessionCore(
             contentFingerprint: String?,
             paintMs: Int,
             frameId: Int,
-            glyphs: ByteReader?
+            glyphs: ByteReader?,
+            merge: Boolean = false
     ) {
         logLine("Received an updated frame for surface $surfaceId")
         frameTimings.log(frameId, "surface " + surfaceId + " updated rect="
                 + rectWidth + "x" + rectHeight + "+" + rectX + "+" + rectY
                 + (if (glyphs == null) " (no glyph draws)" else ""))
+        if (merge) {
+            compositor.submitSurface(
+                    surfaceId, pixels8bpp, rectX, rectY, rectWidth, rectHeight, contentFingerprint ?: "", glyphs)
+            leaveToNextComposite(frameId)
+            return
+        }
         frameTimings.spanStart(frameId, "composite")
         val composite = compositor.applyAndComposite(
                 surfaceId, pixels8bpp, rectX, rectY, rectWidth, rectHeight, contentFingerprint, glyphs)
@@ -1730,16 +1791,31 @@ class GlassesSessionCore(
     fun isSurfaceCurrent(surfaceId: String, fingerprint: String): Boolean =
         compositor.isSurfaceCurrent(surfaceId, fingerprint)
 
+    /**
+     * A frame whose change went into the compositor without a composite of its
+     * own (a merged call, see [setSurfaceVisible]): the next composite stored
+     * carries it, and says so in this frame's log.
+     */
+    private fun leaveToNextComposite(frameId: Int) {
+        frameTimings.log(frameId, "left to the next composite")
+        if (frameId != 0) {
+            desiredTilesLock.locked { mergedFrameIds.add(frameId) }
+        }
+    }
+
     /** Store a composite as the desired frame unless a newer one won the race. */
     internal fun storeDesiredComposite(composite: SurfaceCompositor.Composite, paintMs: Int, frameId: Int) {
         var supersededFrameId = 0
         var stale = false
+        var merged: List<Int> = emptyList()
         desiredTilesLock.locked {
             if (composite.seq <= lastStoredCompositeSeq) {
                 // A concurrent submission composited after us and stored first;
                 // its composite already includes this surface update.
                 stale = true
             } else {
+                merged = mergedFrameIds.toList()
+                mergedFrameIds.clear()
                 lastStoredCompositeSeq = composite.seq
                 supersededFrameId = desiredFrameId
                 desiredGray = composite.screenGray
@@ -1758,6 +1834,11 @@ class GlassesSessionCore(
         }
         if (supersededFrameId != 0 && supersededFrameId != frameId) {
             finishFrame(supersededFrameId, "discarded: superseded by frame#$frameId before send")
+        }
+        for (mergedFrameId in merged) {
+            if (mergedFrameId != frameId) {
+                finishFrame(mergedFrameId, "discarded: merged into frame#$frameId")
+            }
         }
         frameTimings.log(frameId, "image submitted as desired frame")
         interruptibleSleep.interrupt()
@@ -1807,8 +1888,8 @@ class GlassesSessionCore(
     /**
      * Send CFW image-handler mode 11 after quiescing normal traffic. A successful
      * return means the cleanup was ACKed and no later Faceclaw message should be
-     * emitted before closing BLE. Unsupported/older CFWs return false so callers
-     * can use the legacy shutdown-and-lease-release path.
+     * emitted before closing BLE. False when it could not be sent (other firmware,
+     * or no page up), so callers can fall back to a shutdown and lease release.
      */
     fun sendCfwCleanup(): Boolean {
         if (isG1) {
@@ -1905,12 +1986,12 @@ class GlassesSessionCore(
     fun suspendEvenHubSession(): Boolean {
         if (isIo) return ioSuspend()
         if (isG1) return g1Suspend()
-        // Ending the plugin task releases the fb lease, which frees the
-        // on-glasses resource cache; forget it phone-side either way (a lost
-        // ack may still have taken effect).
-        monitor.withLock {
-            resourceCache.reset()
-        }
+        // The resource cache, root list and screen buffer outlive the plugin task: the glasses
+        // free them only when the framebuffer lease ends (released, lapsed or a CFW cleanup),
+        // and the lease is renewed through the suspend. So the phone keeps its model of them
+        // and the wake frame sends only what changed. Dropping queued display commands (the
+        // shutdown flushes the queue) does reset it; a lease that may have lapsed is caught
+        // on resume.
         if (sendShutdownInternal(0, false)) {
             return true
         }
@@ -1931,6 +2012,7 @@ class GlassesSessionCore(
         if (isIo) return ioResume()
         if (isG1) return g1Resume()
         var claimGeneration = 0
+        val sessionStart: Boolean
         monitor.withLock {
             if (!running || !sessionReady || chargingMode) {
                 logLine("skip EvenHub resume; transport not ready")
@@ -1943,24 +2025,29 @@ class GlassesSessionCore(
                     && hasPendingOrInflightKindLocked("wake-lease-control")) {
                 claimGeneration = faceclawWakeControlGeneration
             }
-            logLine("replaying session prelude for EvenHub resume")
+            // The custom firmware's session start runs the prelude on the glasses, queued behind CLAIM.
+            sessionStart = customFirmwareDetected
+            logLine(if (sessionStart) "resuming EvenHub with a session start"
+                else "replaying session prelude for EvenHub resume")
         }
 
-        // A custom double-tap wake has only a short unclaimed fail-open
-        // deadline. Let the worker put CLAIM on both arms before the direct
-        // prelude write begins.
-        if (claimGeneration != 0) {
-            waitForFaceclawWakeControlDelivery(claimGeneration, 500)
-        }
+        if (!sessionStart) {
+            // A custom double-tap wake has only a short unclaimed fail-open
+            // deadline. Let the worker put CLAIM on both arms before the direct
+            // prelude write begins.
+            if (claimGeneration != 0) {
+                waitForFaceclawWakeControlDelivery(claimGeneration, 500)
+            }
 
-        try {
-            // Empty-name Cmd=9 tears down the whole plugin task, not just its
-            // image container. Re-run the launch prelude before Cmd=0 CREATE.
-            sendPrelude(true)
-        } catch (t: Throwable) {
-            logLine("EvenHub resume prelude failed: " + safeMessage(t))
-            handleTransportFailure("EvenHub resume prelude failed")
-            return false
+            try {
+                // Empty-name Cmd=9 tears down the whole plugin task, not just its
+                // image container. Re-run the launch prelude before Cmd=0 CREATE.
+                sendPrelude(true)
+            } catch (t: Throwable) {
+                logLine("EvenHub resume prelude failed: " + safeMessage(t))
+                handleTransportFailure("EvenHub resume prelude failed")
+                return false
+            }
         }
 
         monitor.withLock {
@@ -2291,7 +2378,9 @@ class GlassesSessionCore(
                             }
                             fixedLayoutCreated = false
                             displayedFingerprint = ""
-                            clearAllMessagesLocked("firmware exit event")
+                            // The page ended (our own suspend sends this too), not the CFW
+                            // session: resources, root list and screen buffer are intact.
+                            clearAllMessagesLocked("firmware exit event", keepResources = true)
                         } else if (decoded.eventType == BleProtocol.EVENT_FOREGROUND_ENTER) {
                             logLine("firmware overlay opened over the EvenHub page")
                         } else if (decoded.eventType == BleProtocol.EVENT_FOREGROUND_EXIT) {
@@ -2407,7 +2496,11 @@ class GlassesSessionCore(
             for (message in inFlightMessages) {
                 val ingress = if (message.isLeftArmMessage) leftAddress else rightAddress
                 if (message.sid == CfwTransport.SID && address.equals(ingress, ignoreCase = true) && message.magic == ack.streamId) {
+                    val ackedBefore = message.cfwAckLenses
                     message.acceptCfwAck(ack)
+                    if (ack.nack || message.cfwAckLenses != ackedBefore) {
+                        screenRecorder?.lensAck(lastIncomingAtMs, message, ack.lens, ack.nack)
+                    }
                     if (ack.nack) ConnectionCounters.increment("g2.cfw-nack")
                     logLine("CFW " + (if (ack.nack) "NACK" else "ACK") + " id=" + ack.streamId
                             + " ordinal=" + ack.messageId + " lens=" + ack.lens + " txseq=" + txSeq
@@ -2540,6 +2633,10 @@ class GlassesSessionCore(
                 fixedLayoutCreated = false
                 clearAllMessagesLocked("session ready")
                 displayedFingerprint = ""
+                // New connection: re-assert the firmware-debug-flags overlay once the layout is
+                // ready (the mode-7 send is gated on this having reset). The flag lives in the
+                // CFW context, which a suspended plugin task doesn't touch, so a wake keeps it.
+                firmwareDebugFlagsLastSent = -1
                 lastAckAtMs = now()
                 lastIncomingAtMs = lastAckAtMs
                 lastConnectionOrInputAtMs = lastAckAtMs
@@ -2890,21 +2987,17 @@ class GlassesSessionCore(
         prelude.sentAtMs = now
         writeMessage(prelude)
 
+        // The ACK signals the monitor (resolveAckLocked): waiting on it rather than polling
+        // saves up to a poll interval on every wake, which starts with this prelude.
         val deadline = now() + ConnectionOptions.PRELUDE_TIMEOUT_MS
-        while (running && !userDisconnectRequested && !inFlightMessages.isEmpty()) {
-            val done = monitor.withLock {
-                !running || userDisconnectRequested || inFlightMessages.isEmpty()
-            }
-            if (done) {
-                break
-            }
-            val remaining = deadline - now()
-            if (remaining <= 0) {
-                break
-            }
-            interruptibleSleep.sleep(minOf(remaining, 100L))
-        }
         monitor.withLock {
+            while (running && !userDisconnectRequested && !inFlightMessages.isEmpty()) {
+                val remaining = deadline - now()
+                if (remaining <= 0) {
+                    break
+                }
+                monitor.awaitMs(minOf(remaining, 100L))
+            }
             if (!inFlightMessages.isEmpty()) {
                 clearInFlightMessagesLocked("prelude timeout")
                 throw IllegalStateException("prelude ack timeout")

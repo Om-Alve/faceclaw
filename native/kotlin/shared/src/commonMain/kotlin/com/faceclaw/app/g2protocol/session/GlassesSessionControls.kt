@@ -85,7 +85,7 @@ internal fun GlassesSessionCore.enqueueBenchmarkMessageLocked() {
     val payload = ByteArray(benchmarkMessageSize)
     kotlin.random.Random.nextBytes(payload)
     payload[0] = CFW_MSG_DIAGNOSTICS.toByte()             // CFW diagnostic-control mode...
-    payload[1] = 0x7f.toByte()   // ...with an unused sub-op: acked, no effect
+    payload[1] = CFW_DIAGNOSTICS_NOOP.toByte()   // ...with an unused sub-op: acked, no effect
     // A G1's arms are two links and every frame goes down both, so the run alternates between them.
     val leftArm = if (isG1) benchmarkMessageCounter++ % 2 == 0 else connectionOptions.sendImagesToLeft
     val message = messageBuilder.imagePayload(

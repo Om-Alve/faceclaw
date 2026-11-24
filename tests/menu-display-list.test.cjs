@@ -30,10 +30,10 @@ function menu() {
   const context={stack:{getBaseSize:()=>({width:80,height:80}),isFocused:()=>true}};
   return {layer,paint:()=>layer.paint(context,()=>new graphics.GrayImage(80,80)),context};
 }
-test('menu retains the selected text and rounded highlight on the menu plane',async()=>{
+test('menu draws the selected text in place under a retained rounded highlight',async()=>{
   const m=menu(),image=m.paint(),row=image.draws.find(d=>d.presentation);
-  assert.equal(row.presentation.depth,0);assert.equal(row.presentation.radius,8);
-  assert.ok(row.source.pixels.some(v=>v===255));assert.ok(!image.withDrawsBaked(false).pixels.some(v=>v===255));
+  assert.equal(row.presentation.depth,0);assert.equal(row.presentation.displayList.calls[0].radius,8);
+  assert.deepEqual(row.presentation.displayList.resources,[]);assert.ok(image.withDrawsBaked(false).pixels.some(v=>v===255));
   const flat=planes.flattenPlanesWithDraws([{image,x:0,y:0}]);
   const records=wire.presentationRecords(prepareFrameDraws(flat.draws));assert.equal(records.length,1);
   await m.layer.handleInput({type:'scroll-down'},m.context);
@@ -47,6 +47,23 @@ test('later opaque planes add an occlusion to a replayed selection',()=>{
   const image=menu().paint(),row=image.draws.find(d=>d.presentation),cover=new graphics.GrayImage(10,8,1);
   const flat=planes.flattenPlanesWithDraws([{image,x:0,y:0},{image:cover,x:row.x+10,y:row.y+2}]);
   const records=wire.presentationRecords(prepareFrameDraws(flat.draws));assert.ok(records[0].displayList.calls.some(c => c.op === 2 && c.resource === 65535));
+});
+test('a replayed image is occluded only by later planes drawn into the screen, as rows merged into rectangles',()=>{
+  const base=new graphics.GrayImage(40,20,0);
+  base.drawDepthImage(new graphics.GrayImage(10,6,200),4,4,0);
+  const replayed=(stack)=>planes.flattenPlanesWithDraws(stack).draws.find(d=>d.presentation&&d.presentation.mode==='image').presentation;
+  const cover=new graphics.GrayImage(4,3,1),clear=new graphics.GrayImage(4,3,0);
+  // Nothing above it: nothing to restore (and no pixel of the frame is scanned for it).
+  assert.deepEqual(replayed([{image:base,x:0,y:0}]).occlusions,[]);
+  // An opaque block above: its three rows merge into one rectangle, clipped to the image.
+  assert.deepEqual(replayed([{image:base,x:0,y:0},{image:cover,x:6,y:5}]).occlusions,[{x:6,y:5,width:4,height:3}]);
+  assert.deepEqual(replayed([{image:base,x:0,y:0},{image:cover,x:12,y:8}]).occlusions,[{x:12,y:8,width:2,height:2}]);
+  // A plane below, a transparent one above, and one replayed at a depth of its own cover nothing.
+  assert.deepEqual(replayed([{image:cover,x:6,y:5},{image:base,x:0,y:0}]).occlusions,[]);
+  assert.deepEqual(replayed([{image:base,x:0,y:0},{image:clear,x:6,y:5}]).occlusions,[]);
+  assert.deepEqual(replayed([{image:base,x:0,y:0},{image:cover,x:6,y:5,depth:4}]).occlusions,[]);
+  // Two blocks above, one of them outside the image.
+  assert.deepEqual(replayed([{image:base,x:0,y:0},{image:cover,x:4,y:4},{image:cover,x:30,y:12}]).occlusions,[{x:4,y:4,width:4,height:3}]);
 });
 
 const {LayerStack,noopLayerActions}=load('app/ui/layers.ts',{
@@ -161,7 +178,7 @@ test('shell modal carries its inner menu highlight animation instead of baking i
   await modal.handleInput({type:'scroll-down'},{});
   const image=paint(),row=image.draws.find(d=>d.presentation);
   assert.ok(row.y>before.y);assert.ok(row.presentation.displayList.timeline,'the slide stays a timed display list');
-  assert.ok(!image.withDrawsBaked(false).pixels.some(v=>v===255),'selected text is not baked into the modal surface');
+  assert.ok(image.withDrawsBaked(false).pixels.some(v=>v===255),'selected text is in the modal surface, under the box');
 });
 test('shell crop widens a fractional rect (TTF-measured status bar) to whole pixels',()=>{
   const {shellCrop}=require('../.test-build/app/graphics/shell-scene.js'),image=new graphics.GrayImage(576,288,7);

@@ -22,8 +22,8 @@ class ResourceCacheState {
     companion object {
         /**
          * Mirrors g2flash/patches/resource_cache.h: the id table, then 320 KiB shared by the
-         * resources and their block headers. Firmware before Faceclaw/40 had 192 KiB in all,
-         * so this must not grow past what REQUIRED_FACECLAW_FIRMWARE_VERSION guarantees.
+         * resources and their block headers. This must not grow past what
+         * REQUIRED_FACECLAW_FIRMWARE_VERSION guarantees.
          * RayNeo iO sessions use the same budget: that firmware's own copy of the header
          * (faceclaw-rayneo-cfw patches/fc/resource_cache.h) needs at least this much before
          * it reports the required revision.
@@ -34,6 +34,14 @@ class ResourceCacheState {
         const val CACHE_SIZE = TABLE_BYTES + ARENA_BYTES
         const val MAX_RESOURCE_SIZE = 65536
         const val BLOCK_HEADER_BYTES = 16
+
+        /**
+         * Largest upload or eviction command. Each is one transport message, whose decoded size
+         * the firmware caps at 64 KiB (g2flash message_transport.h CFW_MESSAGE_MAX); the stream
+         * deflate shrinks image chunks to a few KiB on the wire. Fewer, larger messages mean
+         * fewer ACK round trips through the small in-flight window, and fewer packets.
+         */
+        const val MAX_COMMAND_BYTES = CfwTransport.MAX_MESSAGE
 
         /** Mirrors g2flash/patches/zlib_glue.c. */
         const val UPLOAD_MODE = CFW_MSG_UPLOAD_RESOURCE
@@ -65,6 +73,9 @@ class ResourceCacheState {
     fun usedBytes(): Int = TABLE_BYTES + allocated
     fun residentCount(): Int = residents.size
     fun resourceId(resource: CachedResource): Int = residents[resource]?.id ?: -1
+
+    /** Every resource the glasses hold once the commands drained so far have run, by ID. */
+    fun residentResources(): Map<Int, CachedResource> = residents.values.associate { it.id to it.resource }
 
     /** Called once per frame after coalescing. -1 entries stay baked into the pixel fallback. */
     fun prepare(resources: List<CachedResource>): IntArray {
@@ -122,7 +133,7 @@ class ResourceCacheState {
     }
 
     /** Batched evictions followed by bounded upload chunks, including exactly 64 KiB resources. */
-    fun drainCommands(maxPayloadBytes: Int): MutableList<ByteArray> {
+    fun drainCommands(maxPayloadBytes: Int = MAX_COMMAND_BYTES): MutableList<ByteArray> {
         require(maxPayloadBytes in 14..65535)
         val result = ArrayList<ByteArray>()
         val ids = if (resetRequired && uploads.isNotEmpty()) (0 until RESOURCE_COUNT).toList() else evictions.toList()

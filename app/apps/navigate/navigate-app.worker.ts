@@ -1101,6 +1101,7 @@ function windowMenuItems(): MenuItem[] {
         navigateRememberRecentSetting.label,
         navigateRememberRecentSetting.get(),
         selected,
+        `setting:${navigateRememberRecentSetting.id}`,
       );
     },
   });

@@ -194,7 +194,9 @@ const FRAME_TRANSMIT_BACKPRESSURE_TIMEOUT_MS = 6_000;
 // trailing update, so the mirror tracks the glasses within this bound instead
 // of the old 1s poll (which lagged up to two polls behind).
 const CONNECTED_PREVIEW_MIN_UPDATE_MS = 150;
-// The GIF recorder keeps its old cadence; per-frame captures would balloon it.
+// How often a screen recording is offered a composite. Only recordings without
+// replayable Bluetooth messages (preview-only mode) keep them; per-frame
+// captures would balloon those.
 const RECORDING_MIN_CAPTURE_MS = 1_000;
 // Below this, a disconnect is more likely a flat battery than a BLE problem.
 const LOW_BATTERY_PERCENT = 5;
@@ -1142,9 +1144,11 @@ class DashboardController {
   }
 
   /**
-   * Begin collecting composited frames for an animated-GIF screen recording.
-   * Frames are captured at the same points the phone-side preview is
-   * refreshed, so the recording matches what the phone display showed.
+   * Begin a screen recording: the glasses' display state at this moment, then
+   * a log of every Bluetooth message written to them, with frame timings and
+   * the session log. tools/screen-recording-visualizer replays it. Without
+   * glasses (preview-only mode) there are no messages, so composites are
+   * captured at the points the phone-side preview is refreshed instead.
    */
   startScreenRecording(): void {
     if (this.screenRecordingActive) return;
@@ -1154,15 +1158,12 @@ class DashboardController {
       return;
     }
     display.startScreenRecording();
-    // Capture the starting frame immediately rather than waiting for the
-    // next preview flush.
-    display.recordScreenFrame();
     this.screenRecordingActive = true;
     this.appendLog("screen recording started");
     this.emit();
   }
 
-  /** Finish the recording and save it as an animated GIF; returns the path or "". */
+  /** Finish the recording and save it; returns the path or "". */
   stopScreenRecording(): string {
     if (!this.screenRecordingActive) return "";
     this.screenRecordingActive = false;
@@ -1172,7 +1173,7 @@ class DashboardController {
     } finally {
       this.emit();
     }
-    this.appendLog(path ? `screen recording saved: ${path}` : "screen recording discarded: no frames");
+    this.appendLog(path ? `screen recording saved: ${path}` : "screen recording discarded: none was running");
     return path;
   }
 
@@ -1505,6 +1506,17 @@ class DashboardController {
     if (!target) return;
     this.previewTarget = null;
     this.glance.reset();
+    // A recording lives in the display it was started on: save it, as a
+    // disconnect does, rather than lose it with this one.
+    if (this.screenRecordingActive) {
+      this.screenRecordingActive = false;
+      try {
+        const path = target.stopScreenRecording();
+        this.appendLog(path ? `screen recording saved: ${path}` : "screen recording discarded: none was running");
+      } catch (error) {
+        this.appendLog(`screen recording save failed: ${this.formatError(error)}`);
+      }
+    }
     target.release();
     this.clearDashboardTimer();
     this.appendLog("Preview-only display released.");
@@ -1962,13 +1974,13 @@ class DashboardController {
     this.evenHubSessionSuspended = false;
     this.evenHubResumePromise = null;
 
-    // The recording's frame store lives in the communicator, so save what has
-    // accumulated rather than silently losing it with the connection.
+    // The recording lives in the communicator, so save what has accumulated
+    // rather than silently losing it with the connection.
     if (this.screenRecordingActive) {
       this.screenRecordingActive = false;
       try {
         const path = communicator?.stopScreenRecording() ?? "";
-        this.appendLog(path ? `screen recording saved: ${path}` : "screen recording discarded: no frames");
+        this.appendLog(path ? `screen recording saved: ${path}` : "screen recording discarded: none was running");
       } catch (error) {
         this.appendLog(`screen recording save failed: ${this.formatError(error)}`);
       }
@@ -2003,14 +2015,14 @@ class DashboardController {
       if (cleanupAcked === true) {
         this.appendLog("CFW cleanup completed.");
       } else if (communicator && !skipFirmwareCleanup) {
-        // Older CFWs do not advertise cleanup11. Preserve their established
-        // teardown behavior; close() will also send the legacy FB lease release.
+        // The cleanup could not be sent (no page is up, say). Shut the page
+        // down instead; close() will also release the framebuffer lease.
         const shutdownAcked = await communicator.sendShutdown(0).catch((error) => {
           this.appendLog(`shutdown command failed: ${this.formatError(error)}`);
           return false;
         });
         if (shutdownAcked) {
-          this.appendLog("Shutdown command completed (legacy cleanup fallback).");
+          this.appendLog("Shutdown command completed (cleanup fallback).");
         } else {
           this.appendLog("Cleanup did not complete before disconnect.");
         }
@@ -3232,8 +3244,8 @@ class DashboardController {
       return;
     }
     this.lastConnectedPreviewUpdateAtMs = now;
-    // A user-requested GIF is an independent consumer, including while the
-    // phone is asleep or another page/app is foregrounded.
+    // A user-requested recording is an independent consumer, including while
+    // the phone is asleep or another page/app is foregrounded.
     if (this.screenRecordingActive && now - this.lastRecordCaptureAtMs >= RECORDING_MIN_CAPTURE_MS) {
       this.lastRecordCaptureAtMs = now;
       display.recordScreenFrame();

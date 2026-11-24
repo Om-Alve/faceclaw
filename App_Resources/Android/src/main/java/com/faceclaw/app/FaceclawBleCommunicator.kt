@@ -170,11 +170,6 @@ class FaceclawBleCommunicator(context: Context, rightAddress: String?, leftAddre
         }
     }
 
-    // Active animated-GIF screen recording, or null when idle. Frames are
-    // pushed by recordScreenFrame(), which the TS side calls at each
-    // phone-preview flush.
-    @Volatile private var screenRecorder: GifScreenRecorder? = null
-
     init {
         bleManager.setListener(core)
         val phoneLockFilter = IntentFilter()
@@ -414,33 +409,29 @@ class FaceclawBleCommunicator(context: Context, rightAddress: String?, leftAddre
         return ScreenshotUtil.savePngScreenshot(appContext, cropped, width, height)
     }
 
-    /** Begin collecting composite frames for an animated-GIF screen recording. */
-    fun startScreenRecording() {
-        screenRecorder = GifScreenRecorder()
-    }
+    /**
+     * Begin a screen recording ([ScreenRecorder]): the glasses' display state now, then every
+     * Bluetooth message written to them, with frame timings and the session log.
+     */
+    fun startScreenRecording() = core.startScreenRecording()
 
-    /** Capture the current composite into the active recording; no-op when idle. */
-    fun recordScreenFrame() {
-        val recorder = screenRecorder ?: return
-        val composite = core.previewComposite() ?: return
-        recorder.addFrame(composite.gray, composite.width, composite.height, System.currentTimeMillis())
-    }
+    /** The periodic capture point, called at each phone-preview flush; see [GlassesSessionCore.recordScreenFrame]. */
+    fun recordScreenFrame() = core.recordScreenFrame()
 
-    /** Finish the recording and save it as an animated GIF; returns the path or "". */
+    /** Finish the recording and save it; returns the path, or "" if none was running. */
     @Throws(java.io.IOException::class)
     fun stopScreenRecording(): String {
-        val recorder = screenRecorder
-        screenRecorder = null
-        if (recorder == null) {
-            return ""
-        }
-        if (recorder.isOverflowed()) {
-            Log.i(TAG, "screen recording hit its frame cap; the tail was dropped")
-        }
-        return recorder.save(appContext)
+        val recorder = core.stopScreenRecording() ?: return ""
+        return ScreenRecordingFile.save(appContext, recorder)
     }
 
     fun setSurfaceVisible(id: String, visible: Boolean) = core.setSurfaceVisible(id, visible)
+
+    /** As above; merge leaves the composite to the next compositor call (see [GlassesSessionCore.setSurfaceVisible]). */
+    fun setSurfaceVisible(id: String, visible: Boolean, merge: Boolean) = core.setSurfaceVisible(id, visible, merge)
+
+    /** See [GlassesSessionCore.submitComposite]. */
+    fun submitComposite() = core.submitComposite()
 
     fun setSurfaceDepth(id: String, depth: Int) = core.setSurfaceDepth(id, depth)
 
@@ -454,6 +445,10 @@ class FaceclawBleCommunicator(context: Context, rightAddress: String?, leftAddre
     /** Stage an immutable shell snapshot alongside the retained app screen. */
     fun submitShellScene(bytes: java.nio.ByteBuffer, paintMs: Int, frameId: Int) =
         core.submitShellScene(AndroidByteReader(bytes), paintMs, frameId)
+
+    /** As above; merge leaves the composite to the next compositor call (see [GlassesSessionCore.setSurfaceVisible]). */
+    fun submitShellScene(bytes: java.nio.ByteBuffer, paintMs: Int, frameId: Int, merge: Boolean) =
+        core.submitShellScene(AndroidByteReader(bytes), paintMs, frameId, merge)
 
     /** Legacy compositor dimming for callers without a shell scene. */
     fun setUnderlayDim(belowZOrder: Int, factor256: Int) = core.setUnderlayDim(belowZOrder, factor256)
@@ -494,8 +489,26 @@ class FaceclawBleCommunicator(context: Context, rightAddress: String?, leftAddre
             frameId: Int,
             glyphs: java.nio.ByteBuffer?
     ) {
+        submitSurfaceFrame(pixels8bpp, surfaceId, rectX, rectY, rectWidth, rectHeight,
+                contentFingerprint, paintMs, frameId, glyphs, false)
+    }
+
+    /** As above; merge leaves the composite to the next compositor call (see [GlassesSessionCore.setSurfaceVisible]). */
+    fun submitSurfaceFrame(
+            pixels8bpp: java.nio.ByteBuffer,
+            surfaceId: String,
+            rectX: Int,
+            rectY: Int,
+            rectWidth: Int,
+            rectHeight: Int,
+            contentFingerprint: String?,
+            paintMs: Int,
+            frameId: Int,
+            glyphs: java.nio.ByteBuffer?,
+            merge: Boolean
+    ) {
         core.submitSurfaceFrame(AndroidByteReader(pixels8bpp), surfaceId, rectX, rectY, rectWidth, rectHeight,
-                contentFingerprint, paintMs, frameId, if (glyphs == null) null else AndroidByteReader(glyphs))
+                contentFingerprint, paintMs, frameId, if (glyphs == null) null else AndroidByteReader(glyphs), merge)
     }
 
     /** Whether submitting this full-surface content would change nothing (see [GlassesSessionCore.isSurfaceCurrent]). */

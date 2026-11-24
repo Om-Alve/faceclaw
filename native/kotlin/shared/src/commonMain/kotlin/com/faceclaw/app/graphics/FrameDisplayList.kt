@@ -9,7 +9,7 @@ interface RetainedDrawing {
 }
 
 internal fun readRetainedDrawing(reader: ByteReader, kind: Int): RetainedDrawing =
-    if (kind == DrawRecordKind.DISPLAY_LIST) FrameDisplayList.read(reader) else MenuSelection.read(reader, kind)
+    if (kind == DrawRecordKind.DISPLAY_LIST) FrameDisplayList.read(reader) else DepthImage.read(reader, kind)
 
 /**
  * Generic TS-authored calls. No menu or easing policy lives in this bridge.
@@ -28,13 +28,25 @@ class FrameDisplayList private constructor(
     internal val startedAt: Long, private val identity: String,
 ) : RetainedDrawing {
     override val fingerprint: String get() = "$x,$y,$depth,$identity"
-    override fun translated(dx: Int, dy: Int) = FrameDisplayList(x + dx, y + dy, depth, resources, commands, startedAt, identity)
+    override fun translated(dx: Int, dy: Int) =
+        FrameDisplayList(x + dx, y + dy, depth, resources, commands, startedAt, identity)
 
-    /** Image/text [values] are resource, x offset, y offset, options; the offsets add to [x]/[y]. */
+    /**
+     * Image/text [values] are resource, x offset, y offset, options; the offsets add to [x]/[y].
+     * A line's endpoints are ([x], [y]) and ([dx], [dy]).
+     */
     private class Command(val op: Int, val depth: Int, val values: IntArray,
         val x: DrawValue = DrawValue.Integer(0), val y: DrawValue = DrawValue.Integer(0),
         val dx: DrawValue = DrawValue.Integer(0), val dy: DrawValue = DrawValue.Integer(0),
-        val clip: DrawClip? = null, val text: ByteArray? = null)
+        val clip: Clip? = null, val text: ByteArray? = null)
+
+    /** A call's clip in list coordinates: fixed, or (revision 45) four values that may be expressions. */
+    private class Clip(val fixed: DrawClip?, val animated: List<DrawValue>? = null) {
+        fun placed(elapsed: Int, x: Int, y: Int): DrawClip =
+            fixed?.translated(x, y) ?: animated!!.let {
+                DrawClip.animated(bind(it[0], elapsed, x), bind(it[1], elapsed, y), bind(it[2], elapsed, 0), bind(it[3], elapsed, 0))
+            }
+    }
 
     override fun calls(ids: IntArray, nowMs: Long): List<ByteArray> {
         require(ids.size == resources.size)
@@ -42,7 +54,7 @@ class FrameDisplayList private constructor(
         fun resource(index: Int) = if (index == DrawProtocol.SCREEN) index else ids[index]
         return commands.map { c ->
             val v = c.values
-            val clip = c.clip?.translated(x, y)
+            val clip = c.clip?.placed(elapsed, x, y)
             when (c.op) {
                 DRAW_OP_ROUNDED_RECT -> DrawProtocol.roundedRect(bind(c.x, elapsed, x), bind(c.y, elapsed, y),
                     v[0], v[1], v[2], v[3], v[4], depth + c.depth, clip, v[5].takeIf { it != DRAW_ROUNDED_RECT_NO_OUTSIDE })
@@ -55,6 +67,8 @@ class FrameDisplayList private constructor(
                     bind(c.y, elapsed, if (v[0] == DrawProtocol.SCREEN) y else 0),
                     v[1], v[2], bind(c.dx, elapsed, x), bind(c.dy, elapsed, y), depth = depth + c.depth, clip = clip)
                 DRAW_OP_CLEAR -> DrawProtocol.clear(v[0], clip = clip, depth = if (clip == null) null else depth + c.depth)
+                DRAW_OP_LINE -> DrawProtocol.line(bind(c.x, elapsed, x), bind(c.y, elapsed, y),
+                    bind(c.dx, elapsed, x), bind(c.dy, elapsed, y), v[0], depth = depth + c.depth, clip = clip)
                 else -> error("Unsupported frame display-list opcode")
             }
         }
@@ -68,6 +82,8 @@ class FrameDisplayList private constructor(
         private const val DRAWS = 32
         /** Bridge opcode bit: an x/y s16, w/h u16 clip rect follows the call's depth. */
         private const val CLIPPED = 128
+        /** Bridge opcode bit (revision 45): the clip follows as four extended values instead. */
+        private const val CLIP_ANIMATED = 64
         private const val IMAGE_OPTIONS = CFW_TEXTURE_OPT_BRIGHTNESS_MASK or CFW_TEXTURE_OPT_TRANSPARENT
 
         private fun bind(value: DrawValue, elapsed: Int, offset: Int): DrawValue {
@@ -99,7 +115,7 @@ class FrameDisplayList private constructor(
          * snapshot cannot hold every glyph this call needs.
          */
         private fun compileDraws(glyphs: List<GlyphRecord>, images: List<ImageRecord>, x: DrawValue, y: DrawValue,
-                depth: Int, clip: DrawClip?, resource: (CachedResource) -> Int, out: MutableList<Command>): Boolean {
+                depth: Int, clip: Clip?, resource: (CachedResource) -> Int, out: MutableList<Command>): Boolean {
             for (image in images) {
                 val entry = ImageAtlas.get(image.imageId) ?: return false
                 out.add(Command(DRAW_OP_IMAGE, depth, intArrayOf(resource(entry.resource), image.x, image.y, IMAGE_OPTIONS),
@@ -178,9 +194,12 @@ class FrameDisplayList private constructor(
             val commands = ArrayList<Command>()
             var replayable = true
             repeat(count) {
-                val header = r.readU8(); val op = header and CLIPPED.inv()
+                val header = r.readU8(); val op = header and (CLIPPED or CLIP_ANIMATED).inv()
                 val d = r.readS16(); require(depth + d in -128..127)
-                val clip = if (header and CLIPPED != 0) DrawClip(r.readS16(), r.readS16(), r.readU16(), r.readU16()) else null
+                require(header and CLIPPED == 0 || header and CLIP_ANIMATED == 0)
+                val clip = if (header and CLIPPED != 0) Clip(DrawClip(r.readS16(), r.readS16(), r.readU16(), r.readU16()))
+                    else if (header and CLIP_ANIMATED != 0) Clip(null, List(4) { value() })
+                    else null
                 when (op) {
                     DRAW_OP_ROUNDED_RECT -> {
                         val xx = value(); val yy = value()
@@ -206,6 +225,11 @@ class FrameDisplayList private constructor(
                     DRAW_OP_CLEAR -> {
                         val color = r.readU8(); require(color in 0..15)
                         commands.add(Command(op, d, intArrayOf(color), clip = clip))
+                    }
+                    DRAW_OP_LINE -> {
+                        val x0 = value(); val y0 = value(); val x1 = value(); val y1 = value()
+                        val color = r.readU8(); require(color in 0..15)
+                        commands.add(Command(op, d, intArrayOf(color), x0, y0, x1, y1, clip = clip))
                     }
                     DRAWS -> {
                         val xx = value(); val yy = value()

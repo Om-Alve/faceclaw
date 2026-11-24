@@ -6,6 +6,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 private const val RIGHT = "AA:00:00:00:00:01"
@@ -416,6 +417,121 @@ class GlassesSessionCoreTest {
         s.core.disconnect()
     }
 
+    /** One shell layer the size of a status bar, lit at [lit]; see ShellScene.decode for the layout. */
+    @Test fun mergedCompositorCallsGoOutWithTheNextUnmergedOne() {
+        val s = Session()
+        s.core.configureCompositorScreen(160, 96)
+        s.core.configureSurface("old", 0, 0, 64, 32, 0, SurfaceCompositor.TRANSPARENCY_OPAQUE)
+        s.core.configureSurface("new", 0, 0, 64, 32, 0, SurfaceCompositor.TRANSPARENCY_OPAQUE)
+        s.core.setSurfaceVisible("new", false)
+        fun frame(surface: String, value: Int, frameId: Int, merge: Boolean) = s.core.submitSurfaceFrame(
+            ArrayByteReader(ByteArray(64 * 32) { value.toByte() }), surface, 0, 0, 64, 32, "$surface-$value", 0, frameId, null, merge)
+        fun desired() = s.core.desiredTilesLock.locked { s.core.desiredFrameId to s.core.desiredFingerprint }
+        fun topLeft() = s.core.desiredTilesLock.locked { s.core.desiredGray!![0].toInt() and 255 }
+        val before = s.frameTimings.startFrame("render:old")
+        frame("old", 0x70, before, false)
+        val shown = desired()
+        assertEquals(before, shown.first)
+        assertEquals(0x70, topLeft())
+
+        // A window switch. Unmerged, the first of these went to the glasses as a frame of its
+        // own: the old window blanked out, with a present to wait for before the new one.
+        val finishedBefore = s.listener.finished.size
+        val window = s.frameTimings.startFrame("render:new")
+        s.core.setSurfaceVisible("old", false, true)
+        s.core.setSurfaceVisible("new", true, true)
+        frame("new", 0xf0, window, true)
+        assertEquals(shown, desired())
+        assertFalse(s.core.isSurfaceCurrent("new", "new-240"), "its content has not reached a composite yet")
+        val shell = s.frameTimings.startFrame("render:shell")
+        s.core.submitShellScene(ArrayByteReader(shellScene(3)), 0, shell)
+        assertEquals(shell, desired().first)
+        assertEquals(0xf0, topLeft())
+        assertTrue(s.core.isSurfaceCurrent("new", "new-240"))
+        assertEquals(listOf("$before:discarded: superseded by frame#$shell before send", "$window:discarded: merged into frame#$shell"),
+            s.listener.finished.drop(finishedBefore))
+
+        // Left without a call to composite for it, a merged change goes out with a flush.
+        s.core.setSurfaceVisible("new", false, true)
+        assertEquals(0xf0, topLeft())
+        s.core.submitComposite()
+        assertEquals(0, topLeft())
+    }
+
+    private fun shellScene(lit: Int, dim: Int = 256): ByteArray {
+        val width = 40
+        val height = 6
+        val gray = ByteArray(width * height) { if (it % width == lit) 0xf0.toByte() else 0x30 }
+        return DrawProtocol.word(1) + DrawProtocol.word(7) + DrawProtocol.word(8) + DrawProtocol.word(2) +
+            DrawProtocol.word(width) + DrawProtocol.word(height) + DrawProtocol.word(dim) + DrawProtocol.word(0) +
+            DrawProtocol.word(0) + gray + DrawProtocol.word(0)
+    }
+
+    @Test
+    fun screenRecordingStartedMidSessionReplaysToThePhonesComposite() {
+        val s = Session()
+        // A small screen keeps the fixture this test leaves for the visualizer's tests small.
+        s.core.configureCompositorScreen(160, 96)
+        s.core.configureSurface("s", 0, 0, 64, 32, 0, SurfaceCompositor.TRANSPARENCY_OPAQUE)
+        s.startAndAwaitLayout()
+        s.core.monitor.withLock { s.core.customFirmwareDetected = true }
+        try {
+            // Before the recording: an app frame and a shell layer, so the glasses already hold
+            // screen pixels, a surface resource and a root list when it starts.
+            s.submitFrame(100, 0x70, 0)
+            s.core.submitShellScene(ArrayByteReader(shellScene(3)), 0, 0)
+            assertTrue(waitUntil(5_000) { s.displayedMatchesDesired() }, s.host.logs().takeLast(20).toString())
+            assertNull(s.core.stopScreenRecording())
+
+            s.core.startScreenRecording()
+            s.core.startScreenRecording() // already running: ignored
+            val input = s.frameTimings.startFrame("input:test tap")
+            s.submitFrame(101, 0xf0.toByte(), input)
+            assertTrue(waitUntil(5_000) { s.displayedMatchesDesired() }, s.host.logs().takeLast(20).toString())
+            val shell = s.frameTimings.startFrame("render:shell", input)
+            s.core.submitShellScene(ArrayByteReader(shellScene(20, 128)), 0, shell)
+            assertTrue(waitUntil(5_000) { s.displayedMatchesDesired() }, s.host.logs().takeLast(20).toString())
+            s.core.recordScreenFrame() // messages say what is on the screen: no composite is taken
+            val recorder = assertNotNull(s.core.stopScreenRecording())
+            assertNull(s.core.stopScreenRecording())
+            assertFalse(recorder.isTruncated)
+
+            val text = recorder.encodeToString()
+            val replay = RecordingReplay(text).run()
+            assertEquals("g2", replay.header["glasses"])
+            assertEquals(160, replay.header["width"].asInt())
+            // The state dump alone reproduces the starting screen, and the messages the final one.
+            val state = replay.ofType("state").single()
+            assertEquals(ScreenRecorder.LENS_BOTH, state["lenses"].asInt())
+            assertTrue(state["resources"].asArray()!!.any { it.asObject()!!["owner"] == "shell:7:40x6" })
+            val screens = replay.ofType("screen")
+            assertEquals(listOf("phone", "phone"), screens.map { it["source"] })
+            val started = RecordingReplay(text.lines().takeWhile { !it.startsWith("{\"type\":\"msg\"") }.joinToString("\n")).run()
+            val first = replay.decodeScreen(screens.first())
+            assertContentEquals(first, started.lenses[0].composition)
+            assertContentEquals(replay.lastScreen(), replay.lenses[0].composition)
+            assertContentEquals(replay.lenses[0].composition, replay.lenses[1].composition)
+            assertFalse(first.contentEquals(replay.lastScreen()))
+
+            // Every display message carries the frame that produced it, and both frames are in the log.
+            val display = replay.ofType("msg").filter { it["kind"] == "image" || it["kind"] == "resources" }
+            assertTrue(display.size >= 4, display.toString())
+            assertEquals(setOf(input, shell), display.map { it["frame"].asInt() }.toSet())
+            assertTrue(display.none { it["baseline"] == true })
+            assertEquals(listOf(input, shell), replay.ofType("frame").map { it["id"].asInt() })
+            assertEquals(setOf(input, shell), replay.ofType("frame-end").filter { it["outcome"] == "sent" }.map { it["id"].asInt() }.toSet())
+            for (message in display) {
+                val id = message["id"]
+                assertEquals(1, replay.ofType("sent").count { it["id"] == id && it["ok"] == true })
+                assertEquals(listOf(1, 2), replay.ofType("lens-ack").filter { it["id"] == id }.map { it["lens"].asInt() })
+                assertEquals(1, replay.ofType("ack").count { it["id"] == id })
+            }
+            assertTrue(replay.ofType("log").any { (it["text"] as String).startsWith("queue image update#") })
+            assertEquals("end", replay.records.last()["type"])
+            writeRecordingFixture("session.fcrec.jsonl", text)
+        } finally { s.core.close() }
+    }
+
     @Test
     fun heartbeatAndLeaseRenewalFollowTheClock() {
         val s = Session()
@@ -468,6 +584,162 @@ class GlassesSessionCoreTest {
         val ready = byteArrayOf(70, 67, 1, BleProtocol.FACECLAW_WAKE_OP_READY.toByte(), (nonce and 0xff).toByte(), (nonce ushr 8).toByte())
         assertEquals(2, s.link.writes.count { it.pb.containsSequence(ready) }, "READY written to both arms")
         s.core.disconnect()
+    }
+
+    @Test
+    fun faceclawFirmwareKeepsTheSessionAliveWithPrivateNoOps() {
+        val s = Session()
+        s.core.setRequiredFirmwareRevision(45)
+        s.link.firmwareExtension = "Faceclaw/45"
+        s.startAndAwaitLayout()
+        try {
+            fun keepalives() = s.link.writes.filter { it.kind == "keepalive" }
+            // Entering EvenHub was a private message, and its ACK reset the stock keepalive:
+            // no heartbeat follows the layout.
+            sleepMs(300)
+            assertEquals(0, keepalives().size)
+            s.platform.offsetMs += ConnectionOptions.HEARTBEAT_READY_MS + 100L
+            s.core.interruptibleSleep.interrupt()
+            assertTrue(waitUntil(3_000) { keepalives().size == 1 }, s.host.logs().takeLast(10).toString())
+            val keepalive = keepalives().single()
+            assertEquals(CfwTransport.SID, keepalive.sid)
+            assertContentEquals(byteArrayOf(CFW_MSG_DIAGNOSTICS.toByte(), CFW_DIAGNOSTICS_NOOP.toByte()), keepalive.message)
+            assertTrue(waitUntil(3_000) { s.host.hasLog("Got ACK for keepalive") })
+            sleepMs(300)
+            assertEquals(1, keepalives().size, "its ACK restarts the clock")
+            assertEquals(0, s.link.writes.count { it.kind == "heartbeat" }, "the stock heartbeat is never sent")
+        } finally { s.core.close() }
+    }
+
+    @Test
+    fun theGlassesKeepTheirResourcesAcrossASuspend() {
+        val s = Session()
+        s.core.setRequiredFirmwareRevision(45)
+        s.link.firmwareExtension = "Faceclaw/45"
+        s.core.configureCompositorScreen(160, 96)
+        s.core.configureSurface("s", 0, 0, 64, 32, 0, SurfaceCompositor.TRANSPARENCY_OPAQUE)
+        s.startAndAwaitLayout()
+        try {
+            s.submitFrame(100, 0x70, 1)
+            s.core.submitShellScene(ArrayByteReader(shellScene(3)), 0, 0)
+            fun displayCommands() = s.link.writes
+                .filter { it.sid == CfwTransport.SID && (it.kind == "resources" || it.kind == "image") }
+                .map { it.message!![0].toInt() and CFW_MSG_TYPE_MASK }
+            assertTrue(waitUntil(5_000) { s.displayedMatchesDesired() && CFW_MSG_CREATE_SURFACE in displayCommands() },
+                s.host.logs().takeLast(20).toString())
+            /** Suspend, resume and return the display commands that put the same frame back. */
+            fun sleepAndWake(): List<Int> {
+                val before = displayCommands().size
+                assertTrue(s.core.suspendEvenHubSession())
+                assertTrue(s.core.resumeEvenHubSession())
+                assertTrue(waitUntil(5_000) {
+                    s.layoutCreated() && s.displayedMatchesDesired() &&
+                        displayCommands().size > before && displayCommands().last() == CFW_MSG_PRESENT
+                }, s.host.logs().takeLast(20).toString())
+                return displayCommands().drop(before)
+            }
+            // Nothing to evict, create, upload or draw again: the frame is presented as it stands.
+            assertEquals(listOf(CFW_MSG_PRESENT), sleepAndWake())
+            // The page's exit event, which the glasses send after a suspend, ends the page only.
+            assertTrue(s.core.suspendEvenHubSession())
+            val exit = BleProtocol.encodeVarintField(1, 2) + BleProtocol.encodeBytesField(13,
+                BleProtocol.encodeBytesField(3, BleProtocol.encodeVarintField(1, BleProtocol.EVENT_SYSTEM_EXIT)))
+            s.core.onNotification(RIGHT, BleProtocol.NOTIFY_CHAR_UUID,
+                BleProtocol.framePb(exit, BleProtocol.SID_EVENHUB, BleProtocol.FLAG_NOTIFY, 11)[0])
+            assertTrue(s.core.monitor.withLock { s.core.lastShutdownExitAtMs > 0 }, "the exit event was handled")
+            assertEquals(listOf(CFW_MSG_PRESENT), sleepAndWake())
+        } finally { s.core.close() }
+    }
+
+    @Test
+    fun aScreenOffFadesOutAheadOfItsBlankFrameAndAWakeInBetweenNeverSendsIt() {
+        val fadeMs = 1500
+        // The fade, and the tick the glasses can take to start it.
+        val holdMs = fadeMs + BRIGHTNESS_TICK_MS
+        val s = Session()
+        s.core.setRequiredFirmwareRevision(45)
+        s.link.firmwareExtension = "Faceclaw/45"
+        s.core.configureBrightness(false, 70, 2, 100, "0:0,1000:100", fadeMs)
+        s.core.configureCompositorScreen(160, 96)
+        s.core.configureSurface("s", 0, 0, 64, 32, 0, SurfaceCompositor.TRANSPARENCY_OPAQUE)
+        s.startAndAwaitLayout()
+        try {
+            fun type(write: Write) = write.message?.firstOrNull()?.toInt()?.and(CFW_MSG_TYPE_MASK)
+            fun display() = s.link.writes
+                .filter { it.sid == CfwTransport.SID && it.address == LEFT && (it.kind == "resources" || it.kind == "image") }
+                .map { type(it) }
+            fun outputs() = s.link.writes.filter { it.address == LEFT && it.kind == "brightness-output" }
+            s.submitFrame(1, 0x70, 1)
+            assertTrue(waitUntil(5_000) { s.displayedMatchesDesired() }, s.host.logs().takeLast(20).toString())
+            val shown = display().size
+            s.core.setScreenBlanked(true)
+            // The glasses start fading at once, and keep the frame they have to animate.
+            assertTrue(waitUntil(5_000) { outputs().lastOrNull()?.message?.get(3) == 0.toByte() }, s.host.logs().takeLast(20).toString())
+            assertContentEquals(byteArrayOf(30, 1, 70, 0, fadeMs.toByte(), (fadeMs shr 8).toByte()), outputs().last().message)
+            assertFalse(waitUntil(300) { display().size > shown }, "the blank frame waits for the fade")
+            assertTrue(s.host.hasLog("holding the blank frame ${holdMs}ms for the fade-out"))
+            // Woken mid-fade: the blank frame is never sent. The frame the glasses hold is the
+            // one wanted, so a bare PRESENT gives them something to fade back in on.
+            s.core.setScreenBlanked(false)
+            // (The frame on the glasses never stopped being the wanted one, so wait for the PRESENT itself.)
+            assertTrue(waitUntil(5_000) { outputs().last().message!![3] == 1.toByte() && display().size > shown && s.displayedMatchesDesired() },
+                s.host.logs().takeLast(20).toString())
+            assertEquals(listOf<Int?>(CFW_MSG_PRESENT), display().drop(shown))
+            val writes = s.link.writes.filter { it.address == LEFT }
+            assertTrue(writes.indexOfLast { it.kind == "brightness-output" } < writes.indexOfLast { it.message?.firstOrNull() == CFW_MSG_PRESENT.toByte() },
+                "the wake's brightness precedes its PRESENT")
+            // Left to run out, the fade is followed by the blank frame.
+            val awake = display().size
+            s.core.setScreenBlanked(true)
+            assertTrue(waitUntil(5_000) { outputs().last().message!![3] == 0.toByte() })
+            assertFalse(waitUntil(200) { display().size > awake })
+            s.platform.offsetMs += holdMs
+            s.core.interruptibleSleep.interrupt()
+            assertTrue(waitUntil(5_000) { s.displayedMatchesDesired() && display().size > awake }, s.host.logs().takeLast(20).toString())
+            assertEquals(CFW_MSG_PRESENT, display().last())
+            assertTrue(CFW_MSG_DRAW_CALLS in display().drop(awake), "the blank frame's pixels")
+            val visibility = outputs().map { it.message!![3].toInt() }
+            assertEquals(listOf(0, 1, 0), visibility.filterIndexed { i, v -> i == 0 || visibility[i - 1] != v }.takeLast(3))
+        } finally { s.core.close() }
+    }
+
+    @Test
+    fun aSessionStartsInOneMessageAndAResumeLeavesThePreludeToTheGlasses() {
+        val s = Session()
+        s.core.setRequiredFirmwareRevision(45)
+        s.link.firmwareExtension = "Faceclaw/45"
+        s.core.configureCompositorScreen(160, 96)
+        s.core.configureSurface("s", 0, 0, 64, 32, 0, SurfaceCompositor.TRANSPARENCY_OPAQUE)
+        s.startAndAwaitLayout()
+        try {
+            fun type(write: Write) = write.message?.firstOrNull()?.toInt()?.and(CFW_MSG_TYPE_MASK)
+            fun sessionStarts() = s.link.writes.filter { it.sid == CfwTransport.SID && type(it) == CFW_MSG_SESSION_START }
+            fun displayCommands() = s.link.writes
+                .filter { it.sid == CfwTransport.SID && (it.kind == "resources" || it.kind == "image") }
+                .map { type(it) }
+            val start = sessionStarts().single().message!!
+            // [34][9][passive ALS][6][brightness], in place of the separate controls.
+            assertEquals(listOf(9, CFW_MSG_AMBIENT_LIGHT, 6, CFW_MSG_BRIGHTNESS),
+                listOf(start[1].toInt(), start[2].toInt(), start[11].toInt(), start[12].toInt()))
+            assertEquals(2 + 9 + 1 + 6, start.size)
+            s.submitFrame(100, 0x70, 1)
+            s.core.submitShellScene(ArrayByteReader(shellScene(3)), 0, 0)
+            assertTrue(waitUntil(5_000) { s.displayedMatchesDesired() && CFW_MSG_CREATE_SURFACE in displayCommands() },
+                s.host.logs().takeLast(20).toString())
+            assertEquals(0, s.link.writes.count { it.kind == "brightness-output" }, "the session start set the brightness")
+
+            val preludes = s.link.writes.count { it.kind == "prelude" }
+            val before = displayCommands().size
+            assertTrue(s.core.suspendEvenHubSession())
+            assertTrue(s.core.resumeEvenHubSession())
+            assertTrue(waitUntil(5_000) {
+                s.layoutCreated() && s.displayedMatchesDesired() &&
+                    displayCommands().size > before && displayCommands().last() == CFW_MSG_PRESENT
+            }, s.host.logs().takeLast(20).toString())
+            assertEquals(listOf(CFW_MSG_PRESENT), displayCommands().drop(before))
+            assertEquals(preludes, s.link.writes.count { it.kind == "prelude" }, "the glasses run the prelude")
+            assertEquals(2, sessionStarts().size)
+        } finally { s.core.close() }
     }
 
     @Test
@@ -694,7 +966,7 @@ class GlassesSessionCoreTest {
     }
 
     @Test
-    fun customFirmwareEntersEvenHubOnEverySessionInsteadOfCreatingTheLayout() {
+    fun customFirmwareStartsItsSessionTheSameWayEveryTimeInsteadOfCreatingTheLayout() {
         val s = Session()
         s.core.setRequiredFirmwareRevision(37)
         s.link.firmwareExtension = "Faceclaw/37"
@@ -703,10 +975,10 @@ class GlassesSessionCoreTest {
             fun enters() = s.link.writes.filter { it.kind == "enter-evenhub" }
             assertEquals(1, enters().size)
             assertEquals(CfwTransport.SID, enters()[0].sid)
-            assertContentEquals(byteArrayOf(CFW_MSG_ENTER_EVENHUB.toByte()), enters()[0].message)
+            assertEquals(CFW_MSG_SESSION_START.toByte(), enters()[0].message!![0])
             // The settings reply that identifies the firmware comes first.
             assertTrue(s.link.writes.indexOfFirst { it.kind == "battery" } < s.link.writes.indexOf(enters()[0]))
-            // A reconnect may find the previous session's page still up. Mode 31
+            // A reconnect may find the previous session's page still up. The session start
             // ACKs in that state, so the session is entered the same way again.
             s.core.handleTransportFailure("test drop")
             assertTrue(waitUntil(5_000) { !s.layoutCreated() })
@@ -722,8 +994,8 @@ class GlassesSessionCoreTest {
     @Test
     fun aLinkTheSystemWouldKeepIsHungUpByTheGlassesOnDisconnect() {
         val s = Session()
-        s.core.setRequiredFirmwareRevision(40)
-        s.link.firmwareExtension = "Faceclaw/41"
+        s.core.setRequiredFirmwareRevision(45)
+        s.link.firmwareExtension = "Faceclaw/45"
         s.link.keepsLink = true
         s.startAndAwaitLayout()
         s.core.disconnect()
@@ -742,23 +1014,21 @@ class GlassesSessionCoreTest {
     }
 
     @Test
-    fun olderFirmwareIsNotAskedToHangUp() {
+    fun armsNeverIdentifiedAsRunningFaceclawsFirmwareAreNotAskedToHangUp() {
         val s = Session()
-        s.core.setRequiredFirmwareRevision(40)
-        s.link.firmwareExtension = "Faceclaw/40"
         s.link.keepsLink = true
         s.startAndAwaitLayout()
         s.core.close()
         assertEquals(0, s.link.releases.size)
         assertEquals(listOf(RIGHT, LEFT), s.link.disconnected.take(2))
-        assertTrue(s.host.hasLog("not asking the right arm to hang up (needs Faceclaw/41, it reports Faceclaw/40)"), s.host.logs().takeLast(10).toString())
+        assertTrue(s.host.hasLog("not asking the right arm to hang up (needs Faceclaw's firmware, it reports nothing)"), s.host.logs().takeLast(10).toString())
     }
 
     @Test
     fun aLinkThatDropsOnDisconnectIsNotAskedToHangUp() {
         val s = Session()
-        s.core.setRequiredFirmwareRevision(40)
-        s.link.firmwareExtension = "Faceclaw/41"
+        s.core.setRequiredFirmwareRevision(45)
+        s.link.firmwareExtension = "Faceclaw/45"
         s.startAndAwaitLayout()
         s.core.close()
         assertEquals(0, s.link.releases.size)
@@ -768,8 +1038,8 @@ class GlassesSessionCoreTest {
     @Test
     fun anArmAFailedSessionAlreadyLetGoOfIsStillAskedToHangUp() {
         val s = Session()
-        s.core.setRequiredFirmwareRevision(40)
-        s.link.firmwareExtension = "Faceclaw/41"
+        s.core.setRequiredFirmwareRevision(45)
+        s.link.firmwareExtension = "Faceclaw/45"
         s.link.keepsLink = true
         s.startAndAwaitLayout()
         // The session fails and cancels both arms; the user disconnects before the redial.

@@ -22,12 +22,58 @@ class CfwMessageWindow private constructor() {
         fun ackDeadline(sentAtMs: Long, lastArmWriteAtMs: Long, lastArmAckAtMs: Long): Long =
             maxOf(lastArmWriteAtMs + DATA_STALL_MS, maxOf(sentAtMs, lastArmAckAtMs) + ACK_STALL_MS)
 
-        /** ID reuse must not invalidate an earlier command still eligible for replay. */
+        /**
+         * Past ConnectionOptions.WINDOW_SIZE messages in flight, the window still takes small
+         * private-stream messages, up to this many in flight. A wake or a menu move is mostly
+         * one-packet controls (brightness, root, present, small uploads), each costing an ACK
+         * round trip of ~30 ms on the left lens and up to ~140 ms through the right; three at
+         * a time serialized them.
+         */
+        const val SMALL_MESSAGE_WINDOW = 8
+        /** The largest logical message the extended window takes: a packet or two on the wire. */
+        const val SMALL_MESSAGE_BYTES = 512
+
+        /**
+         * Whether [candidate] may join a window already holding ConnectionOptions.WINDOW_SIZE
+         * messages: it is a small private-stream message and so is everything in flight (stock
+         * messages keep their own pacing), under [SMALL_MESSAGE_WINDOW]. Larger messages still
+         * go out only with fewer than WINDOW_SIZE in flight, so no more of them are ever
+         * outstanding than before, and what this adds to the queue on the inter-lens bridge is
+         * at most a few small messages.
+         */
+        @JvmStatic
+        fun admitsSmallMessage(inFlight: Collection<OutboundMessage>, candidate: OutboundMessage): Boolean =
+            candidate.sid == CfwTransport.SID && candidate.message.size <= SMALL_MESSAGE_BYTES &&
+                inFlight.size < SMALL_MESSAGE_WINDOW && inFlight.all { it.sid == CfwTransport.SID }
+
+        /**
+         * ID reuse must not invalidate an earlier command still eligible for replay. Recovery
+         * replays the whole unresolved window, so a lens that already ran an eviction (and
+         * maybe a reuse of its IDs) runs the earlier commands again; one that names a resource
+         * could then fail, repeatedly, or touch the wrong one. So an eviction waits for those,
+         * but not for commands that name none: the root clear that precedes every eviction,
+         * presents and the non-drawing controls.
+         */
         @JvmStatic
         fun canSend(messages: Iterable<OutboundMessage>, candidate: OutboundMessage): Boolean =
             candidate.sid != CfwTransport.SID ||
                 candidate.message.firstOrNull()?.toInt() != ResourceCacheState.EVICT_MODE ||
-                messages.none { it.sid == CfwTransport.SID }
+                messages.all { replaysSafelyAfterEviction(it) }
+
+        /** Whether [message] names no resource ID, so replaying it after an eviction is harmless. */
+        private fun replaysSafelyAfterEviction(message: OutboundMessage): Boolean {
+            if (message.sid != CfwTransport.SID) return true
+            val payload = message.message
+            if (payload.isEmpty()) return false
+            return when (payload[0].toInt() and CFW_MSG_TYPE_MASK) {
+                CFW_MSG_SET_ROOT_DISPLAY_LIST -> payload.size == 3 && DrawProtocol.u16(payload, 1) == DrawProtocol.SCREEN
+                CFW_MSG_PRESENT, CFW_MSG_BRIGHTNESS, CFW_MSG_AMBIENT_LIGHT, CFW_MSG_DIAGNOSTICS,
+                CFW_MSG_ENTER_EVENHUB, CFW_MSG_SESSION_START, CFW_MSG_COMPASS, CFW_MSG_RING_BATTERY,
+                CFW_MSG_BUZZER -> true
+                // Uploads, evictions, surfaces, draws, retired cached draws, anything unknown.
+                else -> false
+            }
+        }
 
         @JvmStatic
         fun acknowledgedHead(messages: Iterable<OutboundMessage>): OutboundMessage? {
